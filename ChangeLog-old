@@ -1,0 +1,879 @@
+Changes:
+  Sep 25, 2017:
+    1. try more C++11 syntaxs in sql_checker module, and the windows
+        compiler is updated to vs2015.
+
+    2. updated to v2.02.15 alpha
+
+  Sep 22, 2017:
+    1. added stl native regex API usage in 'sql_checker' module,
+        set USE_STL_REGEX=1 to enable it, and it's used as the 
+        unique choice at Windows now.
+
+  Sep 15, 2017:
+    1. use smart pointers to replace the usages of dynamic memory.
+
+  Sep 14, 2017:
+    1. seperates the major modules into several .cpp files
+
+    2. remove usages of 'USE_MYSQLC' macros
+
+    3. updated to v2.02.14 alpha
+
+  Sep 6, 2017:
+    1. modify rlogon() process in which login in withou db name is permitted
+
+  Sep 1, 2017:
+    1. modified function sql_tree::copy_const_str() to support spaces 
+        in constant string
+
+  Aug 28, 2017:
+    1. added support for the mathimatic operator '%'
+
+  Aug 17, 2017:
+    1. modified return type of sql_tree::find_in_tree(stxNode*,char*) from
+        bool to stxNode* type
+
+    2. updated to v2.02.13 alpha
+
+  May 4, 2017:
+    1. mysqlc updated to 1.00.13 alpha, so  update version to v2.02.12 alpha
+
+  Mar 20, 2017:
+    1. added support for the following bit operators:
+
+        |, &, ~, ^, >>, <<
+
+    2. updated version to v2.02.11 alpha
+
+  Mar 13, 2017:
+    1. bug-fixed while doing adaption with 'start with/connect by' with 
+        'order by' clouse which is placed at the wrong position of statement, 
+        fixed it.
+
+    2. add support for the extended style for 'connect by' clouse like:
+
+        ... connect by a=[prior]b and c=d
+                                  ^^^^^^^
+
+  Feb 27, 2017:
+    1. fixed a memory leak bug in mysqlc when reading result-sets
+        under fast-rx mode
+
+    2. also updated the moudle 'tookits'
+  
+  Feb 10, 2017:
+    1. mysqlc source is updated, so update to v2.02.10 alpha
+
+  Feb 4, 2017:
+    1. mysqlc source is updated, so update to v2.02.09 beta
+
+  Jan 10, 2016:
+    1. update the value of constant item 'TKNLEN' from 64 to 68
+
+  Dec 1, 2016:
+    1. added a new type 'mysql_datetime' in mysql_stream, also added 
+        new placeholder type 'datetime'
+
+    2. update version to v2.02.08 beta
+
+  Nov 24, 2016:
+    1. fixed a bug in lenenc_int_get() of toolkits module which gets 
+        wrong length number from length-encode-integers.
+
+    2. execute get_column_info() by determining execution mode which 
+        is query or prepare 
+
+    3. add db reconnection machanism to query mode
+
+    4. update myitf to v2.02.07 beta
+
+  Nov 22, 2016:
+    1. bugfix: in sql_checker::check_stmt_list, the column count checking 
+        was not performed if a select statement in value list. fixed it.
+
+    2. updated myitf source to v2.02.07 alpha
+
+  Nov 8, 2016:
+    1. added helper functions mysql_stream::num_rows() and 
+        mysql_conn::num_colmuns()
+
+  Oct 11, 2016:
+    1. mysqlc is updated, so updated source to v2.02.06_4
+
+  Sep 14, 2016:
+    1. add error recovery machanism in string constant processing, 
+        when the string is unterminated or longer than 'TKNLEN'
+
+    2. add iterator boundary check in function sql_tree::str_test_subquery()
+        when searching for the statement
+
+    3. add iterator boundary check in function tree_serializer::eliminate_comments()
+        when searching for the statement
+
+    4. updated source to v2.02.06_3 alpha
+
+  Sep 12, 1016:
+    1. mysqlc source has alphabetic changes, so update myitf source
+        to v2.02.06_2 alpha
+
+  Sep 8, 2016:
+    1. added 'desc <target>' syntax support
+
+    2. mysqlc source is updated to v1.00.09 beta, also update myitf
+        source to v2.02.06_1 alpha
+
+  Sep 2, 2016:
+    1. added 'show <target list>' syntax support
+
+  Aug 30, 2016:
+    1. added mysql_conn::get_column_info() for 'sqlviewer' use
+
+  Aug 25, 2016:
+    1. added fully building support for myitf-2.2 under windows 
+        with zlib, regex and openssl
+    2. updated reversion to v2.02.06 beta
+
+  Aug 22, 2016:
+    1. made 'sql_checker' class available under windows with 
+        GNU-REGEX library compiled
+
+  Aug 12, 2016:
+    1. added an temporary version v2.02.05 alpha, for development
+        of 'SqlViewer', also added __SQL_ADAPTION_ONLY__ macro for
+        the sql-statement-adaption process
+
+  Aug 5, 2016:
+    1. merged folowing requirements from v2.00.22 source: 
+
+        . when calling oracle function to_char() with only 1 argument,
+           assuming input as digit form and adapts it with mysql cast()
+           call; when calling with 2 arguments, then assuming input as 
+           date-time format and adapts it with mysql date_format() call.
+
+        . when calling oracle function to_number() with 2nd argument '999.000'
+           then the 1st argument will be converted to a floating point digit.
+
+
+  Aug 4, 2016:
+    1. mysqlc library fixed some memory leak cases and 
+        updated to a new version
+
+    2. myitf updated to v2.02.04 beta
+
+  Jul 29, 2016:
+    1. updated a new version of mysqlc library
+
+    2. myitf updated to v2.02.04 alpha
+
+  Jul 21, 2016:
+    1. removed 'send long data' call within reconnect()
+
+    2. the statement object is not considered to be 'disconnected' when
+        it's never initialized before
+
+  Jul 20, 2016:
+    1. rename vs solutions to 'myitf.vcxproj' and 'mysql_test.vcxproj' 
+        and rebuild windows reversion under v2.02.xx branch
+
+    2. merge mysqlc source into myitf source tree
+
+    3. updated myitf version to v2.02.03 beta, mysqlc version 
+        to v1.00.08 beta
+
+  Jul 18, 2016:
+    1. modified reconnection process in mysql_prep::reconnect()
+
+    2. updated version to v2.02.03 alpha
+
+  Jul 14, 2016:
+    1. restore the process in mysql_prep::reconnect() while 
+        runing under 'libmysqlclient.a'
+
+    2. added new 'reconnect' process for case under 'libmysqlc.a'
+
+    3. updated version to v2.02.02 alpha
+
+  Jul 11, 2016:
+    1. eliminated process in mysql_prep::reconnect(), leaving
+        reconnection jobs for upper apps.
+
+  Jul 5, 2016:
+    1. almost all mysqlc APIs works fine
+
+    2. modify Makefile to support switching of 
+        'mysqlc'/'mysqlclient'  building
+
+    3. updated version number to v2.02.01 beta
+
+
+  Jul 4, 2016:
+    1. test myitf with new mysql client library 'mysqlc'
+
+    2. created a new source branch v2.02.00 alpha
+
+  Jun 14, 2016:
+    1. fixed the following bugs: 
+
+        . when there're 1 more table items in 'update list' of
+           'update' statements, commas(',') are not added after
+           each items during syntax tree serializing process. 
+           fix it.
+
+        . when adapting '+=' operators, the left operands in sub-tree
+           form like ' <table>.<column> ' are not copying completely 
+           since sql_tree::dup_node() is used. fix it.
+
+  Jun 8, 2016:
+    1. added 'truncate' syntax support
+    2. updated version to v2.00.22 beta
+
+  May 25, 2016:
+    1. improved the syntax node copying mode in sql_tree::dup_node()
+    2. fix a boundary violation bug in sql_tree::parse_endpoint_item()
+    3. improved the token checking process in sql_tree::is_join_item()
+    4. fix a boundary violation bug in mysql_adpt::__mod_node_alias()
+    5. source version digit stays unchanged
+
+  May 24, 2016:
+    1. for transplating to windows(on a XP), did the following WHEN 
+        RUNNING ON WINDOWS PLATFORM ONLY:
+
+       . do a 'string ending test' in tns_parser::next_token() and
+          sql_tree::is_join_item()
+       . the TNS file opening mode now uses 'rb' instead of 'r' in
+          tns_parser::do_tns_parse()
+       . disable module 'sql_checker' 
+       . 'printd'  always writes to STDOUT, no log usage
+       . next_str() dose nothing
+
+    2. do the following coding improvements on both linux and windows:
+
+       . improved coding style of get_end_func() and get_kwp_func()
+       . improved the process of copying resulting substring in 
+          tns_parser::next_token()
+
+    3. updated version to v2.00.21 beta 
+
+
+  May 20, 2016:
+    1. try to transplant source code onto windows, built on vs2010
+
+    2. created an alpha version v2.00.20_1 
+
+  Apr 28, 2016:
+    1. added support for syntax 'like ... escape' as follows:
+
+        select xx from <table> where <column> like 'xxx' escape 'y'
+
+    2. added test case for the 'escape' syntax above
+
+
+  Apr 27, 2016:
+    1. disabled explosing the TNS string in mysql_conn::parse_conn_str()
+
+
+  Apr 22, 2016:
+    1. fix a leak case when releasing 'tNode' in sql_tree::parse_casewhen_stmt() 
+
+  Apr 21, 2016:
+    1. added regular expression support of 'regexp [binary]' 
+        in mysql style
+
+    2. added regular expression support of 'regexp(<string>,<pattern>[,'i'])'
+        in oracle style, and only 'i' is supported to be the 
+        controling argument
+
+    3. updated version to v2.00.20 beta
+
+
+  Apr 13, 2016:
+    1. added semicolon ';' support in tns_parser::next_token()
+
+    2. disabled the 'dynamic library installation' from makefile
+
+    3. add 'insert' statement support in this syntax:
+
+       insert into <tbl> select * from <tbl> ...
+
+    4. add test cases for the syntax above into mysql_test 
+
+
+  Apr 12, 2016:
+    1. added a bug-fix for the case when parsing an 'insert'
+        statement ending with ';' , the logic will go into
+        an infinite loop, like this:
+
+        insert into tbl(...) values(xxx) ;
+
+    2. added a bug-fix for 'rlogon' or 'sql prepare' failure 
+        in which the exceptions are not thrown correctly
+
+    3. updated version to v2.00.19 beta
+
+  Apr 8, 2016:
+    1. when running 'make install', also copy libmyitf.so to 
+        under 'tscode/lib/' 
+
+  Apr 6, 2016:
+    1. add validation checking of 'MYSQL' object before 
+        'mysql_stmt_init' call
+
+  Apr 2, 2016:
+    1. modified the logic in tns_parser::do_tns_parse() that using 
+        TNS file defined within 'TNS_CONF', or otherwise using the 
+        one at $MYSQL_HOME/network/admin/
+
+    2. modifed makefile to generate a dynamic link version of myitf
+
+    3. updated module version to v2.00.18 beta
+
+  Mar 24, 2016:
+    1. add support for nesting 'join' with 'union' statements, like:
+
+        select *from (
+          select A from tbl_a left join tbl_a1 
+          union
+          select B from tbl_b left join tbl_b1
+        ) aN
+        left join tbl_c ...
+
+    2. add test case for 'nesting joins with union'
+    3. updated debug version to 'v2.00.17_4_dbg'
+
+  Mar 22, 2016:
+    1. add support for storage procedure call
+
+    2. add test case for procedure call
+
+    3. updated debug version to 'v2.00.17_3_dbg'
+
+  Mar 21, 2016:
+    1. added support for function call syntax like: 
+       
+        select func(distinct arg_list...) 
+
+    2. updated debug version to 'v2.00.17_2_dbg'
+
+  Mar 18, 2016:
+    1. add support for nesting 'join' statements like:
+        select XX from (select XX from tbl_a left join tbl_b)a left join XXX
+
+    2. added 'join' and 'case..when' test cases in mysql_test.c
+
+    3. added a debug version 'v2.00.17_1_dbg'
+
+  Mar 17, 2016:
+    1. fixed bug of sql_tree::parse_casewhen_stmt() that copies sub tree
+        with 'dup_node()', but the 'dup_tree()' should be used
+
+  Mar 16, 2016:
+    1. fixed bug of sql_checker that a 'negative' variable 
+        is not valid, for example:
+
+      select sum(-id) from xxx_tbl ;  # this's invalid 
+
+  Mar 15, 2016:
+    1. improved the appearance of a exception message
+    2. updated reversion to v2.00.17 beta
+
+  Mar 1, 2016:
+    1. add lexical support for these operators: '<=' '>=' '<>' '!=' 
+        '+=' ':=' and '(+)' , also simplify the related process flow 
+        in get_op()
+    2. updated reversion to v2.00.16 beta
+
+  Feb 26, 2016:
+    1. add operator '!' support in tns_parser::next_token()
+
+  Feb 1, 2016:
+    1. fixed the bug of oracle join '(+)' was made confused
+
+  Jan 29, 2016:
+    1. add support for 'constant string to be alias'
+
+  Jan 28, 2016:
+    1. add place holder checking logic in sql_checker
+    2. add 'using' syntax support to 'join' clouse
+    3. add 'using' syntax support to 'delete' statement
+    4. add '\"' quoted constant string support
+
+  Jan 27, 2016:
+    1. add '`' character support while checking endpoint in sql_checker
+    2. add string concatenation operator '||' support
+    3. add operator 'between' syntax
+    4. add support for 'having' syntax
+    5. add support for 'cross join' syntax, also the 'join' expressions
+        without 'on' list
+
+  Jan 26, 2016:
+    1. do endpoint checking by regular expression in class sql_checker
+
+  Jan 25, 2016:
+    1. add 'update list' alias support in class sql_checker 
+        for 'update' statements
+    2. add 'format list' and 'values list' item number checking 
+        of 'insert' statements
+    3. improved the log machanism that removed module name input from
+        upper user interfaces, also apply the log machanism for 
+        'printd' macro
+    4. add multiple file logging support 
+    5. removed macro 'TNS_CONN' from mysql_test.c
+
+  Jan 22, 2016:
+    1. add a compilation switch 'TREE_NON_RECURSION' to control whether using
+        'recursion' or 'non-recursion' algorithm for syntax tree processing.
+        But there're still problems running 'test 18' of mysql_test.c while using
+        the 'non-recursion' version of sql_adpt::do_mysqlization()
+
+  Jan 21, 2016:
+    1. improved the tree processing functions that modified non-recursion
+        yesterday and removed 'np' member from stxNode structure
+
+  Jan 20, 2016:
+    1. modified sql_tree::cmp_tree(), sql_tree::dup_tree(),
+        sql_adpt::get_placeholder_info(), sql_adpt::__find_in_tree()
+        with non-recursion algorithms
+    2. change function name of sql_tree::__get_parent_pos() by
+        get_parent_pos()
+    3. moved sql_adpt::__find_in_tree() to within class sql_tree and
+        renamed with sql_tree::find_in_tree()
+
+  Jan 19, 2016:
+    1. disabled log machanism 
+    2. modified sql_tree::print_tree() and sql_tree::destroy_tree() with
+        non-recursion algorithms
+    3. module updated to v2.00.15 beta
+
+  Jan 14, 2016:
+	  1. improved debug log output
+
+  Jan 13, 2016:
+    1. try to throw an exception while failing in sql adaption
+		2. try to display the connection string while error processing tns file
+		3. make 'struct SyntaxTreeNode' a protected member of 'class sql_tree'
+		4. make 'struct tTnsInfo' a protected member of 'class tns_parser', also 
+		    make 'struct tDsnInfo' a protected member of 'class my_dsn_parser'
+		5. remove all 'static' members from 'class tns_parser' and 'class my_dsn_parser'
+		6. module updated to v2.00.14 beta
+
+  Jan 12, 2016:
+    1. add 'alias checking' block in sql_checker::check_stmt_list()
+		2. add 'select list checking' block in sql_checker::check_stmt_list()
+		3. add some warning messages in syntax tree building progress
+		4. enhance the 'error processing logic' of mysql_adpt::get_placeholder_info();
+
+  Jan 7, 2016:
+	  1. add an 'last modified info updating' machanism to Makefile. 
+		    It updates the 'last modifed date' in myitf.h automatically
+				by the latest history date in HSTROY.txt
+
+  Jan 6, 2016:
+    1. enhanced in TNS parsing: when a token matches with the targeting
+        entry name, should test if it's a 'real' entry name or just 
+        a normal token.
+
+  Jan 5, 2016:
+    1. using '/bin/echo' to generate 'build date logging' instead 
+        of 'echo'
+
+  Jan 4, 2016:
+    1. added 'build date logging' machanism to Makefile 
+		2. remove mysql_stream::dbgstr(), added 
+        mysql_stream::get_stm_text(char*,char*) to get both original
+				and translated sql statement 
+
+  Dec 30, 2015:
+    1. add optional class 'sql_checker' to do some syntax checking
+        on the syntax tree
+    2. fix the bug that the sql parser considers the statement ending
+        flag ';' to be a normal endpoint
+    3. updated version to v.2.00.13 beta
+
+  Dec 29, 2015:
+    1. add an error message when the specified tns entry can not be
+        found in tns file.
+    2. add a bracket pair checking while executing sql_tree::is_join_item()
+    3. add an error message when searching for an unterminated string
+    4. updated version to v2.00.12 beta
+
+  Dec 25, 2015:
+    1. fix the bug of forward/reverse searching in function 
+        mysql_adpt::adpt_hierarchal
+    2. fix bug of begining rownum in function mysql_adpt::adpt_rownum
+        while starts from 1 not 0
+
+  Dec 24, 2015:
+    1. add support for the case 'select xxx' that has no 'from' list
+
+  Dec 23, 2015:
+    1. try to process nesting 'join' expressions when in syntax 
+        tree building
+    2. do '()' pair processing in class mysql_adpt, remove function 
+        sql_tree::remove_redundant_nodes()
+    3. add syntax support for 'inner join'
+    4. updated reversion to v2.00.11 beta
+
+  Dec 22, 2015:
+    1. try to remove the 'fset ... fclr' machanism of list types
+        
+  Dec 17, 2015:
+    1. set the tree root to '0' while in mysql_adpt::reset() to
+        enhance the stability of the module 
+
+  Dec 15, 2015:
+    1. fix memory leak problem of function sql_tree::parse_insert_stmt() 
+        and mysql_adpt::adpt_substr()
+
+  Dec 14, 2015:
+    1. for multiple targets in 'delete' statement, add a 
+        'using' list of targets when adaption.
+    2. when a sub query in 'delete' statement refers 'delete'
+        target(s), add a 'select' wrapper for this sub query 
+        if the 'delete' target(s) are referenced in the
+        subquery's 'from' list only. Modified function
+        mysql_adpt::__add_subqry_wrapper() 
+    3. add adaption for oracle 'merge into'
+    4. reversion updated to v2.00.10 beta
+
+  Dec 12, 2015:
+    1. merge modifications in myitf-1.0 branch from Sep 15
+        to Nov 6, as follows:
+
+        1) do a bug fix of the 'argument tracking' machanism
+        2) replace the attribute_list::operator[]() function 
+            with functions get_pi(), get_type(), get_type2(),
+            get_size2(), get_op(), and etc, to hide the complexity 
+            of attribute list implementations
+        3) in function mysql_conn::rlogon(), set auto commit by
+            the argument 'autoComm', and its default value is 'off'
+        4) implement the mysql_stream::set_commit() function to 
+            enable/disable the 'auto commit' functionality
+        5) added function mysql_stream::get_stm_text() to fetch the 
+            user inputed sql statement, also a variable 'orig_stmt' 
+            to hold the statement. For debug use.
+        6) in function mysql_stream::debug(), using 
+            mysql_stream::sql_stmt to output the translated 
+            statement instead of mysql_stream::sql_out
+        7) disabled auto commition in mysql_prep::reconnect()
+        8) TODO: if there's only 1 argument in oracle function 
+            call 'to_char', it's assume that the argument is of 
+            type 'int' and will be convernted to 'char' with 
+            mysql function 'cast'
+
+    2. testing and debuging the mysql_adpt::adpt_ora_joins()
+    3. reversion updated to v2.00.09 beta
+  
+  Oct 22, 2015:
+    1. added tree construction process for statement 'insert'
+        and 'delete'
+
+  Oct 20, 2015:
+    1. in the v2.00.01b source, most of the 'query' statement 
+        types are supported in syntax tree creation. 
+
+  Sep 15, 2015:
+    1. in execution layer, if the 'is_null' flag of field(s) 
+        in result set is marked 'true', then empty this field
+
+  Sep 14, 2015:
+    1. move definitions of classes 'lang_adpt', 'mysql_exec_base'
+        'mysql_qry', 'mysql_prep', 'my_dsn_parser', 'tns_parser'
+        and 'attribute_list' from myitf.h to a new file my_priv.h, 
+        to hide complexities of class definitions
+    2. updated to reversion v1.06.05b
+    3. create a new source branch v2.0.0 upon v1.06.05b, with a new 
+        language adaption machanism called 'syntax tree parsing' 
+        which will do a oracle-style syntax checking to the inputing 
+        statement and adapts it to mysql style by syntax tree module
+
+  Sep 12, 2015:
+    1. fix bug of argument tracking machanism
+
+  Sep 11, 2015:
+    1. added adaption to oracle 'xxx_seq.currval'
+    2. added 1 'xxx_seq.currval' test case to 'mysql_test'
+    3. reversion updated to v1.06.04 beta
+
+  Sep 2, 2015:
+    1. modify the mysql_stream::get_rpc() to get the affected rows
+        number from server, not the row numbers in fetched results.
+
+  Sep 1, 2015:
+    1. use variable 'bPrepMethod' to contorl the usage of the 
+        'prepare method' or 'query method' in streaming layer 
+        instead of macro 'MY_METHOD_PREP'
+
+    2. move the function block 'column type declarations' from 
+        lang_adpt::__prep_colon_cb() to a new function 
+        lang_adpt::__col_decl_cb() 
+
+    3. reversion updated to v1.06.03 beta
+
+  Aug 30, 2015:
+    1. add 'with... as...' cases to 'section 30' of 
+        mysql_test application
+
+  Aug 26, 2015:
+    1. move this 'histroy' section to a new 'HISTROY.TXT' file
+
+    2. use macro 'TKNLEN' to represent the max length of a normal 
+        string instead of using macro 'MAX_STR_LEN' 
+
+    3. improve function lang_adpt::find_tkn() to convert both 
+        string and the 'toMatch' token to be lower case before
+        find() and rfind(), but still comes with performance problem.
+
+  Aug 25, 2015:
+    1. improve the 'argument tracking' machanism
+
+    2. modify lang_adpt::find_tkn() to be a case in-sensitive version,
+        and remove the instructions which forces to convert the whole
+        statement to lower case, but may get a LOW efficiency
+
+  Aug 24, 2015:
+    1. add a kind of "argument number/order tracking" machanism
+        during the syntax adaption process, since after syntax 
+        adation, the argument's number/order may have been changed and
+        the inputed stream arguments may not be matched with the
+        original order/position.
+
+    2. modify function lang_adpt::__tbl_traverse_cb() that the 
+        generated 'tra_func' is not hardcoded to be belonged to 
+        database 'orcl' anymore.
+
+    3. module reversion updated to v1.06.02 beta
+
+  Aug 22, 2015:
+    1. improved the mysql_prep::reconnect() to make it more 
+        reasonable for the case when it's disconnected from 
+        database by 'wait_timeout' happens
+
+  Aug 20, 2015:
+    1. added reconnection machanism in mysql_exec_base::reconnect()
+        and a macro "DB_RECONN" to control the usage of it, when
+        defined, the execution layer will deal with reconnection 
+        itself, otherwise, a "mysql gone away" exception will be
+        thrown and callers should deal with connections themselves.
+
+    2. updated version to v1.06.0 beta
+
+  Aug 19, 2015:
+    1. modified the TNS file path configuration, make
+        it being defined by "__TNS_CONF__" macro in Makefile
+        instead of hardcoding in module source
+
+    2. added sub version string into macro __MOD_VER__, latest
+        version is v1.05.05 beta
+
+    3. the TNS file is moved to under $(MYSQL_HOME)/network/admin/ ,
+        this is configured in module Makefile
+    
+  Aug 17, 2015:
+    1. add debug log machanism 
+
+  Aug 16, 2015:
+    1. improve the function lang_adpt::__from_cb() to deal with 
+        the case in which no alias is needed while no sub statement 
+        locates within '()' pairs other than a simple expression, 
+        as follows:
+
+       select <col list> from cond1... , (m=n), condN...
+                                         ^^^^^
+
+    2. improve the module informations displayed in mysql_test.c 
+
+  Aug 15, 2015:
+    1. add oracle 'with as' test cast to 'test 28' section of 
+        test file
+
+  Aug 14, 2015:
+    1. updated module Makefile 
+
+  Aug 13, 2015:
+    1. add 'SRC_REL' to module makefile to act in 
+        concert with building process in 'tscode' source tree
+
+    2. change the 'tns' file searching path to current 
+        working directory
+
+  Aug 11, 2015:
+    1. add infomation showing of this module in the 
+        'mysql_test' application
+
+  Aug 10, 2015:
+    1. improved function lang_adpt::__rownum_cb() at the case 
+       that the targeting statement has no 'where' clouse
+
+    2. add function lang_adpt::__union_cb() to deal with keyword
+       'union all' at the following syntax:
+
+        (sub query0...) union all (sub query1...)
+
+       statement will fail since mysql treat sub query in '()' 
+        before 'union all' as error
+
+  Aug 7, 2015:
+    1. update the code of lang_adpt::del_cb_rm_alias() when the
+      'delete' table name is referenced within the 'from' list
+      of the 'where' clouse, like following:
+
+        delete from <tbl1> where ... select colX from <tbl1>... where ...
+
+    2. improve the function lang_adpt::__tbl_traverse_cb() to solve
+        the case that without 'start with' directive
+
+    3. module version updated to v1.05b
+
+    4. fix the bug of adaption to 'insert' statement in this form:
+
+        insert into <tbl> values(...)
+
+  Aug 6, 2015:
+    1. improve the code of following functions:
+        lang_adpt::__tonumber_cb()
+        lang_adpt::__substr_cb()
+        lang_adpt::__trunc_cb()
+        lang_adpt::__todate_cb()
+        lang_adpt::__tochar_cb()
+
+       for parsing argument list of these function calls,
+        replace original work flow with helper function 
+        lang_adpt::get_func_arg_list()
+
+    2. add function lang_adpt::__dual_cb() to process 
+        oracle 'dual' keyword, but set DISABLED
+
+    3. improve the code of lang_adpt::del_cb_rm_alias()
+
+  Aug 5, 2015:
+    1. test the bug-fix of lang_adpt::__rownum_cb()
+
+    2. improve function tns_parser::prev_token() so that when 
+        it process the begining of a string, the first character
+        will not be lost
+
+    3. improve function lang_adpt::__tonumber_cb() to support the
+        case when the inputing argument is a function call
+
+    4. add and test function lang_adpt::__substr_cb() for orcal 
+        function call substr()
+
+  Aug 4, 2015:
+    1. fix bug of lang_adpt::__rownum_cb() that when in case 3,
+        column names in 'select' list of rn_wrapper may be found 
+        'unknown' by the mysqld server
+
+  Aug 3, 2015:
+    1. fix bug of lang_adpt::__plus_cb_conj() in following syntax:
+
+        SELECT*FROM <TBLM>,<TBLN> WHERE COLM=COLN(+) GROUP BY XX
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+      During converting, the keyword 'where' is not removed, so
+       a syntax error is produced:
+
+        SELECT*FROM TBLM LEFT/RIGHT JOIN TBLN ON COLM=COLN WHERE GROUP BY XX
+                                                            ^^^^^^^^^^^^^^
+
+    2. add support of '+' '-' '*' '/' '\'' in function 
+        tns_parser::prev_token() 
+
+    3. improve the code of lang_adpt::__with_as_cb() in the case of
+        the 'with <expr> as <alias>' statements with nesting alias
+
+    4. add function mysql_conn::change_db() to change
+        current database to a new one
+
+  Jul 31, 2015:
+    1. fix bug of lang_adpt::__plus_cb_conj() of processing 
+        constants in 'on' expression incorrectly
+
+  Jul 30, 2015:
+
+    1. improve lang_adpt::__tbl_traverse_cb() to fix the 
+        problem that the storage functions(forward_xxx/reverse_xxx)
+        do NOT accept row set as input argument
+    2. fix the problem of lang_adpt::__tonumber_cb() that
+        it can NOT process variable as inputing argument
+
+  Jul 29, 2015:
+    1. test and debug "adaption to 'with xx as...' "
+    2. test and debug "adding alias behind derived tables"
+    3. optimize the statement parsing/generation algorithm of
+        "alias adding in derived tables"
+    4. modify character-set to "utf8"
+    5. add adaption to oracle function 'to_number'
+    6. throw an exception while fail parsing connection string
+        in mysql_conn::rlogon()
+    7. add debug function mysql_stream::dbgstr() to
+        output the targeting statement
+
+  Jul 28, 2015:
+    1. test and debug adaption to 'with xx as...'
+    2. add adaption to 'group by' if there're bracket 
+        pair behind
+    3. add support for column type declaration in the form like:
+        'select col1, colN :#<type>, colM... from <tbl> [condition]'
+    4. fix bug of argument number calculation in argument attribute 
+        parsing layer
+    5. FIXME: add alias name behind derived table like:
+        'select xx from (expr...)'  
+    6. fix bug of '(+)' statement adaption while the sub statement
+        is end with 'union' like:
+        'select xx from <tbl> where conN(+) union <statement N>'
+    7. add a macro 'SVR_BUILD' to control building process of the
+        following 2 conditions:
+        a) build myitf on gg server
+        b) on local pc
+    8. add special token '*' support to tns_parser::next_token()
+    9. updated version to v1.04 beta
+
+  Jul 27, 2015:
+    1. add support for oracle statement 'with xx as <expr...>'
+    2. add machanism for class lang_adpt to update attribute_list
+        during processing 'with xx as...', for test temporarily
+                                           ^^^^^^^^^^^^^^^^^^^^
+  Jul 24, 2015:
+    1. add support for input/output attribute of 
+        oracle placeholders like: :fx< {type}[,in/out] >
+    2. modified mysql_stream::rewind() to execute statement 
+        that without any place-holders, and remove this action 
+        from mysql_stream::open()
+
+  Jul 21, 2015:
+    1. version up to v1.03 beta
+    2. add adption for the oracle '(+)' operator
+    3. test and improve the adaption to oracle '(+)'
+
+  Jul 20, 2015:  
+    1. version up to v1.02 beta
+    2. add module version string for version informations
+    3. add mysql_stream::rewind() function 
+    4. add argument 1 to function mysql_conn:initilize(const int=0)
+    5. add argument 2 to function mysql_conn:rlogon(char*,int=0) 
+    6. make type definition of otl_stream_buffer_size_type as integer
+    7. add support for type 'long double'
+    8. add overload functions of mysql_stream::operator <<(unsigned char*) and
+         mysql_stream::operator >>(unsigned char*)
+    9. changed max length of all tokens/token buffers to 64 bytes
+         defining by a macro 'TKNLEN'
+    10.make function tns_parser::next_token(std::string&,...) and 
+         tns_parser::prev_token() more safer
+    11.fixed a bug of function lang_adpt::tra_cb_find()
+
+  Jul 17, 2015:  
+    1. improved function lang_adpt::__rownum_cb()
+
+  Jul 16, 2015:  
+    1. add adaption to following oracle functions: to_date(), 
+         to_char(), trunc()
+    2. add adaption to oracle keyword 'dummy'
+
+  Jul 13, 2015:  
+    1. add duplicating-placeholder machanism to class mysql_exec and 
+        mysql_prep of execution layer
+
+  May 17, 2015:
+    initial version
+
