@@ -187,8 +187,8 @@ int main(int argc, char *argv[])
 #if 0
       {
         printd("test 0\n");
-		streams[strs].open(0, "delete from test_db.test_tbl where id>:f1<long>; ");
-		streams[strs] << (7);
+        streams[strs].open(0, "delete from test_db.test_tbl where id>:f1<long>; ");
+        streams[strs] << (7);
         streams[strs].debug();
         return 0;
       }
