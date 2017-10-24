@@ -1401,7 +1401,7 @@ bool sql_tree::is_prio_le(uint32_t op1,
 
 stxNode* sql_tree::parse_list_item(int &p)
 {
-#if 0
+#if 1
 #define oj_proc(nd,jt) do{ \
   if (jt==s_olj || jt==s_orj) { \
     sset(nd->type,jt);          \
@@ -1870,7 +1870,7 @@ int sql_tree::parse_odku_stmt(stxNode *parent, int &p)
 int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
 {
 /* remove 'values' keyword from 'value list' */
-#if 0
+#if 1
 #define RM_VAL(prt) do {\
   int n = prt->op_lst.size()-1;\
   stxNode *vn = prt->op_lst[n] ;\
@@ -2503,7 +2503,7 @@ void sql_tree::destroy_tree(
   bool bSelf /* also remove the node itselft */
   )
 {
-#if 0
+#if 1
 #define RM_LEAF(p,r) do {\
   uint8_t i = 0; \
   stxNode *tn = p->parent ;\
