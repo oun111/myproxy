@@ -1,6 +1,6 @@
 # ZAS
 
-ZAS is a sql adaptor. With ZAS, you may access mysql with `oracle-style-sql` like this:
+ZAS is a sql adaptor. With ZAS, you may access MYSQL with `ORACLE-STYLE-SQL` like this:
 
 ```
 stream1.open("select id.nextval(), id from table1");
