@@ -17,7 +17,8 @@ TARGET          := test
 TARGET_LIB      := $(LIB_PATH)/lib$(MODULE).a
 
 .PHONY: all
-all:  $(TARGET) java
+all:  $(TARGET) 
+#java
 
 java:$(J_OBJS)
 $(J_OBJS):%:%.java

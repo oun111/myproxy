@@ -2673,7 +2673,8 @@ int mysql_pickup_bin_col_val(
   void *pCols, int num_cols, /* the column definitions */
   char *rec, size_t szRec,  /* the record buffer */
   const char *col_name,  /* name of targeting column */
-  uint8_t *col_val, size_t *szVal  /* buffer to hold resulting value */
+  uint8_t *col_val, size_t *szVal,  /* buffer to hold resulting value */
+  size_t *pOffs  /* offset between record beginning and real data */
   )
 {
   int nCol = 0;
@@ -2691,8 +2692,8 @@ int mysql_pickup_bin_col_val(
     if ((isNull=*null_bm&bit)) { offs=0; continue ; }
     /* get offset and required buffer size by column type */
     mysql_get_col_sz_by_type(pr,pc->type,&offs);
-    printd("req col %s, col %s, type %d, offs %zu\n",
-      col_name,pc->name,pc->type,offs);
+    /*printd("req col %s, col %s, type %d, offs %zu\n",
+      col_name,pc->name,pc->type,offs);*/
     /* check if the column name matches */
     if (!strcmp(col_name,pc->name)) {
       if (isNull) {
@@ -2709,6 +2710,8 @@ int mysql_pickup_bin_col_val(
         return -1;
       /* copy the content */
       mysql_get_col_val_by_type(pr,pc->type,col_val,szVal);
+      /* the real value offset */
+      if (pOffs) *pOffs = pr-rec ;
       //hex_dump(pr,offs);
       break ;
     }
@@ -2722,7 +2725,8 @@ int mysql_pickup_text_col_val(
   void *pCols, int num_cols, /* the column definitions */
   char *rec, size_t szRec,  /* the record buffer */
   const char *col_name,  /* name of targeting column */
-  uint8_t *col_val, size_t *szVal  /* buffer to hold resulting value */
+  uint8_t *col_val, size_t *szVal,  /* buffer to hold resulting value */
+  size_t *pOffs  /* offset between record beginning and real data */
   )
 {
   int nCol = 0;
@@ -2734,15 +2738,14 @@ int mysql_pickup_text_col_val(
   for (nCol=0;nCol<num_cols;nCol++,pr+=offs,pc++) {
     /* get offset and required buffer size 
      *  by column type */
-    {
-      char *o_pr = pr ;
-      int sz_ln  = lenenc_int_size_get(pr);
+    char *o_pr = pr ;
+    int sz_ln  = lenenc_int_size_get(pr);
 
-      szReq = lenenc_int_get(&pr);
-      offs  = szReq;
-      /* point to begining of real value */
-      pr = o_pr+ sz_ln;
-    }
+    szReq = lenenc_int_get(&pr);
+    offs  = szReq;
+    /* point to begining of real value */
+    pr = o_pr+ sz_ln;
+
     /*printf("req col %s, col %s, type %d, offs %zu\n",
       col_name,pc->name,pc->type,offs);*/
     /* check if the column name matches */
@@ -2762,6 +2765,8 @@ int mysql_pickup_text_col_val(
       /* format convert from text to bin */
       mysql_str2bin(pc->type,(char*)col_val,szReq,
         col_val,szVal);
+      /* the real value offset */
+      if (pOffs) *pOffs = o_pr-rec ;
       //printf("col_val: %d, sz: %zu\n",*col_val,szReq);
       //hex_dump(rec,szRec);
       break ;

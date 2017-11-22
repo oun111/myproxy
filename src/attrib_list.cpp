@@ -283,3 +283,37 @@ int attribute_list::sph_count(void)
   return num_sph;
 }
 
+#if 0
+attribute_list& attribute_list::operator = (attribute_list &lst)
+{
+  a_attr *pa = 0 ;
+
+  reset();
+
+  /* copy the 'attr_list' */
+  for (size_t i=0;i<lst.attr_list.size();i++) {
+    pa = (a_attr*)malloc(sizeof(*pa));
+    memcpy(pa,lst.attr_list[i],sizeof(*pa));
+    pa->sd.priv = malloc(lst.attr_list[i]->sd.sz);
+    attr_list.push_back(pa);
+  }
+
+  /* copy the 'backup_attr_list' */
+  for (size_t i=0;i<lst.backup_attr_list.size();i++) {
+    pa = (a_attr*)malloc(sizeof(*pa));
+    memcpy(pa,lst.backup_attr_list[i],sizeof(*pa));
+    pa->sd.priv = malloc(lst.backup_attr_list[i]->sd.sz);
+    backup_attr_list.push_back(pa);
+  }
+
+  /* copy the 'num_arg' & 'num_sph' */
+  num_arg = lst.num_arg;
+  num_sph = lst.num_sph;
+
+  /* copy 'i_map' */
+  i_map = lst.i_map ;
+
+  return *this;
+}
+#endif
+

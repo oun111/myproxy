@@ -467,10 +467,10 @@ extern bool mysql_query_is_disconnect(MYSQL*);
 extern int mysql_result_next(void*,bool,char**,size_t*,bool);
 
 extern int mysql_pickup_text_col_val(void*,int,
-  char*,size_t,const char*, uint8_t*,size_t*);
+  char*,size_t,const char*, uint8_t*,size_t*,size_t*);
 
 extern int mysql_pickup_bin_col_val(void*,int,
-  char*,size_t,const char*, uint8_t*,size_t*);
+  char*,size_t,const char*, uint8_t*,size_t*,size_t*);
 
 extern int mysql_calc_blob_count(char*,int,int*);
 

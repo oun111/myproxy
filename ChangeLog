@@ -1,4 +1,16 @@
 Changes:
+  Oct 30, 2017:
+    1. change access rights of some methods in class mysql_adpt
+
+  Oct 27, 2017:
+    1. add support for the 'commit/rollback' syntax
+
+  Oct 26, 2017:
+    1. move most sql_tree constants into a single namespace called stree_types
+
+  Oct 25, 2017:
+    1. changed access rights of some sql_tree methods
+
   Oct 10, 2017:
     1. add an db driver specific layer called DAL that is short for
         Driver-Abstraction-Layer with which ZAS can now seperate itself

@@ -6,7 +6,7 @@
  *
  *  Author:        yzhou
  *
- *  Last modified: Oct 10, 2017
+ *  Last modified: Oct 30, 2017
  *  Created:       May 17, 2015
  *
  *  History:       refer to 'ChangeLog'

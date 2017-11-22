@@ -144,6 +144,21 @@ double byte8_2_double(char b[8])
   return val;
 }
 
+double byte8_2_double_be(char b[8])
+{
+  double val = 0;
+
+  ((char*)&val)[0] = b[0] ;
+  ((char*)&val)[1] = b[1] ;
+  ((char*)&val)[2] = b[2] ;
+  ((char*)&val)[3] = b[3] ;
+  ((char*)&val)[4] = b[4] ;
+  ((char*)&val)[5] = b[5] ;
+  ((char*)&val)[6] = b[6] ;
+  ((char*)&val)[7] = b[7] ;
+  return val;
+}
+
 char* strend(char *s)
 {
   for (;s&&*s&&*s!='\0';s++);
@@ -213,6 +228,19 @@ int lenenc_int_set(uint64_t val, char *outb)
   return end-outb;
 }
 
+size_t get_int_lenenc_size(uint64_t val)
+{
+  if (val<0xfb) {
+    return 1;
+  } else if (val<(1<<16)) {
+    return 3;
+  } else if (val<(1<<24)) {
+    return 4;
+  } else {
+    return 9;
+  }
+}
+
 int lenenc_str_set(char *inb, char *str)
 {
   char *end = inb;
@@ -258,6 +286,20 @@ char* lenenc_str_get(char *in, char *out, int capacity)
   return (char*)in+(len);
 }
 #endif
+
+size_t lenenc_str_size_get(char *in)
+{
+  char *end = in ;
+
+  return lenenc_int_size_get(in) + lenenc_int_get(&end);
+}
+
+size_t get_str_lenenc_size(char *in)
+{
+  size_t ln = strlen(in);
+
+  return ln + get_int_lenenc_size(ln);
+}
 
 void ul2ipv4(char *outb, uint32_t ip)
 {

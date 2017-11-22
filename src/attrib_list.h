@@ -51,7 +51,7 @@ public:
   /* attribute list before adaption */
   std::vector<a_attr*> backup_attr_list ;
 protected:
-  std::string *sql_ptr ;
+  //std::string *sql_ptr ;
   /* total argument count */
   int num_arg ;
   /* total shadowing placeholder count */
@@ -107,6 +107,8 @@ public:
   int build_order_map(void);
   /* re-create place-holder order mappings */
   int rebuild_order_map(void);
+  /* object evaluations */
+  //attribute_list& operator = (attribute_list &lst);
 } ;
 
 

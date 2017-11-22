@@ -15,53 +15,15 @@ struct SyntaxTreeNode {
 using stxNode = struct SyntaxTreeNode ;
 using p_stxNode = struct SyntaxTreeNode** ;
 
-/* 
- * sql language adaption using syntax 
- *  tree machanism 
- */
-class sql_tree {
 
-protected:
+namespace stree_types {
   /* type main/sub bits read/write operations */
 #define mget(t)     (((uint32_t)t>>10)&0x3ff)
 #define sget(t)     (((uint32_t)t)&0x3ff)
 #define mset(t,v)   (t=(((uint32_t)t&~(0x3ff<<10))|((v&0x3ff)<<10)))
 #define sset(t,v)   (t=(((uint32_t)t&~0x3ff)|(v&0x3ff)))
 #define mktype(m,s) (((m&0x3ff)<<10)|(s&0x3ff))
-  /* option flag that controls which complex item 
-   *  type is to be processed */
-  enum ci_type {
-    ci_nest = 1<<0, /* nesting type */
-    ci_stmt = 1<<1, /* statement type */
-    ci_join = 1<<2, /* 'join' type */
-    ci_phd  = 1<<3, /* place holder type */
-    ci_norm = 1<<4, /* normal type */
-    ci_ury  = 1<<5, /* 'unary expr' type */
-    ci_func = 1<<6, /* function type */
-    ci_all  = 0xfff,/* process all */
-  } ;
-  /* option flag types */
-  enum of_type {
-    of_ci,   /* complex item options */
-    /*of_nt,*/   /* node type */
-    of_max,
-  } ;
-  /* option flag structure definition */
-  using tOptFlag = struct tOptionFlag {
-    uint32_t f;
-    uint32_t v[of_max];
-  } ;
-#define fset(_f,_v) do{             \
-  fc_flag.f   |= (1<<(_f)) ;       \
-  fc_flag.v[_f] = (uint32_t)(_v) ; \
-} while(0)
-#define fget(_f,_v,_s) do{          \
-  _s = !!((fc_flag.f)&(1<<(_f)));  \
-  _v = _s?fc_flag.v[_f]:_v;        \
-} while(0)
-#define fclr(_f) do{                \
-  fc_flag.f &= ~(1<<(_f)) ;        \
-} while(0)
+
   /* main syntax node types */
   enum mtype { 
     m_root, m_stmt, m_expr, 
@@ -110,6 +72,8 @@ protected:
     s_truncate, /* statement type 'truncate' */
     s_show, /* statement type 'show' */
     s_desc, /* statement type 'desc' */
+    s_commit,/* transaction control */
+    s_rollback,
   } ;
   /* unary expressions */
   enum uexpr_type {
@@ -233,6 +197,8 @@ protected:
    sget(t)==s_truncate?"truncate":    \
    sget(t)==s_show?"show":            \
    sget(t)==s_desc?"desc":            \
+   sget(t)==s_commit?"commit":        \
+   sget(t)==s_rollback?"rollback":    \
    "stmt type n/a"):                  \
   mget(t)==m_expr?                    \
    /* expression types */             \
@@ -360,6 +326,50 @@ protected:
   /* unknown types */                 \
   main_type_str(t)                    \
 )
+} ;
+
+/* 
+ * sql language adaption using syntax 
+ *  tree machanism 
+ */
+class sql_tree {
+
+//protected:
+public:
+  /* option flag that controls which complex item 
+   *  type is to be processed */
+  enum ci_type {
+    ci_nest = 1<<0, /* nesting type */
+    ci_stmt = 1<<1, /* statement type */
+    ci_join = 1<<2, /* 'join' type */
+    ci_phd  = 1<<3, /* place holder type */
+    ci_norm = 1<<4, /* normal type */
+    ci_ury  = 1<<5, /* 'unary expr' type */
+    ci_func = 1<<6, /* function type */
+    ci_all  = 0xfff,/* process all */
+  } ;
+  /* option flag types */
+  enum of_type {
+    of_ci,   /* complex item options */
+    /*of_nt,*/   /* node type */
+    of_max,
+  } ;
+  /* option flag structure definition */
+  using tOptFlag = struct tOptionFlag {
+    uint32_t f;
+    uint32_t v[of_max];
+  } ;
+#define fset(_f,_v) do{             \
+  fc_flag.f   |= (1<<(_f)) ;       \
+  fc_flag.v[_f] = (uint32_t)(_v) ; \
+} while(0)
+#define fget(_f,_v,_s) do{          \
+  _s = !!((fc_flag.f)&(1<<(_f)));  \
+  _v = _s?fc_flag.v[_f]:_v;        \
+} while(0)
+#define fclr(_f) do{                \
+  fc_flag.f &= ~(1<<(_f)) ;        \
+} while(0)
   /* move pointer by length of token */
 #define mov(_p_,_t_)  ((_p_)+=strlen((_t_)))
 
@@ -395,7 +405,7 @@ private:
   /* the target sql statement */
   std::string sql_stmt ;
   /* priority definition of operators */
-  uint16_t prio_lst[expr_max];
+  uint16_t prio_lst[stree_types::expr_max];
   /* the option flag that passed over
    *  function call chains */
   tOptFlag fc_flag ;
@@ -404,20 +414,27 @@ public:
   sql_tree(void);
   ~sql_tree(void);
 
-protected:
+public:
   /* construct the syntax tree by inputed 
    *   sql statement */
   stxNode* build_tree(std::string&);
   /* print a whole tree from inputed node */
-   void print_tree(stxNode*,int);
+  void print_tree(stxNode*,int);
   /* release a whole tree from inputed node */
-   void destroy_tree(stxNode*,bool=true);
+  void destroy_tree(stxNode*,bool=true);
   /* attach child node to parent node */
-   void attach(stxNode*,stxNode*,int=-1);
+  void attach(stxNode*,stxNode*,int=-1);
   /* detach child node from its upper parent */
-   void detach(stxNode*,uint16_t);
+  void detach(stxNode*,uint16_t);
+  /* get parent position number at upper list */
+  int get_parent_pos(stxNode*);
   /* construct a single syntax tree node */
-   stxNode* create_node(char*,int,int);
+  stxNode* create_node(char*,int,int);
+  /* find a token within tree */
+   stxNode* find_in_tree(stxNode*,int);
+  /*bool*/stxNode* find_in_tree(stxNode*,char*);
+
+protected:
   /* print the content of a tree node */
   void dump_node(stxNode*) ;
   /* duplicates a given node */
@@ -434,11 +451,6 @@ protected:
    *  the given type */
   bool is_type_equals(uint32_t,uint32_t,
     uint32_t) ;
-  /* get parent position number at upper list */
-   int get_parent_pos(stxNode*);
-  /* find a token within tree */
-   stxNode* find_in_tree(stxNode*,int);
-  /*bool*/stxNode* find_in_tree(stxNode*,char*);
 
 private:
   /* reset related variables */
@@ -560,13 +572,15 @@ private:
   int parse_show_stmt(stxNode*,int&);
   /* syntax processing on 'desc' statement */
   int parse_desc_stmt(stxNode*,int&);
+  /* syntax processing on simple transaction control statement */
+  int parse_simple_transac_stmt(stxNode*,int&);
   /* syntax processing on a 'single' statement */
   stxNode* parse_stmt(int&);
   /* process statement set such as 'union [all]' */
   stxNode* parse_stmt_set(int,int&);
 } ;
 
-class tree_serializer : protected sql_tree {
+class tree_serializer : public sql_tree {
 
 private:
   /* the output statement */
@@ -576,7 +590,7 @@ protected:
   /* indicates the sql prepare mode or not */
   bool bPrep ;
 
-protected:
+public:
   int do_serialize(stxNode*,std::string&);
   int eliminate_comments(std::string&);
 

@@ -48,6 +48,7 @@ extern float byte4_2_float(char b[4]);
 
 /* convert a 8-byte-array into a double value */
 extern double byte8_2_double(char b[8]);
+extern double byte8_2_double_be(char b[8]);
 
 /* search to string ending */
 extern char* strend(char*);
@@ -66,6 +67,8 @@ extern int lenenc_str_set(char*, char*);
 
 /* read length-encode string */
 extern char* lenenc_str_get(char*, char*, int);
+extern size_t lenenc_str_size_get(char *in);
+extern size_t get_str_lenenc_size(char *in);
 
 extern void ul2ipv4(char*, uint32_t);
 

@@ -4,6 +4,7 @@
 #include "dbug.h"
 
 
+using namespace stree_types;
 /*
  * class sql_tree
  */
@@ -1401,7 +1402,7 @@ bool sql_tree::is_prio_le(uint32_t op1,
 
 stxNode* sql_tree::parse_list_item(int &p)
 {
-#if 1
+#if 0
 #define oj_proc(nd,jt) do{ \
   if (jt==s_olj || jt==s_orj) { \
     sset(nd->type,jt);          \
@@ -1870,7 +1871,7 @@ int sql_tree::parse_odku_stmt(stxNode *parent, int &p)
 int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
 {
 /* remove 'values' keyword from 'value list' */
-#if 1
+#if 0
 #define RM_VAL(prt) do {\
   int n = prt->op_lst.size()-1;\
   stxNode *vn = prt->op_lst[n] ;\
@@ -2085,6 +2086,12 @@ int sql_tree::parse_desc_stmt(stxNode *parent, int &p)
 {
   /* parse 'desc <target>' list */
   parse_list(parent,s_desc_lst,p);
+  return 1;
+}
+
+int sql_tree::parse_simple_transac_stmt(stxNode *parent, int &p)
+{
+  /* parse commit/rollback */
   return 1;
 }
 
@@ -2347,6 +2354,8 @@ bool sql_tree::is_stmt(int p)
     !strcasecmp(buf,"truncate")||
     !strcasecmp(buf,"show")   ||
     !strcasecmp(buf,"desc")   ||
+    !strcasecmp(buf,"rollback")||
+    !strcasecmp(buf,"commit") ||
     !strcasecmp(buf,"call") ;
 }
 
@@ -2415,6 +2424,14 @@ stxNode* sql_tree::parse_stmt(int &pos)
     /* 'desc' statement */
     node = create_node(0,m_stmt,s_desc);
     parse_desc_stmt(node,pos);
+  } else if (!strcasecmp(buf,"commit")) {
+    /* 'commit' statement */
+    node = create_node(0,m_stmt,s_commit);
+    parse_simple_transac_stmt(node,pos);
+  } else if (!strcasecmp(buf,"rollback")) {
+    /* 'rollback' statement */
+    node = create_node(0,m_stmt,s_rollback);
+    parse_simple_transac_stmt(node,pos);
   } else {
     printd("unknown statement type '%s'\n", buf);
   }
@@ -2503,7 +2520,7 @@ void sql_tree::destroy_tree(
   bool bSelf /* also remove the node itselft */
   )
 {
-#if 1
+#if 0
 #define RM_LEAF(p,r) do {\
   uint8_t i = 0; \
   stxNode *tn = p->parent ;\

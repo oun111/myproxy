@@ -6,7 +6,7 @@
 #include "attrib_list.h"
 #include "dbug.h"
 
-
+using namespace stree_types;
 
 /* 
  * class mysql_adpt
@@ -90,7 +90,8 @@ int mysql_adpt::do_adaption(
   /* for prepare mode, adapts the 
    *  place holders here */
   if (bPrep) {
-    do_mysqlization(root,0,ac_ph);
+    do_placeholder_adpt(root);
+    //do_mysqlization(root,0,ac_ph);
     //mysqlize_tree(root,0,true);
   }
   /* serialize the syntax tree */
@@ -98,6 +99,11 @@ int mysql_adpt::do_adaption(
   /* yzhou added: release the tree */
   reset();
   return 1;
+}
+
+int mysql_adpt::do_placeholder_adpt(stxNode *root)
+{
+  return do_mysqlization(root,0,ac_ph);
 }
 
 void mysql_adpt::unregister_adpt_actions(void)
@@ -2468,7 +2474,7 @@ int mysql_adpt::mysqlize_tree(stxNode *node,
       continue ;
     }
     /* do mysqlization */
-    if (do_mysqlization(root,0,act)==REDO_HIERARCH) {
+    if (do_mysqlization(/*root*/node,0,act)==REDO_HIERARCH) {
       i-- ;
     }
   }

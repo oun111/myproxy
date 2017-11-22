@@ -55,11 +55,21 @@ private:
   /* especially for 'char-type-placeholder' adaptions */
   tAdptAct* ac_ph ;
 
-protected:
-  int do_mysqlization(stxNode*,int,tAdptAct*);
+public:
   /* translate the tree to mysql-style syntax */
   //int mysqlize_tree(stxNode*,int,bool=false);
   int mysqlize_tree(stxNode*,int);
+
+  void register_adpt_actions(void);
+  void unregister_adpt_actions(void);
+
+  /* gather place holder informations from tree */
+  int get_placeholder_info(stxNode*,attribute_list*);
+
+  int do_placeholder_adpt(stxNode*);
+
+protected:
+  int do_mysqlization(stxNode*,int,tAdptAct*);
   /* adaption with 'nextval' */
   int adpt_nextval(stxNode*,int);
   /* adaption with 'currval' */
@@ -163,11 +173,6 @@ protected:
   /* register adaption actions */
   int do_action_register(char*,adpt_cb);
   int do_action_register(uint32_t,adpt_cb);
-  void register_adpt_actions(void);
-  void unregister_adpt_actions(void);
-  /* gather place holder informations from 
-   *  tree */
-  int get_placeholder_info(stxNode*,attribute_list*);
   void reset(void);
 
 public:
