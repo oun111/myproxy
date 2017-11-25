@@ -6,7 +6,7 @@
  *
  *  Author:        yzhou
  *
- *  Last modified: Oct 30, 2017
+ *  Last modified: Nov 25, 2017
  *  Created:       May 17, 2015
  *
  *  History:       refer to 'ChangeLog'
@@ -22,7 +22,7 @@
 #include "mysqlc.h"
 
 /* version number string of this module */
-#define __MOD_VER__  "0.0.3 alpha"
+#define __MOD_VER__  "0.0.4 alpha"
 
 using namespace std;
 

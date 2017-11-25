@@ -23,6 +23,8 @@ DECLARE_DBG_LOG(zas);
 #endif
 
 
+using namespace LEX_GLOBAL;
+
 /* 
  * class zas_connect
  */
@@ -654,9 +656,9 @@ int zas_stream::find_next_placeholder(int p)
     p++ ;
     /* check if it's place holder in this form:
      *  :{name}<type> */
-    p = tns_parser::next_token(sql_stmt,p,buf);
+    p = next_token(sql_stmt,p,buf);
     p+= strlen(buf);
-    p = tns_parser::next_token(sql_stmt,p,buf);
+    p = next_token(sql_stmt,p,buf);
     if (*buf!='<') {
       continue ;
     }

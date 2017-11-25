@@ -184,11 +184,15 @@ int main(int argc, char *argv[])
 
     printd("<<< test zas streaming : \n");
     try {
-#if 0
+#if 1
       {
         printd("test 0\n");
-        streams[strs].open(0, "delete from test_db.test_tbl where id>:f1<long>; ");
-        streams[strs] << (7);
+        cnn.change_db("test_db");
+        streams[strs].open(0, "create table t1("
+          "c1 int not null primary key, "
+          "c2 varchar(10) null default 0,"
+          "index i3(c2)"
+          ") ");
         streams[strs].debug();
         return 0;
       }

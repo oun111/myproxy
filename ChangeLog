@@ -1,4 +1,9 @@
 Changes:
+  Nov 25, 2017:
+    1. add 'create table'  syntax support
+
+    2. updated to v0.00.04 alpha
+
   Oct 30, 2017:
     1. change access rights of some methods in class mysql_adpt
 

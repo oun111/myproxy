@@ -2,9 +2,11 @@
 #include "connstr.h"
 #include "sql_tree.h"
 #include "dbug.h"
+#include <assert.h>
 
 
 using namespace stree_types;
+using namespace LEX_GLOBAL;
 /*
  * class sql_tree
  */
@@ -392,7 +394,7 @@ int sql_tree::parse_where_list(stxNode *parent, int &p)
   std::string &s = sql_stmt ;
   int pos = p ;
 
-  pos = tns_parser::next_token(s,p,buf);
+  pos = next_token(s,p,buf);
   if (strcasecmp(buf,"where")) {
     printd("no 'where' clouse found\n");
     return 0;
@@ -406,7 +408,7 @@ int sql_tree::parse_from_list(stxNode *parent, int &p)
   char buf[TKNLEN] = "";
   std::string &s = sql_stmt ;
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* test ending of simple-select-list case: 
    *  .select (select @var:=0) <alias> from <tbl> 
    *  .select xxx */
@@ -427,13 +429,13 @@ int sql_tree::parse_gb_list(stxNode *parent, int &p)
   std::string &s = sql_stmt ;
   int pos = p/*, tp = 0*/;
 
-  pos = tns_parser::next_token(s,p,buf);
+  pos = next_token(s,p,buf);
   /* check for 'group by' keywords */
   if (strcasecmp(buf,"group")) {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"by")) {
     printd("incorrect 'group by' keyword\n");
     return 0;
@@ -452,13 +454,13 @@ int sql_tree::parse_ob_list(stxNode *parent, int &p)
   std::string &s = sql_stmt ;
   int pos = p/*, tp = 0*/;
 
-  pos = tns_parser::next_token(s,p,buf);
+  pos = next_token(s,p,buf);
   /* check for 'order by' keywords */
   if (strcasecmp(buf,"order")) {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"by")) {
     printd("incorrect 'order by' keyword\n");
     return 0;
@@ -511,7 +513,7 @@ stxNode* sql_tree::parse_alias(int &p)
   char buf[TKNLEN] = "" ;
   int pos = p ;
 
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (is_endp_ends(buf)) {
     return NULL ;
   }
@@ -520,7 +522,7 @@ stxNode* sql_tree::parse_alias(int &p)
    *  be an alias */
   if (!strcasecmp(buf,"as")) {
     mov(p,buf);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
   }
   /* constant string as alias */
   if (*buf=='\''||*buf=='\"') {
@@ -560,24 +562,24 @@ int sql_tree::suppress_column_type_decl(
 
   /* test if it's the column type declarator
    *  in this form: col :name<type> */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (*buf!=':') {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   /* skip 'name' domain */
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (*buf!='<') {
     return 0;
   }
   mov(pos,buf);
   /* suppress 'type' */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   mov(pos,buf);
   /* suppress '>' */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (*buf!='>') {
     return 0;
   }
@@ -595,14 +597,14 @@ int sql_tree::copy_const_str(char *inbuf, int &p)
   std::string &s = sql_stmt ;
   char flag = 0; /* 0: \', 1: \" */
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   flag = *buf=='\"' ;
   do {
     /* protect the 'inbuf' boundary */
     if ((strlen(inbuf)+strlen(buf)+1)<TKNLEN)
       strcat(inbuf,buf);
     mov(p,buf);
-    p = tns_parser::next_token(s,p,buf) ;
+    p = next_token(s,p,buf) ;
     /* statement ends */
     if ((std::string::size_type)p>=s.size()) 
       break ;
@@ -652,6 +654,159 @@ int sql_tree::copy_const_str(char *inbuf, int &p)
 }
 #endif
 
+stxNode* sql_tree::parse_ct_item(int &pos)
+{
+  char buf[TKNLEN] = "" ;
+  std::string &s = sql_stmt ;
+  stxNode *parent = create_node(0,m_list,s_cd_item), *p = 0;
+
+  while(1) {
+    pos = next_token(s,pos,buf);
+    mov(pos,buf);
+
+    /* 
+     * process create definition item attributes, grammar:
+     *
+     *   col_name type [NOT NULL | NULL] [DEFAULT default_value] [AUTO_INCREMENT]
+     *   [PRIMARY KEY] [reference_definition]
+     *   or PRIMARY KEY (index_col_name,...)
+     *   or KEY [index_name] (index_col_name,...)
+     *   or INDEX [index_name] (index_col_name,...)
+     *   or UNIQUE [INDEX] [index_name] (index_col_name,...)
+     *   or [CONSTRAINT symbol] FOREIGN KEY index_name (index_col_name,...)
+     *   [reference_definition]
+     *   or CHECK (expr)
+     *
+     */
+    if (!strcasecmp(buf,"primary")) {
+      p = create_node(0,m_cdt,cda_primary_key);
+      attach(parent,p);
+
+      /* next should be the 'key' symbol */
+      pos = next_token(s,pos,buf);
+      mov(pos,buf);
+      assert(!strcasecmp(buf,"key"));
+
+      /* test if it's like: primary key(name) */
+      pos = next_token(s,pos,buf);
+      if (buf[0]=='(') {
+        /* skip '(' */
+        mov(pos,buf);
+        /* get the primary key name */
+        pos = next_token(s,pos,p->name);
+        mov(pos,p->name);
+        /* skip ')' */
+        pos = next_token(s,pos,buf);
+        mov(pos,buf);
+      }
+    } 
+    else if (!strcasecmp(buf,"null")) {
+      p = create_node(0,m_cdt,cda_null);
+      attach(parent,p);
+    }
+    else if (!strcasecmp(buf,"not")) {
+      p = create_node(0,m_cdt,cda_not_null);
+      attach(parent,p);
+      /* next should be the 'null' symbol */
+      pos = next_token(s,pos,buf);
+      mov(pos,buf);
+      assert(!strcasecmp(buf,"null"));
+    }
+    else if (!strcasecmp(buf,"default")) {
+      p = create_node(0,m_cdt,cda_default_val);
+      attach(parent,p);
+      pos = next_token(s,pos,p->name);
+      mov(pos,p->name);
+    }
+    else if (!strcasecmp(buf,"auto_increment")) {
+      p = create_node(0,m_cdt,cda_auto_inc);
+      attach(parent,p);
+    }
+    else if (!strcasecmp(buf,"key") || !strcasecmp(buf,"index")) {
+      int t = 0;
+
+      if (!strcasecmp(buf,"key")) t = cda_key;
+      else t = cda_index ;
+      p = create_node(0,m_cdt,t);
+      attach(parent,p);
+      pos = next_token(s,pos,buf);
+      if (*buf!='(') {
+        strcpy(p->name,buf);
+        mov(pos,buf);
+        pos = next_token(s,pos,buf);
+      }
+      /* skip '(' */
+      //mov(pos,p->name);
+      /* do normal list parse */
+      fset(of_ci,ci_all);
+      parse_list(p,s_index,pos);
+      fset(of_ci,ci_ct);
+    } 
+    else if (!strcasecmp(buf,"unique")) {
+      p = create_node(0,m_cdt,cda_unique_index);
+
+      pos = next_token(s,pos,buf);
+      if (!strcasecmp(buf,"index")) {
+        mov(pos,buf);
+        pos = next_token(s,pos,buf);
+      }
+      if (buf[0]!='(') {
+        strcpy(p->name,buf);
+        mov(pos,buf);
+        pos = next_token(s,pos,buf);
+      }
+      /* skip '(' */
+      mov(pos,buf);
+      parse_list(p,s_index,pos);
+    } 
+    /* TODO: */
+#if 0
+    else if (!strcasecmp(buf,"constraint")) {
+    } else if (!strcasecmp(buf,"foreign")) {
+    } else if (!strcasecmp(buf,"check")) {
+    }
+#endif
+    /* normal column definition */
+    else {
+      p = create_node(buf,m_cdt,cda_col);
+      attach(parent,p);
+
+      /* parse column type */
+      pos = next_token(s,pos,buf);
+      mov(pos,buf);
+      /* construct the column type string */
+      if (!strcasecmp(buf,"varchar")) {
+        char tmp[TKNLEN] = "";
+
+        /* the '(' symbol */
+        pos = next_token(s,pos,tmp);
+        mov(pos,tmp);
+        strcat(buf,"(");
+        /* the string length */
+        pos = next_token(s,pos,tmp);
+        mov(pos,tmp);
+        strcat(buf,tmp);
+        /* the ')' symbol */
+        pos = next_token(s,pos,tmp);
+        mov(pos,tmp);
+        strcat(buf,")");
+      }
+      p = create_node(buf,m_cdt,cda_col_type);
+      attach(parent,p);
+    }
+
+    /* try next */
+    pos = next_token(s,pos,buf);
+
+    /* end of 'create list item list' */
+    if (buf[0]==',' || buf[0]==')') {
+      break ;
+    }
+  } 
+
+  return parent;
+}
+
 stxNode* sql_tree::parse_endpoint_item(
   int &p)
 {
@@ -668,7 +823,7 @@ stxNode* sql_tree::parse_endpoint_item(
    *  [schema.]{table|view|materialized_view}.* |
    *  expr [[as] c_alias]}
    */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* check statement ending */
   if (*buf==';') {
     return NULL;
@@ -678,7 +833,7 @@ stxNode* sql_tree::parse_endpoint_item(
   /* signed constant */
   if (*buf=='-' || *buf=='+') {
     strcat(node->name,buf);
-    p = tns_parser::next_token(s,p+1,buf) ;
+    p = next_token(s,p+1,buf) ;
   }
   /* test string for numeric digit */
   if (is_numeric_str(buf)) {
@@ -686,9 +841,9 @@ stxNode* sql_tree::parse_endpoint_item(
     sset(node->type,s_c_int);
     mov(p,buf);
     /* test for floating point digit */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (*buf=='.') {
-      p = tns_parser::next_token(s,p+1,buf);
+      p = next_token(s,p+1,buf);
       mov(p,buf);
       strcat(node->name,".");
       strcat(node->name,buf);
@@ -721,21 +876,21 @@ stxNode* sql_tree::parse_endpoint_item(
     mov(p,buf);
   }
   /* test the next token */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* ### case 2 */
   if (*buf=='.') {
     //sset(node->type,s_tbl);
     node->type = mktype(m_endp,s_tbl);
     /* get targeting column */
-    p   = tns_parser::next_token(s,p+1,buf);
+    p   = next_token(s,p+1,buf);
     node= create_node(buf,m_endp,s_col);
     attach(top,node);
     /* pre-get next token */
     mov(p,buf);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     /* ### case 3 */
     if (*buf=='.') {
-      p   = tns_parser::next_token(s,p+1,buf);
+      p   = next_token(s,p+1,buf);
       tmp = create_node(buf,m_endp,s_col);
       attach(node,tmp);
       /* update sub type of parent nodes */
@@ -743,7 +898,7 @@ stxNode* sql_tree::parse_endpoint_item(
       sset(node->parent->type,s_schema);
       /* pre-get next token */
       mov(p,buf);
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
     }
   } 
   if (*buf==':') {
@@ -780,17 +935,17 @@ bool sql_tree::is_join_item(int p)
     /* a normal endpoint, skip the 
      *  [chema.]table[.column] string */
     while (1) {
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
 
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       if (*buf=='.') p++ ;
 
       else break ;
     } 
   }
   /* test for keyword 'left' or 'right' */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if (!strcasecmp(buf,"left") || 
      !strcasecmp(buf,"right") ||
      !strcasecmp(buf,"cross") ||
@@ -800,7 +955,7 @@ bool sql_tree::is_join_item(int p)
   }
   /* skip the possible alias */
   mov(p,buf);
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if (!strcasecmp(buf,"left") ||
      !strcasecmp(buf,"right") ||
      !strcasecmp(buf,"cross") ||
@@ -847,7 +1002,7 @@ int sql_tree::str_test_subquery(int p, int &endp)
   char buf[TKNLEN] = "" ;
   std::string &s = sql_stmt ;
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if ((size_t)p<s.size() && s[p]=='(') {
     /* a sub query, skip the colon pairs */
     for (++p,cnt=1;cnt>0&&
@@ -897,7 +1052,7 @@ bool sql_tree::has_stmt_set(int p)
 
   for (p++; *buf!=')'&&(uint16_t)p<s.size();) {
     str_test_subquery(p,p);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (!strcasecmp(buf,"union"))
       return true ;
     else mov(p,buf);
@@ -915,7 +1070,7 @@ stxNode* sql_tree::parse_join_item(int &p)
   /* pre-create the main node */
   top = create_node(0,m_expr,s_none);
   for (;;st=s_none) {
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     /* test end of join list */
     if (is_on_list_ends(buf,p) ||
        *buf==',') {
@@ -947,7 +1102,7 @@ stxNode* sql_tree::parse_join_item(int &p)
       }
       /* skip the 'join' token */
       if (st!=s_join) {
-        p = tns_parser::next_token(s,p,buf);
+        p = next_token(s,p,buf);
         mov(p,buf);
       }
     } else if (!strcasecmp(buf,"on") ||
@@ -968,7 +1123,7 @@ stxNode* sql_tree::parse_join_item(int &p)
     } else {
       /* 2016.3.18: yzhou added bug fix to support 
        *  'nesting join' statements */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
 #if 0
       if (*buf=='(' && has_join_in_subquery(p)) {
         p++ ;
@@ -978,7 +1133,7 @@ stxNode* sql_tree::parse_join_item(int &p)
       /* parse 'join' item sub tree */
       node = parse_complex_item(p);
       /* skip the ending ')' if exists */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       if (*buf==')')   p++ ;
       /* cleanup control flag */
       fclr(of_ci);
@@ -997,7 +1152,7 @@ stxNode* sql_tree::parse_join_item(int &p)
         node = parse_complex_item(p);
       }
       /* skip the ending ')' if exists */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       if (*buf==')')   p++ ;
       /* cleanup control flag */
       fclr(of_ci);
@@ -1005,7 +1160,7 @@ stxNode* sql_tree::parse_join_item(int &p)
       /* attach join item to main node */
       attach(top,node);
       /* test alias behind */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       /* get possible alias */
       if (!is_endp_ends(buf) && 
          (node=parse_alias(p))) {
@@ -1026,14 +1181,14 @@ bool sql_tree::is_place_holder(int &p)
 
   /* test for place holders in the form 
    *  like: :name<type> */
-  pos = tns_parser::next_token(s,p,buf);
+  pos = next_token(s,p,buf);
   if (*buf!=':') {
     return false ;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   return *buf=='<' ;
 }
 
@@ -1046,10 +1201,10 @@ stxNode* sql_tree::parse_place_holder(int &p)
   /* construct 'place holder' node */
   node = create_node(0,m_endp,s_ph);
   /* skip the ':' symbol */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   /* get 'name' attribute */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   /* attach to main node */
   tmp = create_node(buf,m_pha,s_pha_name);
@@ -1058,17 +1213,17 @@ stxNode* sql_tree::parse_place_holder(int &p)
    * get contents within '< >' pair
    */
   /* skip '<' */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   /* get 'type' attribute */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   /* attach to main node */
   tmp= create_node(buf,m_pha,s_pha_t);
   attach(node,tmp);
   /* for the type 'unsigned xxx' */
   if (!strcasecmp(buf,"unsigned")) {
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     strcat(tmp->name," ");
     strcat(tmp->name,buf);
     mov(p,buf);
@@ -1077,25 +1232,25 @@ stxNode* sql_tree::parse_place_holder(int &p)
    *  type 'char' */
   if (!strcasecmp(buf,"char")) {
     /* skip the '[' symbol */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (*buf=='[') {
       mov(p,buf);
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
       /* attach to main node */
       tmp= create_node(buf,m_pha,s_pha_sz);
       attach(node,tmp);
       /* skip the ']' symbol */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
     }
   }
   /* skip token behind 'type' attribute */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   /* test next attribute */
   if (*buf==',') {
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
     /* parse direction attribute */
     if (!strcasecmp(buf,"in") ||
@@ -1107,7 +1262,7 @@ stxNode* sql_tree::parse_place_holder(int &p)
       printd("unknown attribute %s\n", buf);
     }
     /* skip '>' symbol */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
   }
   return node ;
@@ -1118,7 +1273,7 @@ bool sql_tree::is_unary_expr(int p)
   std::string &s = sql_stmt ;
   char buf[TKNLEN] = "";
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* test for 'prior' operator */
   if (!strcasecmp(buf,"prior")) {
     return true ;
@@ -1130,7 +1285,7 @@ bool sql_tree::is_unary_expr(int p)
   /* test for 'not exists' operator */
   if (!strcasecmp(buf,"not")) {
     mov(p,buf);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (!strcasecmp(buf,"exists"))
       return true; 
   }
@@ -1149,14 +1304,14 @@ stxNode* sql_tree::parse_unary_expr(int &p)
 
   /* parse and create unary expression trees 
    */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   if (!strcasecmp(buf,"prior")) {
     st = s_pir ;
   } else if (!strcasecmp(buf,"exists")) {
     st = s_exts ;
   } else if (!strcasecmp(buf,"not")) {
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
     if (!strcasecmp(buf,"exists"))
       st = s_not_ext ;
@@ -1184,7 +1339,7 @@ stxNode* sql_tree::parse_complex_item(int &p)
   char buf[TKNLEN] = "" ;
   std::string &s = sql_stmt ;
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* get and reset 'complex item' controling flags */
   fget(of_ci,flag,bset);
   /* test and parse the 'left join'
@@ -1205,7 +1360,7 @@ stxNode* sql_tree::parse_complex_item(int &p)
     /* process the inner statement, or
      *  a statement set such as 'union [all]' */
     node = parse_stmt_set(flag,p);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (*buf==')') {
       p++ ;
     }
@@ -1227,6 +1382,10 @@ stxNode* sql_tree::parse_complex_item(int &p)
   /* normal endpoint */
   if (flag&ci_norm) {
     return parse_endpoint_item(p);
+  }
+  /* the 'create table list' item */
+  if (flag&ci_ct) {
+    return parse_ct_item(p);
   }
   return NULL ;
 }
@@ -1256,13 +1415,13 @@ bool sql_tree::is_ora_join(int p)
   char buf[TKNLEN] = "";
   std::string &s = sql_stmt ;
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if (*buf!='(')
     return false ;
-  p = tns_parser::next_token(s,p+1,buf);
+  p = next_token(s,p+1,buf);
   if (*buf!='+')
     return false ;
-  tns_parser::next_token(s,p+1,buf);
+  next_token(s,p+1,buf);
   if (*buf!=')')
     return false ;
   return true;
@@ -1274,7 +1433,7 @@ int sql_tree::get_op_type(int &p)
   char buf[TKNLEN] = "", tmp[TKNLEN] = "";
   std::string &s = sql_stmt ;
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* test for operator types */
   op_type = 
     !strcasecmp(buf,"!=")?s_ne1:
@@ -1324,30 +1483,30 @@ int sql_tree::get_op_type(int &p)
     case s_is:
       mov(pos=p,buf);
       /* get operator behind */
-      pos = tns_parser::next_token(s,pos,tmp);
+      pos = next_token(s,pos,tmp);
       op_type = !strcasecmp(tmp,"not")?s_not_is:
         op_type ;
       /* it's the 'is not' operator */
       if (op_type!=s_is) {
-        p = tns_parser::next_token(s,p=pos,buf);
+        p = next_token(s,p=pos,buf);
       }
       break ;
     /* type starts with 'not' */
     case s_not:
       mov(p,buf);
       /* get operator behind */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       op_type = !strcasecmp(buf,"in")?s_not_in:
         op_type ;
       break ;
     /* type (+) */
     case s_olj:
-      tns_parser::next_token(s,p+strlen(buf),tmp);
+      next_token(s,p+strlen(buf),tmp);
       op_type = (*tmp=='=')?s_orj:s_olj ;
       break ;
     /* type 'regexp xxx' */
     case s_rexp:
-      pos = tns_parser::next_token(s,p+strlen(buf),tmp);
+      pos = next_token(s,p+strlen(buf),tmp);
       /* 'regexp binary' */
       if (!strcasecmp(tmp,"binary")) {
         op_type = s_rexpb ;
@@ -1431,7 +1590,7 @@ stxNode* sql_tree::parse_list_item(int &p)
     node = parse_complex_item(p);
 __try_more_ops:
     /* end of expression reached, exist loop */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (*buf==';' ||*buf==',' || 
        !strcasecmp(buf,"from") ||
        !strcasecmp(buf,"left") ||
@@ -1586,6 +1745,11 @@ bool sql_tree::is_update_list_ends(char *tkn, int &p) {
     (p>=(int)sql_stmt.size());
 }
 
+/* test ending of 'create table' list */
+bool sql_tree::is_ct_list_ends(char *tkn, int &p) {
+  return *tkn==')';
+}
+
 int sql_tree::parse_list(
   stxNode *parent, 
   int st, 
@@ -1612,7 +1776,7 @@ int sql_tree::parse_list(
   get_key = get_kwp_func(st);
   /* iterate the whole list */
   while (1) {
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     /* test ending of 'list' */
     if (is_end&&(this->*is_end)(buf,p)) {
       break ;
@@ -1624,14 +1788,14 @@ int sql_tree::parse_list(
       /* process the real select list */
       node = parse_list_item(p);
       /* parse the possible alias */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       /* test and get token after list item, 
        *  may be alias or keyword */
       pExtra = get_key?(this->*get_key)(buf,p):NULL ;
       pExtra = !pExtra?parse_alias(p):pExtra ;
       if (pExtra) {
         /* test next token behind alias */
-        p = tns_parser::next_token(s,p,buf);
+        p = next_token(s,p,buf);
       }
       if (*buf==',') {
         /* skip the ',' symbol */
@@ -1666,12 +1830,12 @@ int sql_tree::parse_for_update(stxNode *parent, int &p)
   int st = 0;
 
   /* test for the 'for update' element */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"for")) {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"update")) {
     printd("incorrect 'for update' keyword\n");
     return 0;
@@ -1681,7 +1845,7 @@ int sql_tree::parse_for_update(stxNode *parent, int &p)
   node = create_node(0,m_keyw,s_fu);
   attach(parent,node);
   /* test attribute of 'for update' */
-  pos = tns_parser::next_token(s,p,buf);
+  pos = next_token(s,p,buf);
   st  = !strcasecmp(buf,"nowait")?s_fua_nowait:
     !strcasecmp(buf,"wait")?s_fua_wait:
     !strcasecmp(buf,"of")?s_fua_oc:s_none ;
@@ -1697,7 +1861,7 @@ int sql_tree::parse_for_update(stxNode *parent, int &p)
     attach(node,tmp);
     if (st==s_fua_wait) {
       /* process the 'wait' value */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       strcpy(tmp->name,buf);
       mov(p,buf);
     }
@@ -1718,7 +1882,7 @@ int sql_tree::parse_limit_list(stxNode *parent, int &p)
   int pos = p/*, np = 0 */;
 
   /* test the 'limit' item */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"limit")) {
     return 0;
   }
@@ -1737,12 +1901,12 @@ int sql_tree::parse_connect_by(stxNode *parent, int &p)
   int pos = p ;
 
   /* test for the 'connect by' element */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"connect")) {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"by")) {
     printd("incorrect 'connect by' keyword\n");
     return 0;
@@ -1760,12 +1924,12 @@ int sql_tree::parse_start_with(stxNode *parent, int &p)
   uint16_t i = 0;
 
   /* test for the 'start with' element */
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"start")) {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"with")) {
     printd("incorrect 'start with' keyword\n");
     return 0;
@@ -1793,7 +1957,7 @@ int sql_tree::parse_having_list(stxNode *parent, int &p)
   std::string &s = sql_stmt ;
   int pos = p ;
 
-  pos = tns_parser::next_token(s,p,buf);
+  pos = next_token(s,p,buf);
   if (strcasecmp(buf,"having")) {
     return 1;
   }
@@ -1834,26 +1998,26 @@ int sql_tree::parse_odku_stmt(stxNode *parent, int &p)
   std::string &s = sql_stmt ;
   int pos = p;
 
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"on")) {
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"duplicate")) {
     printd("incorrect 'on duplicate key update' "
       "keyword\n");
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"key")) {
     printd("incorrect 'on duplicate key update' "
       "keyword\n");
     return 0;
   }
   mov(pos,buf);
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   if (strcasecmp(buf,"update")) {
     printd("incorrect 'on duplicate key update' "
       "keyword\n");
@@ -1919,7 +2083,7 @@ int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
   int st = 0;
 
   /* skip the 'into' keyword */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* XXX: this 'if' block is used to ignore the 'insert'
    *  target processing in 'insert' part of 'merge into' 
    *  statement, and to process those in normal 'insert' 
@@ -1931,7 +2095,7 @@ int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
     node = parse_endpoint_item(p);
     fclr(of_ci);
     attach(parent,node);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     /* test if there's alias behind target name */
     if (*buf!='(' && 
        strcasecmp(buf,"values") &&
@@ -1939,7 +2103,7 @@ int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
       /* get the alias if exists */
       node = parse_alias(p);
       attach(parent,node);
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
     }
   }
   /* parse the first list, assume to be 
@@ -1955,7 +2119,7 @@ int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
       sset(node->type,s_fmt);
   }
   /* skip the 'values' keyword */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if (!strcasecmp(buf,"values")) {
     mov(p,buf);
   }
@@ -1988,7 +2152,7 @@ int sql_tree::parse_insert_stmt(stxNode *parent, int &p)
   RM_VAL(parent);
   /* XXX: parse the possible 'where' list, for
    *  'insert' part of 'merge into' statements only */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if (!strcasecmp(buf,"where")) {
     parse_where_list(parent,p);
     return 1;
@@ -2006,11 +2170,11 @@ int sql_tree::parse_casewhen_stmt(stxNode *parent, int &p)
 
   /* test if the targeting endpoint 
    *  locates before 'when' */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   if (strcasecmp(buf,"when")) {
     /* get targeting endpoint */
     tNode = parse_complex_item(p);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
   }
   /* skip the 'when' token */
   mov(p,buf);
@@ -2038,13 +2202,13 @@ int sql_tree::parse_casewhen_stmt(stxNode *parent, int &p)
     /* attach 'expr' node with 'case when' node */
     attach(pItem,node);
     /* skip 'then' token */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
     /* parse item after 'then' */
     attach(pItem,parse_list_item(p));
     /* check ending of list and create 
      *  'else item' node */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (strcasecmp(buf,"when")) {
       /* meets the statement end or the 
        *  'else' item */
@@ -2057,7 +2221,7 @@ int sql_tree::parse_casewhen_stmt(stxNode *parent, int &p)
         attach(pItem,parse_list_item(p));
       }
       /* skip the 'end' token */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       if (!strcasecmp(buf,"end")) {
         /* create 'end item' node */
         pItem = create_node(0,m_cwa,s_cwa_end);
@@ -2095,12 +2259,36 @@ int sql_tree::parse_simple_transac_stmt(stxNode *parent, int &p)
   return 1;
 }
 
+int sql_tree::parse_create_stmt(stxNode *parent, int &p)
+{
+  char buf[TKNLEN] = "";
+  std::string &s = sql_stmt;
+  
+  p = next_token(s,p,buf);
+  mov(p,buf);
+  /* 'create table' command  */
+  if (!strcasecmp(buf,"table")) {
+    /* set parent node type */
+    parent->type = mktype(m_stmt,s_cTbl);
+    /* table name */
+    p = next_token(s,p,parent->name);
+    mov(p,parent->name);
+    /* skip '(' */
+    p = next_token(s,p,buf);
+    mov(p,buf);
+    /* force to deal with the 'create' list */
+    fset(of_ci,ci_ct);
+    parse_list(parent,s_cd_lst,p);
+  }
+  return 1;
+}
+
 int sql_tree::parse_truncate_stmt(stxNode *parent, int &p)
 {
   char buf[TKNLEN]="";
   std::string &s = sql_stmt ;
 
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* skip the optional 'table' keyword */
   if (!strcasecmp(buf,"table")) {
     mov(p,buf);
@@ -2135,7 +2323,7 @@ int sql_tree::parse_alter_stmt(stxNode *parent, int &p)
   std::string &s = sql_stmt ;
 
   /* skip the keyword 'table' */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   mov(p,buf);
   /* parse the 'alter table' name */
   nd = parse_complex_item(p);
@@ -2155,7 +2343,7 @@ int sql_tree::parse_mergeinto_stmt(stxNode *parent, int &p)
 
   /* process 'source/dest' items */
   do {
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
     st = !strcasecmp(buf,"into")?s_mia_dst:
       s_mia_src;
@@ -2166,12 +2354,12 @@ int sql_tree::parse_mergeinto_stmt(stxNode *parent, int &p)
     node = parse_complex_item(p);
     attach(nd,node);
     /* process alias */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (strcasecmp(buf,"using") && 
        strcasecmp(buf,"on")) {
       node = parse_alias(p);
       attach(nd,node);
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
     }
   } while (strcasecmp(buf,"on")) ;
   /* skip 'on' token */
@@ -2184,19 +2372,19 @@ int sql_tree::parse_mergeinto_stmt(stxNode *parent, int &p)
    */
   while (p<(int)s.size()) {
     /* skip 'when matched' tokens */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
     if (!strcasecmp(buf,"matched")) {
       /* create the 'when matched' attribute node */
       nd = create_node(0,m_mia,s_mia_match);
       attach(parent,nd);
       /* skip 'then' token */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
       /* skip 'update' token */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
       /* parse the 'update set...' items behind as 
        *  'update' statement */
@@ -2206,12 +2394,12 @@ int sql_tree::parse_mergeinto_stmt(stxNode *parent, int &p)
       nd = create_node(0,m_mia,s_mia_unmatch);
       attach(parent,nd);
       /* skip 'matched then' tokens */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
       /* skip 'insert' token */
-      p = tns_parser::next_token(s,p,buf);
+      p = next_token(s,p,buf);
       mov(p,buf);
       /* parse the 'insert...' items behind as 
        *  'insert' statement */
@@ -2228,7 +2416,7 @@ int sql_tree::parse_update_stmt(stxNode *parent, int &p)
   //int st = 0;
 
   /* parse 'update' list */
-  p = tns_parser::next_token(s,p,buf);
+  p = next_token(s,p,buf);
   /* XXX: this 'if' block is used to ignore the 'update'
    *  list processing in 'update' part of 'merge into' 
    *  statement, and to process those in normal 'update' 
@@ -2237,7 +2425,7 @@ int sql_tree::parse_update_stmt(stxNode *parent, int &p)
     //fset(of_nt,s_upd);
     parse_list(parent,s_upd,p);
     //fclr(of_nt);
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
   }
   /* skip the 'set' token */
   if (!strcasecmp(buf,"set")) {
@@ -2263,7 +2451,7 @@ int sql_tree::parse_delete_stmt(stxNode *parent, int &p)
     return 0;
   }
   /* test for 'using' list */
-  p = tns_parser::next_token(sql_stmt,p,buf);
+  p = next_token(sql_stmt,p,buf);
   if (!strcasecmp(buf,"using")) {
     mov(p,buf);
     attach(parent,parse_using_list(p));
@@ -2313,7 +2501,7 @@ int sql_tree::parse_withas_stmt(stxNode *parent, int &p)
     tmp = parse_endpoint_item(p);
     attach(node,tmp);
     /* skip the 'as' token */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     mov(p,buf);
     /* parse the 'item' */
     tmp = parse_complex_item(p);
@@ -2321,7 +2509,7 @@ int sql_tree::parse_withas_stmt(stxNode *parent, int &p)
     /* attach attribute node to parent */
     attach(parent,node);
     /* check if 'wa item' list ends */
-    p = tns_parser::next_token(s,p,buf);
+    p = next_token(s,p,buf);
     if (*buf!=',') {
       break ;
     }
@@ -2339,7 +2527,7 @@ bool sql_tree::is_stmt(int p)
   std::string &s = sql_stmt ;
   char buf[TKNLEN] = "" ;
 
-  tns_parser::next_token(s,p,buf);
+  next_token(s,p,buf);
   return 
     !strcasecmp(buf,"select") ||
     /* statement 'with as' */
@@ -2356,6 +2544,7 @@ bool sql_tree::is_stmt(int p)
     !strcasecmp(buf,"desc")   ||
     !strcasecmp(buf,"rollback")||
     !strcasecmp(buf,"commit") ||
+    !strcasecmp(buf,"create") ||
     !strcasecmp(buf,"call") ;
 }
 
@@ -2369,7 +2558,7 @@ stxNode* sql_tree::parse_stmt(int &pos)
     printd("fatal: expects a statement\n");
     return NULL ;
   }
-  pos = tns_parser::next_token(s,pos,buf);
+  pos = next_token(s,pos,buf);
   mov(pos,buf);
   /* process statement by types */
   if (!strcasecmp(buf,"select")) {
@@ -2432,6 +2621,10 @@ stxNode* sql_tree::parse_stmt(int &pos)
     /* 'rollback' statement */
     node = create_node(0,m_stmt,s_rollback);
     parse_simple_transac_stmt(node,pos);
+  } else if (!strcasecmp(buf,"create")) {
+    /* 'create xxx' statement */
+    node = create_node(0,m_stmt,0);
+    parse_create_stmt(node,pos);
   } else {
     printd("unknown statement type '%s'\n", buf);
   }
@@ -2454,14 +2647,14 @@ stxNode* sql_tree::parse_stmt_set(int lt,int &pos)
       top = NULL;
     }
     /* test for a 'parallel' statement set */
-    pos = tns_parser::next_token(s,pos,buf);
+    pos = next_token(s,pos,buf);
     if (strcasecmp(buf,"union")) {
       break ;
     }
     s_type = s_union ;
     mov(pos,buf);
     /* test for 'union all' */
-    pos = tns_parser::next_token(s,
+    pos = next_token(s,
       pos,buf);
     if (!strcasecmp(buf,"all")) {
       s_type = s_uniona ;
@@ -2658,7 +2851,7 @@ int tree_serializer::eliminate_comments(std::string &stmt)
 
   /* eliminate nesting comments */
   for(;pos<s.size();) {
-    pos = tns_parser::next_token(s,static_cast<uint16_t>(pos),buf);
+    pos = next_token(s,static_cast<uint16_t>(pos),buf);
     /* get beginning */
     if (*buf=='/'&& ((pos+1)<s.size()) && s[pos+1]=='*') {
       if (!depth++) sp = pos ;
@@ -2962,6 +3155,24 @@ int tree_serializer::serialize_tree(stxNode *node)
         lp = &tree_serializer::add_wa;
       }
       break ;
+    /* create table column definition type */
+    case m_cdt:
+      {
+        int t = sget(node->type);
+
+        if (t==cda_null || t==cda_not_null || t==cda_default_val || t==cda_auto_inc ||
+            t==cda_primary_key || t==cda_key || t==cda_foreign_key || t==cda_index ||
+            t==cda_unique_index) {
+          s += sub_type_str(node->type);
+          s += " ";
+        }
+        if (t==cda_col || t==cda_col_type || t==cda_default_val || t==cda_primary_key ||
+            t==cda_key || t==cda_foreign_key || t==cda_index || t==cda_unique_index) {
+          s += node->name ;
+          s += " ";
+        }
+      }
+      break ;
     /* statement type */
     case m_stmt:
       /* do 'add comma' operation for each 
@@ -2975,6 +3186,12 @@ int tree_serializer::serialize_tree(stxNode *node)
     case m_keyw:
       s += sub_type_str(node->type);
       s += " ";
+
+      /* special for 'create table's name' */
+      if (node->type==mktype(m_stmt,s_cTbl)) {
+        s += node->name;
+        s += " ";
+      }
       break ;
     /* endpoint type */
     case m_endp:
@@ -2993,6 +3210,10 @@ int tree_serializer::serialize_tree(stxNode *node)
     /* list type */
     case m_list:
       switch (sget(node->type)) {
+        /* index list */
+        case s_index:
+        /* create table: column definition list */
+        case s_cd_lst:
         /* 'format' list of insert */
         case s_fmt:
         /* add '()' pair for 'arg list' */

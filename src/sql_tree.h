@@ -35,6 +35,7 @@ namespace stree_types {
     m_cwa, /* 'case when' attribute */
     m_mia, /* 'merge into' attribute */
     m_keyw,/* key words */
+    m_cdt, /* create table: column definition types */
   };
   /* sub syntax node types */
   enum pha_type { 
@@ -62,6 +63,24 @@ namespace stree_types {
     s_mia_match,  /* the action when matched */
     s_mia_unmatch,/* the action when unmatched */
   } ;
+  /*  create table: column definition attributes */
+  enum cda_type {
+    cda_col,
+    cda_col_type,
+    cda_null, 
+    cda_not_null, 
+    cda_default_val, 
+    cda_auto_inc, 
+    cda_primary_key, 
+    //cda_primary_key_name, 
+    cda_key,
+    cda_foreign_key,
+    //cda_key_name,
+    cda_index,
+    cda_unique_index,
+    //cda_index_name,
+    /* TODO: check() */
+  } ;
   enum stmt_type { s_select, s_insert, s_delete, s_update, 
     s_withas, /* statement type 'with as' */
     s_casew,  /* statement type 'case when' */
@@ -74,6 +93,7 @@ namespace stree_types {
     s_desc, /* statement type 'desc' */
     s_commit,/* transaction control */
     s_rollback,
+    s_cTbl, /* create table */
   } ;
   /* unary expressions */
   enum uexpr_type {
@@ -161,6 +181,9 @@ namespace stree_types {
     s_trunc,/* truncate list */
     s_show_lst,  /* the show list */
     s_desc_lst,  /* the desc list */
+    s_cd_lst,  /* create definition list */
+    s_cd_item, /* create definition item */
+    s_index,  /* the key/index list */
   };
   /* sub node type 'none' */
 #define s_none /*(1<<30)*/1024
@@ -178,6 +201,7 @@ namespace stree_types {
   mget(t)==m_cwa?"case when attribute":   \
   mget(t)==m_mia?"merge into attribute":  \
   mget(t)==m_keyw?"keyword":              \
+  mget(t)==m_cdt?"column definition":     \
   "main type n/a"                         \
 )
   /* dump the sub node type in text */
@@ -199,6 +223,7 @@ namespace stree_types {
    sget(t)==s_desc?"desc":            \
    sget(t)==s_commit?"commit":        \
    sget(t)==s_rollback?"rollback":    \
+   sget(t)==s_cTbl?"create table":    \
    "stmt type n/a"):                  \
   mget(t)==m_expr?                    \
    /* expression types */             \
@@ -287,6 +312,9 @@ namespace stree_types {
    sget(t)==s_trunc?"truncate list":  \
    sget(t)==s_show_lst?"show list":  \
    sget(t)==s_desc_lst?"desc list":  \
+   sget(t)==s_cd_lst?"column def list":  \
+   sget(t)==s_cd_item?"column def item":  \
+   sget(t)==s_index?"index list":     \
    "list type n/a"):                  \
   mget(t)==m_pha?                     \
    (sget(t)==s_pha_name?"name":       \
@@ -323,6 +351,19 @@ namespace stree_types {
    sget(t)==s_wildcast?"*":           \
    sget(t)==s_fu?"for update":        \
    "attr type n/a"):                  \
+  mget(t)==m_cdt?                     \
+   (sget(t)==cda_col?"col name":      \
+   sget(t)==cda_col_type?"col type":  \
+   sget(t)==cda_null?"null":          \
+   sget(t)==cda_not_null?"not null":  \
+   sget(t)==cda_default_val?"default":\
+   sget(t)==cda_auto_inc?"auto_increment": \
+   sget(t)==cda_primary_key?"primary key": \
+   sget(t)==cda_key?"key":            \
+   sget(t)==cda_foreign_key?"foreign":\
+   sget(t)==cda_index?"index":        \
+   sget(t)==cda_unique_index?"unique":\
+   "attr type n/a"):                  \
   /* unknown types */                 \
   main_type_str(t)                    \
 )
@@ -346,6 +387,7 @@ public:
     ci_norm = 1<<4, /* normal type */
     ci_ury  = 1<<5, /* 'unary expr' type */
     ci_func = 1<<6, /* function type */
+    ci_ct   = 1<<7, /* create table type */
     ci_all  = 0xfff,/* process all */
   } ;
   /* option flag types */
@@ -390,6 +432,8 @@ public:
    &sql_tree::is_fmt_list_ends:        \
     (t)==s_upd||(t)==s_set?            \
    &sql_tree::is_update_list_ends:     \
+    (t)==s_cd_lst||(t)==s_index?       \
+   &sql_tree::is_ct_list_ends:         \
    NULL                                \
 )
   /* get list-keyword-parsing function */
@@ -504,6 +548,8 @@ private:
   /* process complex select list item, such as
    *  expressions or sub statements */
   stxNode* parse_complex_item(int&);
+  /* parse 'create table' item */
+  stxNode* parse_ct_item(int&);
   /* copy string constant */
   int copy_const_str(char*,int&);
   /* process the basic item in 'select list' */
@@ -537,6 +583,8 @@ private:
   /* test ending of a 'update' list of
    *  'update' statement */
   bool is_update_list_ends(char*,int&) ;
+  /* test ending of a 'create table' list */
+  bool is_ct_list_ends(char*,int&) ;
   /* parse keywrods in select list */
   stxNode* parse_sl_keys(char*,int&);
   /* parse keywrods in 'order by' list */
@@ -578,6 +626,8 @@ private:
   stxNode* parse_stmt(int&);
   /* process statement set such as 'union [all]' */
   stxNode* parse_stmt_set(int,int&);
+  /* syntax processing on 'create xxx' statement */
+  int parse_create_stmt(stxNode*,int &);
 } ;
 
 class tree_serializer : public sql_tree {

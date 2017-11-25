@@ -17,6 +17,14 @@ const int TKNLEN = /*64*/68;
 const int PWDLEN = 256;
 const int LONG_DATABUF_LEN =/*128*/4096;
 
+
+
+namespace LEX_GLOBAL {
+
+  extern uint16_t next_token(std::string &str,uint16_t pos, 
+    char *buf, int length=TKNLEN) ;
+} ;
+
 class tns_parser {
 public:
   /* elements in tns file, except tUsr&tPwd */
@@ -55,10 +63,7 @@ public:
   /* get parsed tns info by item index */
   char* get_tns(uint32_t);
   /* get next token from string buffer */
-  static uint16_t next_token(std::string&,uint16_t,char*,
-    int=TKNLEN);
-  static uint16_t prev_token(std::string&,uint16_t,char*,
-    int=TKNLEN);
+  //static uint16_t prev_token(std::string&,uint16_t,char*,int=TKNLEN);
 } ;
 
 class my_dsn_parser {

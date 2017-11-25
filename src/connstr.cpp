@@ -3,6 +3,79 @@
 #include "dbug.h"
 
 
+namespace LEX_GLOBAL {
+
+  uint16_t 
+  next_token(std::string &str,uint16_t pos, 
+    char *buf, int length) 
+  {
+    uint16_t sp = pos, np = 0;
+    char *pstr; 
+    int ln = 0;
+
+    /* eliminate possible spaces */
+    while (sp<str.size()&& isspace(str[sp])) sp++ ;
+    np = sp ;
+    /* find ending of type token */ 
+    while (np<str.size() &&
+      str[np]!='[' && str[np]!=']' && 
+      str[np]!='<' && str[np]!='>' && 
+      str[np]!='(' && str[np]!=')' && 
+      str[np]!=',' && str[np]!=':' &&
+      str[np]!='.' && str[np]!='=' &&
+      str[np]!='+' && str[np]!='-' && 
+      str[np]!='\''&& str[np]!='*' &&  
+      str[np]!='/' && str[np]!='\"' &&
+      str[np]!='!' && 
+      /* add 2016.8.28: support math opt '%' */
+      str[np]!='%' &&
+      /* add 20160413: support ';' */
+      str[np]!=';' &&
+      /* add '|' '&' '~' '^' support */
+      str[np]!='|' && str[np]!='&' &&
+      str[np]!='^' && str[np]!='~' &&
+      !isspace(str[np])) 
+      np ++ ; 
+    /* 20170320: compatible with following operators:
+     *  '&' '|' '<<' '>>' '~' '^'
+     */
+    /* 20160301: compatible with these operators: 
+     *  '<=' '>=' '<>' '!=' '+=' ':='
+     */
+    if ((uint16_t)(sp+1)<str.size()) {
+      if ((str[sp]=='<'&& str[sp+1]=='>')  ||
+         (str[sp]=='<' && str[sp+1]=='=')  ||
+         (str[sp]=='>' && str[sp+1]=='=')  ||
+         (str[sp]=='+' && str[sp+1]=='=')  ||
+         (str[sp]==':' && str[sp+1]=='=')  ||
+         (str[sp]=='|' && str[sp+1]=='|')  ||
+         (str[sp]=='<' && str[sp+1]=='<')  ||
+         (str[sp]=='>' && str[sp+1]=='>')  ||
+         (str[sp]=='!' && str[sp+1]=='=')) {
+        np+=2 ;
+      }
+    }
+    /* 20160301: compatible with '(+)' */
+    if ((uint16_t)(sp+2)<str.size() && str[sp]=='('&&
+       str[sp+1]=='+' &&str[sp+2]==')') {
+      np+=3 ;
+    }
+    if (sp>=str.size()) {
+      sp = str.size();
+    }
+    /* copy the token */
+    std::string tmp = str.substr(sp,!(np-sp)?
+      1:(np-sp)) ;
+    pstr = (char*)tmp.c_str();
+    ln   = tmp.size();
+    strncpy(buf,pstr,ln>length?length:ln);
+    buf[ln] = '\0';
+    return sp ;
+  }
+} ;
+
+using namespace LEX_GLOBAL ;
+
 /* 
  * class tns_parser
  */
@@ -152,6 +225,7 @@ int tns_parser::do_recurse_parse(FILE *file)
   return 1;
 }
 
+#if 0
 uint16_t tns_parser::prev_token(std::string &str,
   uint16_t pos, char *buf, int length) 
 {
@@ -182,73 +256,7 @@ uint16_t tns_parser::prev_token(std::string &str,
   buf[ln]='\0';
   return p ;
 }
-
-uint16_t tns_parser::next_token(std::string &str,
-  uint16_t pos, char *buf, int length) 
-{
-  uint16_t sp = pos, np = 0;
-  char *pstr; 
-  int ln = 0;
-
-  /* eliminate possible spaces */
-  while (sp<str.size()&& isspace(str[sp])) sp++ ;
-  np = sp ;
-  /* find ending of type token */ 
-  while (np<str.size() &&
-    str[np]!='[' && str[np]!=']' && 
-    str[np]!='<' && str[np]!='>' && 
-    str[np]!='(' && str[np]!=')' && 
-    str[np]!=',' && str[np]!=':' &&
-    str[np]!='.' && str[np]!='=' &&
-    str[np]!='+' && str[np]!='-' && 
-    str[np]!='\''&& str[np]!='*' &&  
-    str[np]!='/' && str[np]!='\"' &&
-    str[np]!='!' && 
-    /* add 2016.8.28: support math opt '%' */
-    str[np]!='%' &&
-    /* add 20160413: support ';' */
-    str[np]!=';' &&
-    /* add '|' '&' '~' '^' support */
-    str[np]!='|' && str[np]!='&' &&
-    str[np]!='^' && str[np]!='~' &&
-    !isspace(str[np])) 
-    np ++ ; 
-  /* 20170320: compatible with following operators:
-   *  '&' '|' '<<' '>>' '~' '^'
-   */
-  /* 20160301: compatible with these operators: 
-   *  '<=' '>=' '<>' '!=' '+=' ':='
-   */
-  if ((uint16_t)(sp+1)<str.size()) {
-    if ((str[sp]=='<'&& str[sp+1]=='>')  ||
-       (str[sp]=='<' && str[sp+1]=='=')  ||
-       (str[sp]=='>' && str[sp+1]=='=')  ||
-       (str[sp]=='+' && str[sp+1]=='=')  ||
-       (str[sp]==':' && str[sp+1]=='=')  ||
-       (str[sp]=='|' && str[sp+1]=='|')  ||
-       (str[sp]=='<' && str[sp+1]=='<')  ||
-       (str[sp]=='>' && str[sp+1]=='>')  ||
-       (str[sp]=='!' && str[sp+1]=='=')) {
-      np+=2 ;
-    }
-  }
-  /* 20160301: compatible with '(+)' */
-  if ((uint16_t)(sp+2)<str.size() && str[sp]=='('&&
-     str[sp+1]=='+' &&str[sp+2]==')') {
-    np+=3 ;
-  }
-  if (sp>=str.size()) {
-    sp = str.size();
-  }
-  /* copy the token */
-  std::string tmp = str.substr(sp,!(np-sp)?
-    1:(np-sp)) ;
-  pstr = (char*)tmp.c_str();
-  ln   = tmp.size();
-  strncpy(buf,pstr,ln>length?length:ln);
-  buf[ln] = '\0';
-  return sp ;
-}
+#endif
 
 int tns_parser::next_token(FILE *file, char buf[], int len)
 {
