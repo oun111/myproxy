@@ -188,11 +188,15 @@ int main(int argc, char *argv[])
       {
         printd("test 0\n");
         cnn.change_db("test_db");
-        streams[strs].open(0, "create table t1("
-          "c1 int not null primary key, "
+        streams[strs].open(0, "create table if not exists t1("
+          "c1 int not null primary key auto_increment, "
           "c2 varchar(10) null default 0,"
-          "index i3(c2)"
-          ") ");
+          "index i3(c2),"
+          "unique index i4(c1),"
+          "c3 bigint default 0,"
+          "foreign key i5(c1) references test_tbl(id)"
+          //",primary key(c1)"
+          ") engine = innodb default charset=utf8");
         streams[strs].debug();
         return 0;
       }

@@ -67,17 +67,8 @@ namespace stree_types {
   enum cda_type {
     cda_col,
     cda_col_type,
-    cda_null, 
-    cda_not_null, 
-    cda_default_val, 
-    cda_auto_inc, 
-    cda_primary_key, 
     //cda_primary_key_name, 
-    cda_key,
-    cda_foreign_key,
     //cda_key_name,
-    cda_index,
-    cda_unique_index,
     //cda_index_name,
     /* TODO: check() */
   } ;
@@ -94,6 +85,7 @@ namespace stree_types {
     s_commit,/* transaction control */
     s_rollback,
     s_cTbl, /* create table */
+    s_cTbl_if_ne, /* create table if not exists */
   } ;
   /* unary expressions */
   enum uexpr_type {
@@ -152,6 +144,15 @@ namespace stree_types {
     s_asc, /* keyword 'asc' in 'order by' list */
     s_dsc, /* keyword 'desc' in 'order by' list */
     s_fu,  /* keyword 'for update' */
+    s_auto_inc,  /* keyword 'auto_increment' */
+    s_null, /* keyword 'null' */
+    s_not_null, /* keyword 'not null' */
+    s_default_val, 
+    s_primary_key, /* keyword 'primary key' */
+    s_key,/* keyword 'key' */
+    s_idx,/* keyword 'index' */
+    s_unique_index,/* keyword 'unique index' */
+    s_foreign_key,/* keyword 'foreign key' */
   } ;
   enum endp_type { 
     s_tbl, s_schema, s_func, 
@@ -184,6 +185,7 @@ namespace stree_types {
     s_cd_lst,  /* create definition list */
     s_cd_item, /* create definition item */
     s_index,  /* the key/index list */
+    s_ref_lst, /* reference list in 'foreign key' creation */
   };
   /* sub node type 'none' */
 #define s_none /*(1<<30)*/1024
@@ -224,6 +226,7 @@ namespace stree_types {
    sget(t)==s_commit?"commit":        \
    sget(t)==s_rollback?"rollback":    \
    sget(t)==s_cTbl?"create table":    \
+   sget(t)==s_cTbl_if_ne?"create table if not exists":\
    "stmt type n/a"):                  \
   mget(t)==m_expr?                    \
    /* expression types */             \
@@ -310,11 +313,12 @@ namespace stree_types {
    sget(t)==s_odku?"on duplicate key update":\
    sget(t)==s_norm?"normal list":     \
    sget(t)==s_trunc?"truncate list":  \
-   sget(t)==s_show_lst?"show list":  \
-   sget(t)==s_desc_lst?"desc list":  \
+   sget(t)==s_show_lst?"show list":   \
+   sget(t)==s_desc_lst?"desc list":   \
    sget(t)==s_cd_lst?"column def list":  \
    sget(t)==s_cd_item?"column def item":  \
    sget(t)==s_index?"index list":     \
+   sget(t)==s_ref_lst?"references":   \
    "list type n/a"):                  \
   mget(t)==m_pha?                     \
    (sget(t)==s_pha_name?"name":       \
@@ -350,19 +354,19 @@ namespace stree_types {
    sget(t)==s_unique?"unique":        \
    sget(t)==s_wildcast?"*":           \
    sget(t)==s_fu?"for update":        \
+   sget(t)==s_auto_inc?"auto_increment": \
+   sget(t)==s_null?"null":            \
+   sget(t)==s_not_null?"not null":    \
+   sget(t)==s_default_val?"default":  \
+   sget(t)==s_primary_key?"primary key": \
+   sget(t)==s_key?"key":              \
+   sget(t)==s_idx?"index":            \
+   sget(t)==s_unique_index?"unique":  \
+   sget(t)==s_foreign_key?"foreign key":\
    "attr type n/a"):                  \
   mget(t)==m_cdt?                     \
    (sget(t)==cda_col?"col name":      \
    sget(t)==cda_col_type?"col type":  \
-   sget(t)==cda_null?"null":          \
-   sget(t)==cda_not_null?"not null":  \
-   sget(t)==cda_default_val?"default":\
-   sget(t)==cda_auto_inc?"auto_increment": \
-   sget(t)==cda_primary_key?"primary key": \
-   sget(t)==cda_key?"key":            \
-   sget(t)==cda_foreign_key?"foreign":\
-   sget(t)==cda_index?"index":        \
-   sget(t)==cda_unique_index?"unique":\
    "attr type n/a"):                  \
   /* unknown types */                 \
   main_type_str(t)                    \
@@ -548,6 +552,10 @@ private:
   /* process complex select list item, such as
    *  expressions or sub statements */
   stxNode* parse_complex_item(int&);
+  /* parse the key/index item */
+  int parse_index_items(stxNode*,const char*,int&);
+  /* parse normal col def items, such as a normal column definition */
+  int parse_normal_ct_item(stxNode*,const char*,int&);
   /* parse 'create table' item */
   stxNode* parse_ct_item(int&);
   /* copy string constant */
@@ -627,6 +635,7 @@ private:
   /* process statement set such as 'union [all]' */
   stxNode* parse_stmt_set(int,int&);
   /* syntax processing on 'create xxx' statement */
+  int parse_create_tbl_additions(stxNode*,int&);
   int parse_create_stmt(stxNode*,int &);
 } ;
 

@@ -48,7 +48,7 @@ int mysql_adpt::do_adaption(
     return 0;
   }
   /* XXX: debug */
-  //print_tree(root,1);
+  print_tree(root,1);
 
   /* do sql syntax checking */
   {

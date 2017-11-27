@@ -654,6 +654,126 @@ int sql_tree::copy_const_str(char *inbuf, int &p)
 }
 #endif
 
+int sql_tree::parse_index_items(stxNode *parent, const char *keyStr, int &pos)
+{
+  int t = 0;
+  std::string &s = sql_stmt ;
+  char buf[TKNLEN] = "";
+
+  if (!strcasecmp(keyStr,"key")) t = s_key;
+  else if (!strcasecmp(keyStr,"index"))t = s_idx ;
+  else if (!strcasecmp(keyStr,"primary")) {
+    t = s_primary_key ;
+    /* skip 'key' */
+    pos = next_token(s,pos,buf);
+    assert(!strcasecmp(buf,"key"));
+    mov(pos,buf);
+  } else if (!strcasecmp(keyStr,"unique")) {
+    t = s_unique_index ;
+    pos = next_token(s,pos,buf);
+    if (!strcasecmp(buf,"index")) {
+      mov(pos,buf);
+      pos = next_token(s,pos,buf);
+    }
+  } else if (!strcasecmp(keyStr,"foreign")) {
+    t = s_foreign_key ;
+    pos = next_token(s,pos,buf);
+    assert (!strcasecmp(buf,"key")) ;
+    mov(pos,buf);
+  }
+
+  stxNode *p = create_node(0,m_keyw,t);
+  attach(parent,p);
+
+  pos = next_token(s,pos,buf);
+  /* for 'primary key' only */
+  if (t==s_primary_key) {
+    /* it's: 
+     *  xxx primary key, 
+     *                 ^
+     * means current column def item is ended, break the main loop
+     */
+    if (*buf==',' || *buf==')') 
+      return 1; 
+    /* it's:
+     * primary key auto_increment 
+     *             ^^^^^^^^^^^^^^
+     */
+    if (*buf!='(') {
+      return 0 ;
+    }
+  }
+
+  if (*buf!='(') {
+    strcpy(p->name,buf);
+    mov(pos,buf);
+    pos = next_token(s,pos,buf);
+  }
+
+  /* skip '(' symbol */
+  mov(pos,buf);
+  /* parse the argument list */
+  fset(of_ci,ci_all);
+  parse_list(p,s_index,pos);
+  fset(of_ci,ci_ct);
+  /* skip the ')' */
+  mov(pos,buf);
+
+  /* for the 'foreign key xxx references yyy(key)' */
+  if (t==s_foreign_key) {
+    stxNode *tmp = 0, *t1 = 0 ; 
+    
+    pos = next_token(s,pos,buf);
+    assert(!strcasecmp(buf,"references"));
+    mov(pos,buf);
+
+    t1 = create_node(0,m_list,s_ref_lst);
+    attach(p,t1);
+
+    fset(of_ci,ci_all);
+    tmp = parse_endpoint_item(pos);
+    fset(of_ci,ci_ct);
+    attach(t1,tmp);
+  }
+
+  return 0;
+}
+
+int 
+sql_tree::parse_normal_ct_item(stxNode *parent, const char *strCol, int &pos)
+{
+  char buf[TKNLEN] = "";
+  stxNode *p = 0;
+  std::string &s = sql_stmt;
+
+  p = create_node((char*)strCol,m_cdt,cda_col);
+  attach(parent,p);
+
+  /* parse column type */
+  pos = next_token(s,pos,buf);
+  mov(pos,buf);
+  /* construct the column type string */
+  if (!strcasecmp(buf,"varchar")) {
+    char tmp[TKNLEN] = "";
+
+    /* the '(' symbol */
+    pos = next_token(s,pos,tmp);
+    mov(pos,tmp);
+    strcat(buf,"(");
+    /* the string length */
+    pos = next_token(s,pos,tmp);
+    mov(pos,tmp);
+    strcat(buf,tmp);
+    /* the ')' symbol */
+    pos = next_token(s,pos,tmp);
+    mov(pos,tmp);
+    strcat(buf,")");
+  }
+  p = create_node(buf,m_cdt,cda_col_type);
+  attach(parent,p);
+  return 0;
+}
+
 stxNode* sql_tree::parse_ct_item(int &pos)
 {
   char buf[TKNLEN] = "" ;
@@ -678,34 +798,12 @@ stxNode* sql_tree::parse_ct_item(int &pos)
      *   or CHECK (expr)
      *
      */
-    if (!strcasecmp(buf,"primary")) {
-      p = create_node(0,m_cdt,cda_primary_key);
-      attach(parent,p);
-
-      /* next should be the 'key' symbol */
-      pos = next_token(s,pos,buf);
-      mov(pos,buf);
-      assert(!strcasecmp(buf,"key"));
-
-      /* test if it's like: primary key(name) */
-      pos = next_token(s,pos,buf);
-      if (buf[0]=='(') {
-        /* skip '(' */
-        mov(pos,buf);
-        /* get the primary key name */
-        pos = next_token(s,pos,p->name);
-        mov(pos,p->name);
-        /* skip ')' */
-        pos = next_token(s,pos,buf);
-        mov(pos,buf);
-      }
-    } 
-    else if (!strcasecmp(buf,"null")) {
-      p = create_node(0,m_cdt,cda_null);
+    if (!strcasecmp(buf,"null")) {
+      p = create_node(0,m_keyw,s_null);
       attach(parent,p);
     }
     else if (!strcasecmp(buf,"not")) {
-      p = create_node(0,m_cdt,cda_not_null);
+      p = create_node(0,m_keyw,s_not_null);
       attach(parent,p);
       /* next should be the 'null' symbol */
       pos = next_token(s,pos,buf);
@@ -713,95 +811,40 @@ stxNode* sql_tree::parse_ct_item(int &pos)
       assert(!strcasecmp(buf,"null"));
     }
     else if (!strcasecmp(buf,"default")) {
-      p = create_node(0,m_cdt,cda_default_val);
+      p = create_node(0,m_keyw,s_default_val);
       attach(parent,p);
       pos = next_token(s,pos,p->name);
       mov(pos,p->name);
     }
     else if (!strcasecmp(buf,"auto_increment")) {
-      p = create_node(0,m_cdt,cda_auto_inc);
+      p = create_node(0,m_keyw,s_auto_inc);
       attach(parent,p);
     }
-    else if (!strcasecmp(buf,"key") || !strcasecmp(buf,"index")) {
-      int t = 0;
+    else if (!strcasecmp(buf,"key") || !strcasecmp(buf,"index") || 
+       !strcasecmp(buf,"primary") || !strcasecmp(buf,"unique") ||
+       !strcasecmp(buf,"foreign")) {
 
-      if (!strcasecmp(buf,"key")) t = cda_key;
-      else t = cda_index ;
-      p = create_node(0,m_cdt,t);
-      attach(parent,p);
-      pos = next_token(s,pos,buf);
-      if (*buf!='(') {
-        strcpy(p->name,buf);
-        mov(pos,buf);
-        pos = next_token(s,pos,buf);
+      if (parse_index_items(parent,buf,pos)==1) {
+        break ;
       }
-      /* skip '(' */
-      //mov(pos,p->name);
-      /* do normal list parse */
-      fset(of_ci,ci_all);
-      parse_list(p,s_index,pos);
-      fset(of_ci,ci_ct);
-    } 
-    else if (!strcasecmp(buf,"unique")) {
-      p = create_node(0,m_cdt,cda_unique_index);
 
-      pos = next_token(s,pos,buf);
-      if (!strcasecmp(buf,"index")) {
-        mov(pos,buf);
-        pos = next_token(s,pos,buf);
-      }
-      if (buf[0]!='(') {
-        strcpy(p->name,buf);
-        mov(pos,buf);
-        pos = next_token(s,pos,buf);
-      }
-      /* skip '(' */
-      mov(pos,buf);
-      parse_list(p,s_index,pos);
     } 
     /* TODO: */
 #if 0
     else if (!strcasecmp(buf,"constraint")) {
-    } else if (!strcasecmp(buf,"foreign")) {
     } else if (!strcasecmp(buf,"check")) {
     }
 #endif
-    /* normal column definition */
+    /* normal column definitions */
     else {
-      p = create_node(buf,m_cdt,cda_col);
-      attach(parent,p);
-
-      /* parse column type */
-      pos = next_token(s,pos,buf);
-      mov(pos,buf);
-      /* construct the column type string */
-      if (!strcasecmp(buf,"varchar")) {
-        char tmp[TKNLEN] = "";
-
-        /* the '(' symbol */
-        pos = next_token(s,pos,tmp);
-        mov(pos,tmp);
-        strcat(buf,"(");
-        /* the string length */
-        pos = next_token(s,pos,tmp);
-        mov(pos,tmp);
-        strcat(buf,tmp);
-        /* the ')' symbol */
-        pos = next_token(s,pos,tmp);
-        mov(pos,tmp);
-        strcat(buf,")");
-      }
-      p = create_node(buf,m_cdt,cda_col_type);
-      attach(parent,p);
+      parse_normal_ct_item(parent,buf,pos);
     }
 
     /* try next */
     pos = next_token(s,pos,buf);
 
     /* end of 'create list item list' */
-    if (buf[0]==',' || buf[0]==')') {
-      break ;
-    }
+    if (*buf==',' || *buf==')') break ; 
   } 
 
   return parent;
@@ -911,6 +954,7 @@ stxNode* sql_tree::parse_endpoint_item(
   fget(of_ci,flag,bSet);
   /* parse as a function-type call */
   if ((flag&ci_func) && *buf=='(' && !is_ora_join(p)) {
+    printf("parsing function\n");
     /* skip '(' symbol */
     mov(p,buf);
     /* change node type to function call */
@@ -2259,6 +2303,19 @@ int sql_tree::parse_simple_transac_stmt(stxNode *parent, int &p)
   return 1;
 }
 
+int sql_tree::parse_create_tbl_additions(stxNode *parent, int &pos)
+{
+  std::string &s = sql_stmt ;
+
+  while (pos<(int)s.size()) {
+
+    stxNode *p = parse_list_item(pos);
+
+    attach(parent,p);
+  }
+  return 0;
+}
+
 int sql_tree::parse_create_stmt(stxNode *parent, int &p)
 {
   char buf[TKNLEN] = "";
@@ -2270,15 +2327,50 @@ int sql_tree::parse_create_stmt(stxNode *parent, int &p)
   if (!strcasecmp(buf,"table")) {
     /* set parent node type */
     parent->type = mktype(m_stmt,s_cTbl);
+
+    /* it's 'if not exists' */
+    p = next_token(s,p,buf);
+    if (!strcasecmp(buf,"if")) {
+      /* skip 'if' */
+      mov(p,buf);
+      /* skip 'not' */
+      p = next_token(s,p,buf);
+      mov(p,buf);
+      /* skip 'exists' */
+      p = next_token(s,p,buf);
+      mov(p,buf);
+
+      /* change parent's type: 
+       *  'create table' -> 'create table if not exists' 
+       */
+      sset(parent->type,s_cTbl_if_ne);;
+    }
+
     /* table name */
     p = next_token(s,p,parent->name);
     mov(p,parent->name);
+
     /* skip '(' */
     p = next_token(s,p,buf);
-    mov(p,buf);
-    /* force to deal with the 'create' list */
-    fset(of_ci,ci_ct);
-    parse_list(parent,s_cd_lst,p);
+    if (*buf=='(') {
+      mov(p,buf);
+      /* force to deal with the 'create' list */
+      fset(of_ci,ci_ct);
+      parse_list(parent,s_cd_lst,p);
+      fset(of_ci,ci_all);
+
+      /* skip ')' */
+      p = next_token(s,p,buf);
+      mov(p,buf);
+
+      /* parse addition items after create list, 
+       *  like 'engine', character, etc */
+      parse_create_tbl_additions(parent,p);
+
+    } else if (!strcasecmp(buf,"select")) {
+      /* TODO: create table with 'select' */
+    }
+
   }
   return 1;
 }
@@ -3160,14 +3252,7 @@ int tree_serializer::serialize_tree(stxNode *node)
       {
         int t = sget(node->type);
 
-        if (t==cda_null || t==cda_not_null || t==cda_default_val || t==cda_auto_inc ||
-            t==cda_primary_key || t==cda_key || t==cda_foreign_key || t==cda_index ||
-            t==cda_unique_index) {
-          s += sub_type_str(node->type);
-          s += " ";
-        }
-        if (t==cda_col || t==cda_col_type || t==cda_default_val || t==cda_primary_key ||
-            t==cda_key || t==cda_foreign_key || t==cda_index || t==cda_unique_index) {
+        if (t==cda_col || t==cda_col_type) {
           s += node->name ;
           s += " ";
         }
@@ -3184,13 +3269,21 @@ int tree_serializer::serialize_tree(stxNode *node)
     case m_uexpr:
     /* keywords */
     case m_keyw:
-      s += sub_type_str(node->type);
-      s += " ";
-
-      /* special for 'create table's name' */
-      if (node->type==mktype(m_stmt,s_cTbl)) {
-        s += node->name;
+      {
+        s += sub_type_str(node->type);
         s += " ";
+
+        /* special for 'create table' */
+        if (node->type==mktype(m_stmt,s_cTbl) || 
+           node->type==mktype(m_stmt,s_cTbl_if_ne) ||
+           node->type==mktype(m_keyw,s_default_val) ||
+           node->type==mktype(m_keyw,s_key) ||
+           node->type==mktype(m_keyw,s_idx) ||
+           node->type==mktype(m_keyw,s_primary_key) 
+           ) {
+          s += node->name;
+          s += " ";
+        }
       }
       break ;
     /* endpoint type */
@@ -3233,6 +3326,8 @@ int tree_serializer::serialize_tree(stxNode *node)
             lp = &tree_serializer::add_comma;
           }
           break ;
+        /* reference list in 'foreign key' creation */
+        case s_ref_lst:
         /* having list */
         case s_hav:
         /* the start with & connect by list */

@@ -15,15 +15,10 @@ def main():
     print("login fail\n")
     exit(-1)
 
-# if mz.prepare('select *from test_db.test_tbl where id <:f1<int>')!=0 :
-  if mz.prepare('create table t1(c1 int not null primary key,c2 varchar(10) null default 0,index i3(c2))')!=0 :
+  if mz.prepare('select *from test_db.test_tbl where id <:f1<int>')!=0 :
     print("prepare fail\n")
     exit(-1)
-  
-  print("ok!\n")
 
-
-"""
   if mz.insert_int(10)!=0 :
     exit(-1)
 
@@ -33,7 +28,8 @@ def main():
     price = mz.fetch_double()
     size = mz.fetch_long()
     print("{0}: name: {1}, point: {2}, size: {3}\n".format(id,name,price,size))
-"""
+  
+  print("ok!\n")
 
 
 if __name__ == "__main__":
