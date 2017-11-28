@@ -1,0 +1,11 @@
+History:
+  Oct 11, 2016:
+    1. merged into myproxy source, so updated to v0.0.2
+
+  Oct 9, 2016:
+    1. added protocol support for a few simple commands, includes
+        query, quit, init_db, list_field, and etc
+
+  Sep 21, 2016:
+    1. initial version v0.0.1
+
