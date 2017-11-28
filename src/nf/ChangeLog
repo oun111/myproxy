@@ -1,0 +1,332 @@
+History: 
+  Sep 28, 2017:
+    1. project is renamed to netf (net framework)
+    2. starting at v0.0.1 alpha
+
+  Jul 17, 2017:
+    1. rewritten the 'tContainer' module by c++
+
+    2. updated version to v1.02.03 alpha
+
+  Jun 26, 2017:
+    1. to simplify the machanism of packet processing, 
+         using a new epoll framework to improve efficiency
+
+    2. updated version to v1.02.02 alpha
+
+  Jun 14, 2017:
+    1. updated version to v1.01.13 alpha to optimize the performace
+
+  Jun 5, 2017:
+    1. fixed a bug in do_disp_rx() that when a disp header is received and an 
+        errno=EAGAIN occors, the header will be discarded
+
+    2. updated version to v1.01.12 alpha
+
+  Apr 2, 2017:
+    1. added a new step in processor login named login-ok-ack, to acknowledge
+        the login-ok response from dispatcher, and the sync-priv command is sent
+        by dispatcher at this step to synchronize private data with processors
+
+    2. fixed a bug in sync-priv processing that the request is sent to a given
+        processor not an idle processor
+
+    3. updated version to v1.01.11 alpha
+
+  Mar 16, 2017:
+    1. rewrite these modules in C language: sock_toolkit, dispatch protocol,
+        resizable container, also the disp2container() function
+
+    2. updated version to v1.01.10 alpha
+
+  Mar 6, 2017:
+    1. giving up the usage of std::queue for message queueing, using boost::queue 
+
+  Mar 3, 2017:
+    1. use pthread_cond_wait/pthread_cond_signal to reduce the CPU usage
+
+  Mar 2, 2017:
+    1. try std::queue for message queue 
+
+  Feb 27, 2017:
+    1. fixed a bug during receiving data by do_disp_rx() while EAGAIN occors, 
+
+    2. use gcc-applied atomic functions instead of boost atomic operations
+
+    3. updated version to v1.01.09 alpha
+
+  Feb 23, 2017:
+    1. simplified the way that processor sending packets to dispatcher
+
+    2. optimized the queueing machanism between 'rx task' and 
+        'handler task', using 'one queue per handler task' instead
+        of a sharing queue among all 'handler tasks'
+
+    3. updated version to v1.01.08 alpha
+
+  Feb 10, 2017:
+    1. add automatic-caller-function print in log_dbg() macro
+
+    2. update to v1.01.07 alpha
+
+  Jan 9, 2017:
+    1. added new logic to recv 'big requests' and 'big replies', 
+        but there's a bug when receiving big requests and replies
+        together, some "disp packet check fail" errors will be reported
+        on processor fds
+
+    2. ha_disp2noproc is removed, the clients will be disconnected when
+        no processor exists
+
+    3. dispatcher packet and normal client packet are identified by
+        destination port, then they will be routed to different processing
+        logics
+
+    4. updated version to v1.01.06 alpha
+
+  Dec 30, 2016:
+    1. add 'big request' and 'big reply' processing logics
+
+    2. updated version to v1.01.05 alpha
+
+  Dec 18, 2016:
+    1. rename the disp.* source to framework.*
+    
+    2. split the logic of do_rx_normal() to serveral small functions
+
+    3. updated version to v1.01.04 alpha
+
+  Nov 14, 2016:
+    1. added 'fast reply' machanism in dispatcher to reply the specified 
+        requests immediately at dispatcher side
+
+    2. udpated version to v1.01.02 alpha
+
+  Nov 11, 2016:
+    1. try to create splited requests without boost::pool allocations, and
+        seem that the packet lost and memory leak are dispeared .
+
+  Nov 10. 2016:
+    1. re-implement the request-spliting-machanism that was added before
+        in a more simple way, only busi_base::split_req() 
+        busi_base::split_req_get() and busi_base::split_req_reply()
+        to implement this machanism
+
+    2. packet lost and memory leak found in pressure tests for the new machanism
+
+    3. updated version to v1.01.01 alpha
+
+  Oct 26, 2016:
+    1. added support for the case that the processor replies multiple
+        packets for a single request
+
+  Oct 25, 2016:
+    1. use thread module 'thread_helper' instead of boost::thread,
+        but needs more tests
+
+    2. updated source to v1.00.10 alpha
+
+  Oct 18, 2016:
+    1. added an 'private data synchronizing' machanism after a 
+        processor is just login-ed at which a configure file
+        is sent to it 
+
+    2. updated version to v1.00.09 beta
+
+  Sep 21, 2016:
+    1. added 'connect in' machanism in dispatcher which will
+        send a notice to processor when a new client connects, to
+        simulate the progress of mysql server, this is optional
+
+    2. updated version to v1.00.09 alpha
+
+  Sep 9, 2016:
+    1. the v1.00.08 alpha is tested and ran steady for a mouth, 
+        so updat version to v1.00.08 beta
+
+  Aug 8, 2016:
+    1. add thread-safe machanism to response list processing in business_base module
+
+    2. updated version to v1.00.08 alpha
+
+  Aug 3, 2016:
+    1. move add_to_epoll() call to the end of sock_toolkit::new_tcp_client(), 
+        since when connection fail, an incorrect socket fd will be added
+        to epoll which will lead to an unpredictable action.
+
+    2. updated the version to 'v1.00.07_5 beta'
+
+  Jun 27, 2016:
+    1. re-fix the 'resouce not released bug' in sock_toolkit::new_tcp_client(),
+        do ::close() on socket which cant connect to remote host
+
+    2. rename the temporary version to 'v1.00.07_5 alpha'
+
+  May 18, 2016:
+    1. fixed bug in sock_toolkit::new_tcp_client(), when destination
+        host can not be connected, then the connection resource will
+        not be released
+
+    2. lowered the cpu usage while pops nothing from lock-free queue
+
+    3. creates a temporary version v1.00.07_5 test
+
+  May 16, 2016:
+    1. added 'nesting response extraction' logic into ha_disp2noproc()
+
+  May 13, 2016:
+    1. added a new handler function tx2other() while dispatcher recveives
+        a 'to other host' packet and no processor logins
+
+    2. creates a temporary version v1.00.07_4 test
+
+  May 11, 2016:
+    1. re-construct the containers in dispatcher module, encapsulate
+        a base class named 'safe_container_base' for them
+
+  May 10, 2016:
+    1. added 'outstanding-server' support into protocol definition,
+        dummy business processing and 'client' app
+
+    2. added related processing machanisms into dispatcher framework
+        for 'outstanding-server', using 'long tcp connections' 
+        instead of 'short connection'
+
+    3. added the 'authentication key' machanism to identify each 
+        dispatchers in network
+
+    4. improved the 'advertisement sending' machanism in the
+        processor framework
+
+    5. create a ne temporary version v1.00.07_3 test
+
+
+  May 9, 2016:
+    1. encapsulates the socket/epoll operations into a new class 
+        named 'socket_toolkit'
+
+    2. create a new temporary version v1.00.07_2 test
+
+  May 6, 2016:
+    1. added an virtual member business_base::do_loopTask(), which is to
+        invoke jobs repeatly.
+
+    2. improve the 'list clearing' process in safeProcList::drop_processors()
+
+    3. added the 'outstanding server' machanism
+
+    4. create a temporary version v1.00.07_1 test
+
+
+  May 5, 2016:
+    1. fixed bug in dispatcher::recv_by_len() and processor::recv_by_len(),
+        they will recv nothing if the last recv call in loop returns '-1'
+
+    2. fixed bug when receiving data from a client connection which will
+        lead to an incomplete receiving packet
+
+
+  May 4, 2016:
+    1. added request length to business_base::do_business()
+
+    2. disabled waiting for worker threads after starting dispatcher
+        or processor
+
+    3. added an 'install' entry in makefile
+
+    4. updated module version to v1.00.07 beta
+
+
+  May 3, 2016:
+    1. simplify the implementation of timer task, using linux thread
+        instead of boost timer
+
+    2. fix bug of log file naming logic that the file name will go incorrect
+        when date changes
+
+    3. added a statically link version in makefile
+
+    4. save a temporary version as v1.00.06_2 
+
+
+  Apr 29, 2016:
+    1. replace the the original file streaming machanism in log
+        module, using normal file I/O instead
+
+    2. save a temporary version named v1.00.06_1 for test
+
+  Apr 25, 2016:
+    1. discarded the 'combine packets' machanism, using 
+        'tcp packet boundary checking' machanism instead
+
+    2. updated version to 1.00.06 beta
+
+
+  Apr 21, 2016:
+    1. added 'combine packets' when processor sends reply
+        to dispatcher, but the packet receiving turns abnormal
+        when the processor sends 'combine packets'
+
+    2. fix bug in dispatcher::extract_session()
+
+    3. improve process in class business_base
+
+    4. updated version to 1.00.05 beta
+
+  Apr 20, 2016:
+    1. use memory-pool machanism in processor instead of 
+        using native malloc/free
+
+  Apr 19, 2016:
+    1. modified log generating machanism that the log will
+        be splited into small ones if it reaches the upper
+        size limit
+
+    2. modified the session status changing machanism that
+        the status will be moved before the session is sent
+
+    3. added a quick lanuch script for testing
+
+  Apr 18, 2016:
+    1. improved the throughput of the dispatcher, also improved
+        the 'data receiving' machanism of processor
+
+    2. updated version to 1.00.04 beta
+
+  Apr 15, 2016:
+    1. improve the '1 more packets in a single session' 
+        problem in epoll receiving
+
+  Apr 13, 2016:
+    1. improved the appearance of log 
+
+  Apr 12, 2016:
+    1. added simple log machanism 
+
+    2. updated version to v1.00.03 beta
+
+  Apr 11, 2016:
+    1. added re-try machanism for sessions which are sent
+        failed in ha_disp2proc() will be sent by 'EPOLLOUT'
+        handlers
+
+    2. updated version to v.1.00.02 beta
+
+  Apr 8, 2016:
+    1. add register-able/configure-able processor distributor 
+        machanism, so that server can run a user defined 
+        distributor, otherwise, a default 'minimum load' distributor
+        will be used.
+
+    2. updated version to v1.00.01 beta
+
+  Apr 7, 2016:
+    1. first beta version of dispatcher/processor architecture,
+        including the following functionalities:
+
+      - request dispatching, re-transmiting, loadbalancing
+      - scalable architecture, easy to deploy
+
+    2. first version at v1.00.0 beta
+
+
