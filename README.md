@@ -7,7 +7,7 @@ stream1.open("select id.nextval(), id from table1");
 ```
 
 ## Feature
- * do sql language adaptions
+ * do sql language adaptions: oracle -> mysql
  * database access tool
  * sql syntax analyze and checking
  * cross platforms: linux, windows
