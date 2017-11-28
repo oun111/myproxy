@@ -85,7 +85,9 @@ namespace stree_types {
     s_commit,/* transaction control */
     s_rollback,
     s_cTbl, /* create table */
-    s_cTbl_if_ne, /* create table if not exists */
+    s_cTbl_cond, /* create table if not exists */
+    s_dTbl, /* drop table */
+    s_dTbl_cond, /* drop table if exists */
   } ;
   /* unary expressions */
   enum uexpr_type {
@@ -153,6 +155,7 @@ namespace stree_types {
     s_idx,/* keyword 'index' */
     s_unique_index,/* keyword 'unique index' */
     s_foreign_key,/* keyword 'foreign key' */
+    s_comment, /* keyword 'comment' */
   } ;
   enum endp_type { 
     s_tbl, s_schema, s_func, 
@@ -186,6 +189,7 @@ namespace stree_types {
     s_cd_item, /* create definition item */
     s_index,  /* the key/index list */
     s_ref_lst, /* reference list in 'foreign key' creation */
+    s_dTbl_lst, /* drop table list */
   };
   /* sub node type 'none' */
 #define s_none /*(1<<30)*/1024
@@ -226,7 +230,9 @@ namespace stree_types {
    sget(t)==s_commit?"commit":        \
    sget(t)==s_rollback?"rollback":    \
    sget(t)==s_cTbl?"create table":    \
-   sget(t)==s_cTbl_if_ne?"create table if not exists":\
+   sget(t)==s_cTbl_cond?"create table if not exists":\
+   sget(t)==s_dTbl?"drop table":    \
+   sget(t)==s_dTbl_cond?"drop table if exists":\
    "stmt type n/a"):                  \
   mget(t)==m_expr?                    \
    /* expression types */             \
@@ -319,6 +325,7 @@ namespace stree_types {
    sget(t)==s_cd_item?"column def item":  \
    sget(t)==s_index?"index list":     \
    sget(t)==s_ref_lst?"references":   \
+   sget(t)==s_dTbl_lst?"drop table list":\
    "list type n/a"):                  \
   mget(t)==m_pha?                     \
    (sget(t)==s_pha_name?"name":       \
@@ -363,6 +370,7 @@ namespace stree_types {
    sget(t)==s_idx?"index":            \
    sget(t)==s_unique_index?"unique":  \
    sget(t)==s_foreign_key?"foreign key":\
+   sget(t)==s_comment?"comment":      \
    "attr type n/a"):                  \
   mget(t)==m_cdt?                     \
    (sget(t)==cda_col?"col name":      \
@@ -421,7 +429,8 @@ public:
 
   /* get list-ending-testing function */
 #define get_end_func(t) (              \
-  (t)==s_sel||(t)==s_arg||(t)==s_norm? \
+  (t)==s_sel||(t)==s_arg||(t)==s_norm||\
+   (t)==s_dTbl_lst?                    \
    &sql_tree::is_sel_list_ends:        \
     (t)==s_from?                       \
    &sql_tree::is_frm_list_ends:        \
@@ -637,6 +646,8 @@ private:
   /* syntax processing on 'create xxx' statement */
   int parse_create_tbl_additions(stxNode*,int&);
   int parse_create_stmt(stxNode*,int &);
+  /* syntax processing on 'drop xxx' statement */
+  int parse_drop_stmt(stxNode*,int&);
 } ;
 
 class tree_serializer : public sql_tree {

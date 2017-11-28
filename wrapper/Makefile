@@ -66,6 +66,7 @@ clean:
 	rm -rf $(TMPDIR)
 	rm -rf $(JNI_OBJ).class
 	rm -rf $(JNI_HEADER)
+	rm -rf python/__pycache__/
 
 .PHONY: distclean
 distclean:clean

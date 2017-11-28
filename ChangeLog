@@ -1,4 +1,7 @@
 Changes:
+  Nov 28,2017:
+    1. add 'drop table' syntax support
+
   Nov 25, 2017:
     1. add 'create table'  syntax support
 

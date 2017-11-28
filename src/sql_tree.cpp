@@ -659,7 +659,7 @@ int sql_tree::parse_index_items(stxNode *parent, const char *keyStr, int &pos)
   int t = 0;
   std::string &s = sql_stmt ;
   char buf[TKNLEN] = "";
-
+  
   if (!strcasecmp(keyStr,"key")) t = s_key;
   else if (!strcasecmp(keyStr,"index"))t = s_idx ;
   else if (!strcasecmp(keyStr,"primary")) {
@@ -671,7 +671,7 @@ int sql_tree::parse_index_items(stxNode *parent, const char *keyStr, int &pos)
   } else if (!strcasecmp(keyStr,"unique")) {
     t = s_unique_index ;
     pos = next_token(s,pos,buf);
-    if (!strcasecmp(buf,"index")) {
+    if (!strcasecmp(buf,"index") || !strcasecmp(buf,"key")) {
       mov(pos,buf);
       pos = next_token(s,pos,buf);
     }
@@ -679,6 +679,12 @@ int sql_tree::parse_index_items(stxNode *parent, const char *keyStr, int &pos)
     t = s_foreign_key ;
     pos = next_token(s,pos,buf);
     assert (!strcasecmp(buf,"key")) ;
+    mov(pos,buf);
+  } else if (!strcasecmp(keyStr,"constraint")) {
+    t = s_foreign_key ;
+    pos = s.find("key",pos);
+    assert((size_t)pos!=std::string::npos);
+    pos = next_token(s,pos,buf);
     mov(pos,buf);
   }
 
@@ -745,32 +751,33 @@ sql_tree::parse_normal_ct_item(stxNode *parent, const char *strCol, int &pos)
   char buf[TKNLEN] = "";
   stxNode *p = 0;
   std::string &s = sql_stmt;
+  size_t np = 0, ln=0;
 
+#if 0
   p = create_node((char*)strCol,m_cdt,cda_col);
+#else
+  p = parse_endpoint_item(pos);
+#endif
   attach(parent,p);
 
   /* parse column type */
   pos = next_token(s,pos,buf);
-  mov(pos,buf);
+  np = pos;
+  mov(np,buf);
   /* construct the column type string */
-  if (!strcasecmp(buf,"varchar")) {
-    char tmp[TKNLEN] = "";
-
-    /* the '(' symbol */
-    pos = next_token(s,pos,tmp);
-    mov(pos,tmp);
-    strcat(buf,"(");
-    /* the string length */
-    pos = next_token(s,pos,tmp);
-    mov(pos,tmp);
-    strcat(buf,tmp);
-    /* the ')' symbol */
-    pos = next_token(s,pos,tmp);
-    mov(pos,tmp);
-    strcat(buf,")");
+  if (!strcasecmp(buf,"varchar") || !strcasecmp(buf,"decimal")) {
+    np = s.find(")",np);
+    assert(np!=std::string::npos);
   }
-  p = create_node(buf,m_cdt,cda_col_type);
+  p = create_node(0,m_cdt,cda_col_type);
   attach(parent,p);
+
+  /* fill in type string */
+  ln = np-pos+1;
+  strncpy(p->name,s.substr(pos,ln).c_str(),TKNLEN);
+  p->name[ln] = '\0';
+
+  pos = np+1;
   return 0;
 }
 
@@ -779,9 +786,11 @@ stxNode* sql_tree::parse_ct_item(int &pos)
   char buf[TKNLEN] = "" ;
   std::string &s = sql_stmt ;
   stxNode *parent = create_node(0,m_list,s_cd_item), *p = 0;
+  int prev = 0;
 
   while(1) {
     pos = next_token(s,pos,buf);
+    prev= pos ;
     mov(pos,buf);
 
     /* 
@@ -813,8 +822,9 @@ stxNode* sql_tree::parse_ct_item(int &pos)
     else if (!strcasecmp(buf,"default")) {
       p = create_node(0,m_keyw,s_default_val);
       attach(parent,p);
-      pos = next_token(s,pos,p->name);
-      mov(pos,p->name);
+
+      stxNode *tp = parse_endpoint_item(pos);
+      attach(p,tp);
     }
     else if (!strcasecmp(buf,"auto_increment")) {
       p = create_node(0,m_keyw,s_auto_inc);
@@ -822,22 +832,28 @@ stxNode* sql_tree::parse_ct_item(int &pos)
     }
     else if (!strcasecmp(buf,"key") || !strcasecmp(buf,"index") || 
        !strcasecmp(buf,"primary") || !strcasecmp(buf,"unique") ||
-       !strcasecmp(buf,"foreign")) {
+       !strcasecmp(buf,"foreign") || !strcasecmp(buf,"constraint")) {
 
       if (parse_index_items(parent,buf,pos)==1) {
         break ;
       }
 
     } 
+    else if (!strcasecmp(buf,"comment")) {
+
+      stxNode *p = parse_endpoint_item(pos);
+
+      p->type = mktype(m_keyw,s_comment);
+      attach(parent,p);
+    }
     /* TODO: */
 #if 0
-    else if (!strcasecmp(buf,"constraint")) {
-    } else if (!strcasecmp(buf,"check")) {
-    }
+    else if (!strcasecmp(buf,"check")) {}
 #endif
     /* normal column definitions */
     else {
-      parse_normal_ct_item(parent,buf,pos);
+      parse_normal_ct_item(parent,buf,prev);
+      pos = prev ;
     }
 
     /* try next */
@@ -2335,15 +2351,17 @@ int sql_tree::parse_create_stmt(stxNode *parent, int &p)
       mov(p,buf);
       /* skip 'not' */
       p = next_token(s,p,buf);
+      assert(!strcasecmp(buf,"not"));
       mov(p,buf);
       /* skip 'exists' */
       p = next_token(s,p,buf);
+      assert(!strcasecmp(buf,"exists"));
       mov(p,buf);
 
       /* change parent's type: 
        *  'create table' -> 'create table if not exists' 
        */
-      sset(parent->type,s_cTbl_if_ne);;
+      sset(parent->type,s_cTbl_cond);
     }
 
     /* table name */
@@ -2373,6 +2391,39 @@ int sql_tree::parse_create_stmt(stxNode *parent, int &p)
 
   }
   return 1;
+}
+
+int sql_tree::parse_drop_stmt(stxNode *parent, int &p)
+{
+  char buf[TKNLEN] = "";
+  std::string &s = sql_stmt;
+  
+  p = next_token(s,p,buf);
+  mov(p,buf);
+  /* 'drop table' command  */
+  if (!strcasecmp(buf,"table")) {
+    parent->type = mktype(m_stmt,s_dTbl);
+
+    /* it's 'if exists' */
+    p = next_token(s,p,buf);
+    if (!strcasecmp(buf,"if")) {
+      /* skip 'if' */
+      mov(p,buf);
+      /* skip 'exists' */
+      p = next_token(s,p,buf);
+      assert(!strcasecmp(buf,"exists"));
+      mov(p,buf);
+
+      /* change parent's type: 
+       *  'drop table' -> 'drop table if xists' 
+       */
+      sset(parent->type,s_dTbl_cond);
+    }
+
+    /* parse drop list */
+    parse_list(parent,s_dTbl_lst,p);
+  }
+  return 0;
 }
 
 int sql_tree::parse_truncate_stmt(stxNode *parent, int &p)
@@ -2637,6 +2688,7 @@ bool sql_tree::is_stmt(int p)
     !strcasecmp(buf,"rollback")||
     !strcasecmp(buf,"commit") ||
     !strcasecmp(buf,"create") ||
+    !strcasecmp(buf,"drop")   ||
     !strcasecmp(buf,"call") ;
 }
 
@@ -2717,6 +2769,10 @@ stxNode* sql_tree::parse_stmt(int &pos)
     /* 'create xxx' statement */
     node = create_node(0,m_stmt,0);
     parse_create_stmt(node,pos);
+  } else if (!strcasecmp(buf,"drop")) {
+    /* 'drop xxx' statement */
+    node = create_node(0,m_stmt,0);
+    parse_drop_stmt(node,pos);
   } else {
     printd("unknown statement type '%s'\n", buf);
   }
@@ -3275,10 +3331,11 @@ int tree_serializer::serialize_tree(stxNode *node)
 
         /* special for 'create table' */
         if (node->type==mktype(m_stmt,s_cTbl) || 
-           node->type==mktype(m_stmt,s_cTbl_if_ne) ||
+           node->type==mktype(m_stmt,s_cTbl_cond) ||
            node->type==mktype(m_keyw,s_default_val) ||
            node->type==mktype(m_keyw,s_key) ||
            node->type==mktype(m_keyw,s_idx) ||
+           node->type==mktype(m_keyw,s_comment) ||
            node->type==mktype(m_keyw,s_primary_key) 
            ) {
           s += node->name;
@@ -3355,6 +3412,8 @@ int tree_serializer::serialize_tree(stxNode *node)
         case s_from:
           s += sub_type_str(node->type);
           s += " ";
+        /* drop table list */
+        case s_dTbl_lst:
         /* select list */
         case s_sel:
         /* update list */
