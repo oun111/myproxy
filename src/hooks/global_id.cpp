@@ -3,7 +3,7 @@
 #include "dbg_log.h"
 #include "env.h"
 
-using namespace stree_types;
+using namespace STREE_TYPES;
 using namespace GLOBAL_ENV;
 
 global_id_hook::global_id_hook() : m_cache("/tmp/id.cache"),

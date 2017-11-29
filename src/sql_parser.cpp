@@ -5,7 +5,7 @@
 #include "dbg_log.h"
 #include "env.h"
 
-using namespace stree_types;
+using namespace STREE_TYPES;
 using namespace GLOBAL_ENV;
 using namespace global_parser_items;
 using namespace AGG_HOOK_ENV;
