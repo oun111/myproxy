@@ -1,0 +1,44 @@
+Changes:
+  Nov 28,2017:
+    1. add 'drop table' syntax support
+
+  Nov 25, 2017:
+    1. add 'create table'  syntax support
+
+    2. updated to v0.00.04 alpha
+
+  Oct 30, 2017:
+    1. change access rights of some methods in class mysql_adpt
+
+  Oct 27, 2017:
+    1. add support for the 'commit/rollback' syntax
+
+  Oct 26, 2017:
+    1. move most sql_tree constants into a single namespace called stree_types
+
+  Oct 25, 2017:
+    1. changed access rights of some sql_tree methods
+
+  Oct 10, 2017:
+    1. add an db driver specific layer called DAL that is short for
+        Driver-Abstraction-Layer with which ZAS can now seperate itself
+        from driver's specific codes .
+
+    2. updated to v0.00.03 alpha
+
+  Oct 2, 2017:
+    1. add a java module named zas.java that invokes ZAS through JNI
+
+    2. updated to v0.00.02 alpha
+
+  Oct 1, 2017:
+    1. add wrapper module named libcwpr which is an 'so' through which other 
+        languages can utilize ZAS, and also a python module named zas.py 
+        that provides python accessing to ZAS
+
+  Sep 26, 2017:
+    1. this module is renamed to ZAS which is short for Zhou's Adaptor of Sql
+
+    2. version starts at 0.00.01 beta
+
+
