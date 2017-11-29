@@ -14,13 +14,8 @@ TEST_APP        := test_app #$(patsubst %.c,%,$(TEST_APP_SRC))
 CLIENT_SRC   := $(shell find ./ -name "client.c")
 CLIENT       := $(patsubst %.c,%,$(CLIENT_SRC))
 
-BOOST_DIR       := ../boost_1_59_0/install
-LDFLAG          := -Wall -g -pthread -Werror -I$(BOOST_DIR)/include \
-                   -I./toolset -I./proto \
-                     -L$(BOOST_DIR)/lib/ \
-                     -lboost_system # -lboost_thread -lboost_atomic \
-                     -Wno-deprecated-declarations
-CFLAG_OBJS      := -Wall -Werror -I. -g -I$(BOOST_DIR)/include -I./toolset -I./proto -fPIC \
+LDFLAG          := -Wall -g -pthread -Werror -I./toolset -I./proto 
+CFLAG_OBJS      := -Wall -Werror -I. -g -I./toolset -I./proto -fPIC \
                    -Wno-deprecated-declarations -Wno-misleading-indentation
 
 
@@ -69,9 +64,4 @@ clean:
 distclean:clean
 	rm -rf cscope.* 
 	rm -rf tags
-
-.PHONY: install
-install: $(TARGETS)
-	cp $(TARGET_LIB) $(shell pwd)/../whui_tscode/lib/
-	ln -sf $(shell pwd)/user_itf.h $(shell pwd)/../whui_tscode/include/user_itf.h
 

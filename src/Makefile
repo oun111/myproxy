@@ -48,6 +48,8 @@ gen_module_list:
 
 Libraries: 
 	make -C $(ZAS_PATH) all
+	make -C dbw all
+	make -C nf all
 
 $(TARGET): Libraries  $(OBJS)
 	$(CPP) $(OBJS) -o $@ $(LDFLAG)
@@ -67,7 +69,9 @@ clean: del_module_list
 
 .PHONY: distclean
 distclean:clean
-	make -C $(ZAS_PATH) clean
+	make -C $(ZAS_PATH) distclean
+	make -C ./dbw distclean
+	make -C ./nf distclean
 	rm -rf cscope.* 
 	rm -rf tags
 

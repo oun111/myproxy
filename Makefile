@@ -15,6 +15,7 @@ clean:
 
 .PHONY: distclean
 distclean:clean
+	$(MAKE) -C src distclean
 	rm -rf cscope.* 
 	rm -rf tags
 

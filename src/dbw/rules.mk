@@ -9,7 +9,7 @@ USE_MULTIMAP := 1
 # bdb
 #
 
-WORKPLACE     := /home/user1/work
+WORKPLACE     := /home/user1/work/
 #WORKPLACE     := /data/zyw/work
 
 ifeq ($(USE_BDB),1)
@@ -76,7 +76,7 @@ endif
 
 
 
-DBWPR_BASE      := $(WORKPLACE)/dbwrapper
+DBWPR_BASE      := ./dbw  #$(WORKPLACE)
 DBWPR_CFLAGS    := $(UNQLITE_CFLAGS) $(BDB_CFLAGS) $(SQLITE_CFLAGS) $(LEVELDB_CFLAGS) $(MULTIMAP_CFLAGS) -I$(DBWPR_BASE)
 DBWPR_LDFLAGS   := $(UNQLITE_LDFLAGS) $(BDB_LDFLAGS) $(SQLITE_LDFLAGS) $(LEVELDB_LDFLAGS) -L$(DBWPR_BASE) 
 
