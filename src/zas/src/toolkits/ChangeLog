@@ -1,7 +1,0 @@
-History:
-  Oct 11, 2016:
-    1. added a module called 'simple_types' which includes
-        a few basic data type convertion functions
-
-    2. initial version v0.0.1
-
