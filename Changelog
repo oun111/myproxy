@@ -1,4 +1,7 @@
 Changelog:
+  Dec 1, 2017:
+    1. using move instead of copying sql parsing results(tSqlParseItem)
+
   Nov 28, 2017:
     1. add 'create table' & 'drop table' usage support
 

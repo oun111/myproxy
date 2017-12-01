@@ -141,7 +141,7 @@ public:
   SHARDING_VALUE* get1(int nph);
   /* add a 'SHARDING_VALUE' item into list */
   int add(int &index,SHARDING_KEY*,uint8_t type,uint16_t opt) ;
-  int add(int &index, SHARDING_VALUE*);
+  //int add(int &index, SHARDING_VALUE *ps);
   /* get sharding value count */
   size_t get_sv_count(int);
   /* update the column's sharding value list */
@@ -156,7 +156,9 @@ public:
   void clear(void);
   int drop(int);
   /* copy current object */
-  unsafeShardingValueList* operator =(unsafeShardingValueList&);
+  //unsafeShardingValueList* operator =(unsafeShardingValueList&);
+  /* move current object */
+  unsafeShardingValueList* operator =(unsafeShardingValueList&&);
   /* XXX: for test only */
   void dbg_output(void);
   /* the mapping key management */
@@ -182,12 +184,14 @@ public:
 
 public:
   int add(int nCol,uint8_t type) ;
-  int add(agg_info *pa) ;
+  //int add(agg_info *pa) ;
   /* clean up the list */
   void clear(void);
   agg_info* next(bool bStart=false);
   /* copy current object */
-  unsafeAggInfoList* operator =(unsafeAggInfoList&);
+  //unsafeAggInfoList* operator =(unsafeAggInfoList&);
+  /* move objects */
+  unsafeAggInfoList* operator =(unsafeAggInfoList &&lst);
 } ;
 
 /* sql parser item */
@@ -437,6 +441,13 @@ public:
 } ;
 
 
+/* connection status */
+enum eConnStats
+{
+  cs_init,
+  cs_login_ok,
+} ;
+
 class safeLoginSessions : public safe_container_base<int,tSessionDetails*>
 {
 public:
@@ -448,6 +459,7 @@ public:
   tSessionDetails* get_session(int) ;
   /* add new variable by fd */
   int add_session(int,tSessionDetails*);
+  tSessionDetails* add_session(int);
   /* delete fd's variable */
   int drop_session(int);
   /* clear all items */

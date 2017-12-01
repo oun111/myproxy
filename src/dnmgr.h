@@ -50,7 +50,6 @@ public:
   safeDataNodeList* get_specific_group(int);
 
   int get_num_groups(void) const;
-
 } ;
 
 class tDNInfo;

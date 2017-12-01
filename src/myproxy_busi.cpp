@@ -140,7 +140,7 @@ int myproxy_frontend::do_com_login(int connid,
   }
   /* check if connection is in 'init' state, 
    *  if so, login request is expected */
-  if (pss->status!=cs_init) {
+  if (pss->status!= cs_init) {
     log_print("invalid connection status "
       "of id %d\n", connid);
     sz_out = do_err_response(sn,outb,
@@ -194,8 +194,7 @@ int myproxy_frontend::do_com_login(int connid,
   pss->pwd= pwd_in;
   /* move region to next status */
   pss->status = cs_login_ok;
-  log_print("(%d) user %s@%s login ok\n",
-    connid,usr,db);
+  log_print("(%d) user %s@%s login ok\n",connid,usr,db);
   /* send an ok response */
   sz_out = do_ok_response(sn,m_svrStat,outb);
   ret = MP_OK ;
@@ -675,7 +674,8 @@ int myproxy_frontend::do_com_stmt_send_long_data(int connid,
  *  new client is just connected */
 int myproxy_frontend::do_server_greeting(int cid)
 {
-  tSessionDetails cs ;
+  //tSessionDetails cs ;
+  tSessionDetails *cs = 0 ;
   size_t sz = 0;
   char outb[MAX_PAYLOAD];
   
@@ -683,16 +683,20 @@ int myproxy_frontend::do_server_greeting(int cid)
   /* 
    * create new connection region 
    */
+#if 0
   mysqls_gen_rand_string(cs.scramble,AP_LENGTH-1);
   cs.scramble[AP_LENGTH] = 0;
   cs.sc_len = AP_LENGTH-1;
   cs.status = cs_init ;
   m_lss.add_session(cid,&cs);
+#else
+  cs = m_lss.add_session(cid);
+#endif
   /* 
    * generate greeting packet 
    */
   sz = mysqls_gen_greeting(cid,m_charSet,
-    m_svrStat,cs.scramble,(char*)__VER_STR__,
+    m_svrStat,cs->scramble,(char*)__VER_STR__,
     outb,MAX_PAYLOAD);
 
   m_trx.tx(cid,outb,sz);

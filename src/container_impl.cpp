@@ -302,6 +302,7 @@ unsafeShardingValueList::unsafeShardingValueList(void) :
 
 unsafeShardingValueList::~unsafeShardingValueList(void)
 {
+  clear();
   // lock_release();
 }
 
@@ -338,6 +339,7 @@ void unsafeShardingValueList::clear(void)
     delete psv;
   }
   m_map.clear();
+  m_list.clear();
 }
 
 int unsafeShardingValueList::reset_sv(SHARDING_VALUE *psv)
@@ -379,6 +381,7 @@ size_t unsafeShardingValueList::get_sv_count(int index)
   return psv->num_vals ;
 }
 
+#if 0
 int unsafeShardingValueList::add(int &index, SHARDING_VALUE *ps)
 {
   SHARDING_VALUE *psv = get(index);
@@ -398,6 +401,7 @@ int unsafeShardingValueList::add(int &index, SHARDING_VALUE *ps)
   memcpy(psv->sv,ps->sv,sizeof(ps->sv));
   return 0;
 }
+#endif
 
 int unsafeShardingValueList::add(int &index, SHARDING_KEY *psk,
   uint8_t type,uint16_t opt)
@@ -554,6 +558,7 @@ int unsafeShardingValueList::update(int index,void*val,int nph)
   return 0;
 }
 
+#if 0
 unsafeShardingValueList* unsafeShardingValueList::operator =(unsafeShardingValueList &lst)
 {
   int i = 0;
@@ -563,8 +568,33 @@ unsafeShardingValueList* unsafeShardingValueList::operator =(unsafeShardingValue
   for (i=0;i<lst.m_numValueItems;i++) {
     psv = lst.get(i);
     this->add(i,psv);
-    this->m_map = lst.m_map ;
+    //this->m_map = lst.m_map ;
   }
+  this->m_map = lst.m_map ;
+  return this;
+}
+#endif
+
+unsafeShardingValueList* unsafeShardingValueList::operator =(unsafeShardingValueList &&lst)
+{
+  int i = 0;
+  SHARDING_VALUE *psv = 0;
+
+  clear();
+  for (i=0;i<lst.m_numValueItems;i++) {
+    /* take over items in lst */
+    psv = lst.get(i);
+    insert(psv);
+  }
+  m_map = std::move(lst.m_map) ;
+
+  m_numValueItems = lst.m_numValueItems ;
+
+  /* set the 'move from' items to already-freed */
+  lst.m_numValueItems = 0;
+  lst.m_list.clear();
+  lst.m_map.clear();
+
   return this;
 }
 
@@ -577,8 +607,8 @@ void unsafeShardingValueList::dbg_output(void)
   for (ret=next(itr,true);!ret;ret=next(itr),i++) {
     psv = *itr ;
     log_print("sv %d: type %d, opt %d, sk: %s.%s.%s\n",
-      i,psv->type,psv->opt,
-      psv->sk->sch.c_str(),psv->sk->tbl.c_str(),psv->sk->col.c_str());
+      i,psv->type,psv->opt,psv->sk->sch.c_str(),
+      psv->sk->tbl.c_str(),psv->sk->col.c_str());
   }
 }
 
@@ -604,6 +634,7 @@ int unsafeAggInfoList::add(int nCol,uint8_t type)
   return 0;
 }
 
+#if 0
 int unsafeAggInfoList::add(agg_info *pa) 
 {
   agg_info *ptr = new agg_info ;
@@ -612,6 +643,7 @@ int unsafeAggInfoList::add(agg_info *pa)
   insert(ptr);
   return 0;
 }
+#endif
 
 /* clean up the list */
 void unsafeAggInfoList::clear(void)
@@ -631,6 +663,7 @@ agg_info* unsafeAggInfoList::next(bool bStart)
   return *m_itr;
 }
 
+#if 0
 /* copy current object */
 unsafeAggInfoList* unsafeAggInfoList::operator =(unsafeAggInfoList &lst)
 {
@@ -639,6 +672,20 @@ unsafeAggInfoList* unsafeAggInfoList::operator =(unsafeAggInfoList &lst)
   for (auto pa : lst.m_list) {
     add(pa);
   }
+  return this;
+}
+#endif
+
+/* move objects */
+unsafeAggInfoList* unsafeAggInfoList::operator =(unsafeAggInfoList &&lst)
+{
+  clear();
+
+  for (auto pa : lst.m_list) {
+    insert(pa);
+  }
+  lst.m_list.clear();
+
   return this;
 }
 
@@ -651,7 +698,6 @@ tSqlParseItem::tSqlParseItem(void)
 
 tSqlParseItem::~tSqlParseItem(void)
 { 
-  m_svs.clear();
 }
 
 void tSqlParseItem::reset(void) 
@@ -663,9 +709,15 @@ void tSqlParseItem::reset(void)
 
 tSqlParseItem* tSqlParseItem::operator = (tSqlParseItem &ps)
 {
+#if 0
   m_svs   = ps.m_svs ;
   m_types = ps.m_types;
   m_aggs  = ps.m_aggs;
+#else
+  m_svs   = std::move(ps.m_svs) ;
+  m_types = std::move(ps.m_types);
+  m_aggs  = std::move(ps.m_aggs);
+#endif
   return this;
 }
 
@@ -775,6 +827,27 @@ int safeLoginSessions::add_session(int cid, tSessionDetails *pv)
   v->xaid = -1;
 #endif
   return 0 ;
+}
+
+tSessionDetails* safeLoginSessions::add_session(int cid)
+{
+  tSessionDetails *v = get_session(cid);
+
+  if (v) {
+    return v;
+  }
+  /* not exist */
+  v = new tSessionDetails ;
+  mysqls_gen_rand_string(v->scramble,AP_LENGTH-1);
+  v->scramble[AP_LENGTH] = 0;
+  v->sc_len = AP_LENGTH-1;
+  v->status = cs_init ;
+  v->xaid = -1;
+  {
+    try_write_lock();
+    insert(cid,v);
+  }
+  return v ;
 }
 
 int safeLoginSessions::drop_session(int cid)

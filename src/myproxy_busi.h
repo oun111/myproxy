@@ -14,13 +14,6 @@
 #endif
 #define __VER_STR__  "myproxy-0.01.13 alpha"
 
-/* connection status */
-enum eConnStats
-{
-  cs_init,
-  cs_login_ok,
-} ;
-
 /* 
  * the front-end of myproxy 
  */
