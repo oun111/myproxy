@@ -14,4 +14,4 @@
  * start up MYPROXY
  * access it just as you are accessing a real MYSQL server like this:
  
- ![avatar](/tmp/p1.jpg)
+ ![Alt text](https://github.com/oun111/images/blob/master/p1.jpg)
