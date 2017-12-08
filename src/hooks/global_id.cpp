@@ -32,7 +32,7 @@ global_id_hook::get_table_name(stxNode *ep, char* &db, char* &tbl)
 }
 
 int 
-global_id_hook::get_target_col_in_tree(sql_tree &st, stxNode *pf, char *db, char *tbl, char *col)
+global_id_hook::get_target_col_in_tree(sql_tree &st, stxNode *pf, char *col)
 {
   /* try to get global id column */
   stxNode *ptr = 0;
@@ -118,14 +118,42 @@ global_id_hook::deal_target_col(stxNode *pv,int pos, int gid)
   return 1;
 }
 
+int global_id_hook::update(sql_tree &st, stxNode *pfmt, stxNode *pval,
+  const char *key, const char *col)
+{
+  int gid = 0;
+  int ret = 0, pos = 0;
+  char *pkey = const_cast<char*>(key);
+  char *pcol = const_cast<char*>(col);
+
+  /* 
+   * fetch global id 
+   */
+  m_cache.int_fetch_and_add(pkey,gid);
+
+  if ((pos=get_target_col_in_tree(st,pfmt,pcol))>=0) {
+    /* hooks the target column */
+    if ((ret=deal_target_col(pval,pos,gid))<=0) {
+      return ret;
+    }
+  } else {
+    /* the target column's not present, add one */
+    if ((ret=add_target_col(st,pfmt,pval,pcol,gid))<=0) {
+      return ret;
+    }
+  }
+
+  //st.print_tree(root,0);
+
+  return 1;
+}
+
 int global_id_hook::run_hook(sql_tree &st,stxNode *root,void *params) 
 {
   char *db = static_cast<char*>(params) ;
   stxNode *ptr = 0, *pf = 0, *pv = 0;
   char *tbl = 0, *col = 0;
-  int pos=0, ret = 0;
   GLOBALCOL *colInfo = 0;
-  int gid = 0;
   char key[PATH_MAX] = "";
 
   if (!(ptr=st.find_in_tree(root,mktype(m_stmt,s_insert)))) {
@@ -163,31 +191,28 @@ int global_id_hook::run_hook(sql_tree &st,stxNode *root,void *params)
   /* try to get global id column from tree */
   col = const_cast<char*>(colInfo->col.c_str());
 
-  /* 
-   * fetch global id 
-   */
   /* concatanate the key */
   strcat(key,db);
   strcat(key,tbl);
   strcat(key,col);
-  m_cache.int_fetch_and_add(key,gid);
-  //log_print("global id of %s.%s.%s: %d\n",db,tbl,col,gid);
 
-  if ((pos=get_target_col_in_tree(st,pf,db,tbl,col))>=0) {
-    /* hooks the target column */
-    if ((ret=deal_target_col(pv,pos,gid))<=0) {
-      return ret;
-    }
-  } else {
-    /* the target column's not present, add one */
-    if ((ret=add_target_col(st,pf,pv,col,gid))<=0) {
-      return ret;
-    }
+  /* simply update the global id column if it is
+   *  a normal 'insert' statement */
+  if (pv->op_lst[0]->type!=mktype(m_list,s_val_sub)) {
+    return update(st,pf,pv,key,col);
   }
 
-  //st.print_tree(root,0);
+  /* the statement looks like 'insert <tbl> <fmt list> <val list 0> <val list 1> ...'  */
+  int ret = 0;
 
-  return 1;
+  for (auto spv : pv->op_lst) {
+    int rc = update(st,pf,spv,key,col);
+    ret |= rc>0?1:0 ;
+  }
+
+  st.print_tree(root,0);
+
+  return ret;
 }
 
 HMODULE_IMPL (

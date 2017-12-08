@@ -23,13 +23,15 @@ public:
 protected:
   int get_table_name(stxNode*,char*&,char*&);
 
-  int get_target_col_in_tree(sql_tree&,stxNode*, char*, char*, char*);
+  int get_target_col_in_tree(sql_tree&,stxNode*, char*);
 
   int deal_target_col(stxNode *pv, int pos, int gid);
 
   int add_target_col(sql_tree&,stxNode *pf, stxNode *pv, char *col, int gid);
 
   int eliminate_norm_list(sql_tree &,stxNode *node);
+
+  int update(sql_tree&,stxNode*,stxNode*,const char*,const char*);
 
 public:
   int run_hook(sql_tree&,stxNode *root,void *param) ;
