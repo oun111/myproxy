@@ -3,7 +3,7 @@
 
 # Features
  * supports native MYSQL server/client communication protocols v4.1
- * supports 10k+ client concurrency 
+ * supports 10k+ clients concurrency 
  * supports dynamic scalability of MYSQL databases
  * supports the commonly used SQLs
  * supports SQL proxy functionalities, for example, ORACLE SQL -> MYSQL SQL
