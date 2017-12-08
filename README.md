@@ -6,8 +6,8 @@
  * supports 10k+ client concurrency 
  * supports dynamic scalability of MYSQL databases
  * supports the commonly used SQLs
- * supports SQL proxy functionalities
- * supports horizontal sharding 
+ * supports SQL proxy functionalities, for example, ORACLE SQL -> MYSQL SQL
+ * supports horizontal sharding on database tables
 
 # HOWTO
 
