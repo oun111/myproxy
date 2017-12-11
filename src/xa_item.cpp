@@ -2,12 +2,12 @@
 #include "xa_item.h"
 #include "myproxy_backend.h"
 #include "myproxy_trx.h"
+#include "env.h"
 
 #include "simple_types.h"
 #include "dbug.h"
 
-/* the payload size */
-extern const int MAX_PAYLOAD ;
+using namespace GLOBAL_ENV;
 
 xa_item::xa_item(int xid) : xaid(xid),m_cfd(0),
   m_cmd(0),m_parent(NULL),m_dnGid(0),m_st(0),

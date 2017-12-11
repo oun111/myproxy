@@ -12,9 +12,6 @@
 #include "sql_tree.h"
 #include "dbug.h"
 
-/* the payload size */
-extern const int MAX_PAYLOAD;
-
 
 /*
  * class safeShardingColumnList

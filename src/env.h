@@ -8,6 +8,9 @@
 
 namespace GLOBAL_ENV {
 
+  /* the payload size */
+  constexpr int MAX_PAYLOAD = 1600;
+
   /* the config file item */
   extern myproxy_config m_conf ;
 

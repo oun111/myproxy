@@ -12,10 +12,6 @@
 
 using namespace GLOBAL_ENV;
 using namespace global_parser_items;
-//using namespace datanode_groups;
-
-/* the payload size */
-extern const int MAX_PAYLOAD = 1600;
 
 /*
  * class myproxy_backend
@@ -1043,7 +1039,7 @@ myproxy_backend::tx(sock_toolkit *st, epoll_priv_data *priv, int fd)
 int 
 myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
 {
-  const size_t MAX_BLK = 20000;
+  constexpr size_t MAX_BLK = 20000;
   //myproxy_backend *pexec = (myproxy_backend*)m_parent;
   int ret = 0;
   char *req =0;

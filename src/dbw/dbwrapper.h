@@ -13,7 +13,7 @@ extern "C" {
 #include <stdlib.h>
 #include <limits.h>
 
-const uint8_t __INVALID_VALUE__ = 0xff;
+constexpr uint8_t __INVALID_VALUE__ = 0xff;
 
 class dbwrapper
 {

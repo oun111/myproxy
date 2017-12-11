@@ -33,7 +33,7 @@
 
 
 /* default business port to normal clients */
-const int DEFAULT_BUSI_PORT=23300;
+constexpr int DEFAULT_BUSI_PORT=23300;
 
 using dbg_info =  struct tDebugInfo {
   int n_reply2client ;

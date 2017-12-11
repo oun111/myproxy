@@ -15,7 +15,7 @@ enum myproxy_state {
   MP_IDLE = 2, /* nothing to do */
 } ;
 
-const int nMaxRecvBlk = 10000 ;
+constexpr int nMaxRecvBlk = 10000 ;
 
 class myproxy_epoll_trx {
 

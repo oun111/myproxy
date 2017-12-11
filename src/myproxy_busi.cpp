@@ -9,9 +9,6 @@
 using namespace GLOBAL_ENV;
 using namespace global_parser_items;
 
-/* the payload size */
-extern const int MAX_PAYLOAD;
-
 
 /*
  * front-end of myproxy
