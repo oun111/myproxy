@@ -680,7 +680,7 @@ int sql_parser::get_stmt_type(stxNode *tree, stxNode* &out, int &type)
 }
 
 /* do a deep digging on statement */
-int sql_parser::do_dig(char *sql, size_t sz, 
+int sql_parser::scan(char *sql, size_t sz, 
   tSqlParseItem *sp, char *db, tContainer &err,
   stxNode *pTree
   )

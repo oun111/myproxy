@@ -216,7 +216,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   szSql= sz -5;
 
   /* dig informations from statement */
-  if (parser.do_dig(pSql,szSql,&sp,pDb,err,pTree)) {
+  if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
     log_print("error parse statement %s\n",pSql);
     /*  send the error message to client */
     do_send(cid,err.tc_data(),err.tc_length());
@@ -318,7 +318,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
 
   /* dig informations from tree into 'sp' */
   if (cmd_state==st_prep_trans && 
-     parser.do_dig(pSql,szSql,&sp,pDb,err,pTree)) {
+     parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
 
     log_print("error parse statement %s\n",pSql);
 

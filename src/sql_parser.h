@@ -82,7 +82,7 @@ public:
    *  of binary operators' */
   int deal_binary_sv(int,tSqlParseItem*,stxNode*);
   /* digging informations from tree */
-  int do_dig(char*,size_t,tSqlParseItem*,char*,tContainer&,stxNode* =NULL);
+  int scan(char*,size_t,tSqlParseItem*,char*,tContainer&,stxNode* =NULL);
   /* collects tables names in the statement */
   int collect_target_tbls(stxNode*,tSqlParseItem*,char*,tContainer&);
   /* collects sharding columns in the statement */
