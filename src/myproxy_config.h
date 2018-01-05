@@ -124,10 +124,13 @@ public:
 
   size_t get_num_schemas(void);
 
-  SCHEMA_BLOCK* get_schema(char*);
+  SCHEMA_BLOCK* get_schema(const char*);
 
   TABLE_INFO* get_table(SCHEMA_BLOCK*,
     uint16_t);
+    
+  TABLE_INFO* get_table(SCHEMA_BLOCK *sch,
+    const char *tbl);
 
   size_t get_num_tables(SCHEMA_BLOCK*);
 
@@ -156,6 +159,8 @@ protected:
   uint32_t parse_ipv4(std::string&);
 
   void reset(void);
+
+  int check_duplicate(const char*,std::vector<struct tJsonParserKeyVal*>&,size_t);
 } ;
 
 #endif /* __MYPROXY_CONFIG_H__*/

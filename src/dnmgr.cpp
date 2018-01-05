@@ -173,46 +173,68 @@ int dnmgr::initialize(void)
   return 0;
 }
 
+int dnmgr::add_dn_by_conf(auto sch, auto tbl)
+{
+  /* no mapping list, map to all datanodes by default */
+  if (!tbl->map_list.size()) {
+
+    DATA_NODE *pdn = 0;
+    int iot = it_both ;
+
+    for (int idn=0;(pdn=m_conf.get_dataNode(idn));idn++) {
+      m_tables.add((char*)sch->name.c_str(),
+        (char*)tbl->name.c_str(),idn,iot);
+      log_print("added DEFAULT data node %d(%s) io type %d to "
+        "`%s.%s` in table list\n", idn,pdn->name.c_str(),
+        iot,sch->name.c_str(),tbl->name.c_str());
+    }
+    return 0;
+  }
+
+  /* add data nodes by mappings */
+  for (auto mi : tbl->map_list) {
+
+    int idn= m_conf.get_dataNode((char*)mi->dataNode.c_str());
+
+    if (idn<0) {
+      log_print("data node index of %s not found!!\n",
+        mi->dataNode.c_str());
+      continue ;
+    }
+    m_tables.add((char*)sch->name.c_str(),
+      (char*)tbl->name.c_str(),idn,mi->io_type);
+    log_print("added data node %d(%s) io type %d to "
+      "`%s.%s` in table list\n", idn,mi->dataNode.c_str(),
+      mi->io_type,sch->name.c_str(),tbl->name.c_str());
+  }
+  return 0;
+}
+
 int dnmgr::get_tables_by_conf(void)
 {
-  uint16_t i=0, n=0, m=0;
-  SCHEMA_BLOCK *sch ;
-  TABLE_INFO *tbl ;
-  MAPPING_INFO *mi = 0 ;
-  int idn = 0;
-
   /* reset table items */
   m_tables.clear();
 
   /* iterate schema list */
-  for (i=0;i<m_conf.get_num_schemas();i++) {
-    sch = m_conf.get_schema(i);
+  for (size_t i=0;i<m_conf.get_num_schemas();i++) {
+    SCHEMA_BLOCK *sch = m_conf.get_schema(i);
+
     /* iterate table list of schema */
-    for (n=0;n<m_conf.get_num_tables(sch);n++) {
-      tbl = m_conf.get_table(sch,n);
+    for (size_t n=0;n<m_conf.get_num_tables(sch);n++) {
+      TABLE_INFO *tbl = m_conf.get_table(sch,n);
+
       /* add to table list */
       m_tables.add((char*)sch->name.c_str(),
         (char*)tbl->name.c_str());
       log_print("db table `%s.%s` is added to list\n",
          sch->name.c_str(),tbl->name.c_str());
-      /* add data node mapping info */
-      for (m=0;m<tbl->map_list.size();m++) {
-        mi = tbl->map_list[m] ;
-        idn= m_conf.get_dataNode((char*)mi->dataNode.c_str());
-        if (idn<0) {
-          log_print("data node index of %s not found!!\n",
-            mi->dataNode.c_str());
-          continue ;
-        }
-        m_tables.add((char*)sch->name.c_str(),
-          (char*)tbl->name.c_str(),idn,mi->io_type);
-        log_print("added data node %d(%s) io type %d to "
-          "`%s.%s` in table list\n", idn,mi->dataNode.c_str(),
-          mi->io_type,sch->name.c_str(),tbl->name.c_str());
-      }
+
+      /* add data nodes info */
+      add_dn_by_conf(sch,tbl);
     }
-    log_print("table count %zu\n",m_tables.size());
   } /* end for(i=0) */
+
+  log_print("table count %zu\n",m_tables.size());
 
   return 0;
 }

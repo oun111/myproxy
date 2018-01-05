@@ -3,6 +3,9 @@
 #include "sql_router.h"
 #include "myproxy_config.h"
 #include "dbg_log.h"
+#include "env.h"
+
+using namespace GLOBAL_ENV;
 
 sql_router::sql_router(safeDataNodeList &lst):
   m_nodes(lst),m_handlers(0)
@@ -70,7 +73,12 @@ int sql_router::ha_rule_modN(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
 
 int sql_router::get_route_by_modN(int type,sv_t *psv, int &dn, int mod_op)
 {
-#define modN(m,n) (m%n)
+  auto modN = [&](auto m, auto n) {
+    auto p = n-n;
+    for (;m>=(p+n);p+=n) ;
+    return m-p;
+  } ;
+
   switch (type) {
     case MYSQL_TYPE_TINY:  
       dn = modN(psv->u.v8,mod_op);
@@ -94,12 +102,12 @@ int sql_router::get_route_by_modN(int type,sv_t *psv, int &dn, int mod_op)
 
     case MYSQL_TYPE_NEWDECIMAL:
     case MYSQL_TYPE_FLOAT:
-      dn = (int)fmod(psv->u.vf,mod_op);
+      dn = (int)/*fmod*/modN(psv->u.vf,mod_op);
       //log_print("valf: %f\n",psv->u.vf);
       break ;
 
     case MYSQL_TYPE_DOUBLE:
-      dn = (int)fmod(psv->u.vd,mod_op);
+      dn = (int)/*fmod*/modN(psv->u.vd,mod_op);
       //log_print("vald: %f\n",psv->u.vd);
       break ;
 
@@ -132,15 +140,31 @@ int sql_router::ha_rule_dummy(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
   return 0;
 }
 
-int sql_router::get_full_route(/*int cid,*/std::vector<uint8_t> &rlist)
+int sql_router::get_full_route_by_conf(
+  tSqlParseItem *sp,
+  std::vector<uint8_t> &rlist
+  )
+{
+  /* calculate routes of related tables in statement by configs */
+  if (get_related_table_route(sp,rlist)) {
+    log_print("get table route fail\n");
+    return -1;
+  }
+
+  return 0;
+}
+
+int sql_router::get_full_route(std::vector<uint8_t> &rlist)
 {
   /* get route to all data nodes */
   safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
   tDNInfo *pd = m_nodes.next(itr,true);
 
   /* add routes for all data nodes */
-  for (;pd;pd=m_nodes.next(itr,false)) 
+  for (;pd;pd=m_nodes.next(itr,false)) {
     rlist.push_back(pd->no);
+  }
+
   return 0;
 }
 
@@ -149,74 +173,136 @@ int sql_router::calc_intersection(
   std::vector<uint8_t> &slst /* the route set of a single sharding value */
   )
 {
-  uint16_t n=0,m=0;
-  uint8_t val = 0;
-  std::vector<uint8_t> tmp ;
+  std::vector<uint8_t> tmp{} ;
 
   /* initial state: no items in ultimated route list */
   if (rlist.empty()) {
     rlist = slst ;
     return 0;
   }
-  for (n=0;n<slst.size();n++) {
-    val = slst[n];
+
+  for (auto n : slst) {
     /* find matching val in rlist */
-    for (m=0;m<rlist.size();m++) {
-      if (rlist[m]==val) {
-        tmp.push_back(val);
+    for (auto m : rlist) {
+      if (m==n) {
+        tmp.push_back(n);
         break ;
       }
     }
   }
+
   rlist = tmp ;
+
+  return 0;
+}
+
+int 
+sql_router::get_related_table_route(tSqlParseItem *sp, std::vector<uint8_t> &rlst)
+{
+  TABLE_NAME *p_tn = 0;
+
+  /* iterates each related table */
+  for (p_tn=sp->m_tblKeyLst.next(true);p_tn;p_tn=sp->m_tblKeyLst.next()) {
+    SCHEMA_BLOCK *ps = m_conf.get_schema(p_tn->sch.c_str());
+
+    if (!ps) {
+      log_print("fatal: no configs of schema '%s' found\n",p_tn->sch.c_str());
+      continue ;
+    }
+
+    TABLE_INFO *pt = m_conf.get_table(ps,p_tn->tbl.c_str());
+
+    if (!pt) {
+      log_print("fatal: no configs of table '%s' found\n",p_tn->tbl.c_str());
+      return -1;
+    }
+
+    /* iterates mapping list of current table */
+    for (auto itr : pt->map_list) {
+      int dn = m_conf.get_dataNode((char*)itr->dataNode.c_str());
+
+      if (dn<0) {
+        log_print("fatal: dn number of '%s' invalid!\n",itr->dataNode.c_str());
+        continue ;
+      }
+
+      rlst.push_back(dn);
+    }
+
+    /* if no items in mapping list, then using all givin datanodes 
+     *  by default */
+    if (!rlst.size()) {
+      get_full_route(rlst);
+    }
+
+  } // end for()
+
+  return 0;
+}
+
+int 
+sql_router::get_sharding_route(tSqlParseItem *sp, std::vector<uint8_t> &rlist)
+{
+  uint16_t i = 0;
+  SHARDING_KEY *psk = 0;
+  SHARDING_VALUE *psv = 0;
+
+  /* iterates each sharding values in list */
+  for (psv=0,i=0;i<sp->get_num_sv();i++) {
+
+    psv = sp->get_sv(i) ;
+    /* related sharding column */
+    if (!(psk=psv->sk)) {
+      continue ;
+    }
+
+    /* invalid rule type */
+    if (psk->rule>=t_maxRules) {
+      continue ;
+    }
+
+    /* get route set of a single sharding value */
+    ruleHandler ha = m_handlers[psk->rule].ha ;
+    (this->*ha)(psv,rlist);
+
+  } /* end for(...) */
   return 0;
 }
 
 int sql_router::get_route(int cid,tSqlParseItem *sp, 
   std::vector<uint8_t> &rlist)
 {
-  uint16_t i = 0;
-  SHARDING_VALUE *psv = 0;
-  SHARDING_KEY *psk = 0;
-  ruleHandler ha ;
-  /* routing list of a single sharding value */
-  std::vector<uint8_t> slst ;
+  std::vector<uint8_t> tr{} ;
 
   rlist.clear();
 
-  /* iterates each sharding values in list */
-  for (psv=0,i=0;i<sp->get_num_sv();i++) {
-    psv = sp->get_sv(i) ;
-    /* related sharding column */
-    if (!(psk=psv->sk)) {
-      continue ;
-    }
-    /* invalid rule type */
-    if (psk->rule>=t_maxRules) {
-      continue ;
-    }
-    /* reset the single route list */
-    slst.clear();
-    /* get route set of a single sharding value */
-    ha = m_handlers[psk->rule].ha ;
-    (this->*ha)(psv,slst);
-    /* 
-     * calculate intersection with 'rlist' and 'slst'
-     */
-    calc_intersection(rlist,slst);
-  } /* end for(...) */
-  /* if the rlist is empty, then give it a full route */
-  if (rlist.empty()) {
-    log_print("route list's empty, give a full route "
-      "to all data nodes\n");
-    get_full_route(rlist);
+  /* calculate routes by sharding column values */
+  if (get_sharding_route(sp,rlist)) {
+    log_print("get table route fail\n");
+    return -1;
   }
-#if 0
+
+  /* calculate routes of related tables in statement by configs */
+  if (get_related_table_route(sp,tr)) {
+    log_print("get table route fail\n");
+    return -1;
+  }
+
+  /* get intersection with sharding datanodes and configured datanodes */
+  calc_intersection(rlist,tr);
+
+  /* if the rlist is empty, then give it a full route */
+  if (unlikely(rlist.empty())) {
+    log_print("route list's empty, given a full route (count %zu)\n",tr.size());
+    rlist = tr ;
+  }
+
+#if 1
   /* XXX: test */
   {
-    log_print("content of route list(dn): ");
-    for (i=0;i<rlist.size();i++) {
-      log_print(" %d ",rlist[i]);
+    log_print("content of route list: \n");
+    for (auto i : rlist) {
+      log_print(">>> %d \n",i);
     }
     log_print("\n\n");
   }

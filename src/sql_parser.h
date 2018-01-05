@@ -58,7 +58,7 @@ protected:
   /* sharding column infos */
   safeShardingColumnList &m_shds;
   /* targeting table list */
-  unsafeTblKeyList m_tblKeyLst ;
+  //unsafeTblKeyList m_tblKeyLst ;
   /* the tree node - place holder number map */
   using pholder_map = std::unordered_map<stxNode*,int> ;
   pholder_map m_maps;

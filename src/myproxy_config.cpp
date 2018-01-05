@@ -191,15 +191,23 @@ int myproxy_config::parse_data_nodes(void)
     return -1;
   }
   /* create datanode list */
-  for (num_dataNodes=0,i=0;i<pj->list.size();
-     i++,num_dataNodes++) {
+  for (num_dataNodes=0,i=0;i<pj->list.size();i++) {
+
+    /* search duplicated tables */
+    if (check_duplicate(__func__,pj->list,i)) {
+      continue ;
+    }
+
     pi = pj->list[i] ;
     /* get suitable data node */
     if (i>=m_dataNodes.size()) {
       node = new DATA_NODE ;
       m_dataNodes.push_back(node);
     }
-    node = m_dataNodes[i];
+
+    int &pos = num_dataNodes;
+
+    node = m_dataNodes[pos];
     node->name = pi->key ;
     /* parse address:port */
     if (!(tmp=find(pi,(char*)dbAddr[0]))) {
@@ -227,11 +235,13 @@ int myproxy_config::parse_data_nodes(void)
     }
     node->auth.usr = tmp->list[0]->key ;
     node->auth.pwd = tmp->list[0]->value ;
+
+    pos++;
   }
   return 0;
 }
 
-SCHEMA_BLOCK* myproxy_config::get_schema(char *sch)
+SCHEMA_BLOCK* myproxy_config::get_schema(const char *sch)
 {
   uint16_t i=0;
 
@@ -267,6 +277,38 @@ TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
   return sch->table_list[idx];
 }
 
+TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
+  const char *tbl)
+{
+  for (auto i : sch->table_list) {
+    if (i->name==tbl) 
+      return i ;
+  }
+  return NULL;
+}
+
+int 
+myproxy_config::check_duplicate(
+    const char *func, 
+    std::vector<struct tJsonParserKeyVal*> &lst, 
+    size_t pos)
+{
+  size_t pn = 0;
+
+  for (; pn<pos && pn < lst.size(); pn++) {
+    if (lst[pn]->key == lst[pos]->key)
+      break;
+  }
+
+  if (pn<pos) {
+    log_print("warning(%s): duplicated key item '%s'\n", 
+      func,lst[pn]->key.c_str());
+    return -1 ;
+  }
+
+  return 0;
+}
+
 int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
 {
   jsonKV_t *p1, *p2 ;
@@ -276,22 +318,38 @@ int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
   if (!(p1=find(jsonTbl,(char*)mappingSec[0]))) {
     log_print("found NO mappings for table %s\n", 
       pt->name.c_str());
-    return -1;
+    return 0;
   }
-  for (m=0,pt->num_maps=0;m<p1->list.size();
-     m++,pt->num_maps++) {
+
+  for (m=0,pt->num_maps=0;m<p1->list.size();m++) {
+
+    /* search duplicated mappings */
+    if (check_duplicate(__func__,p1->list,m)) {
+      continue ;
+    }
+
+    /* save mapping to m_conf */
     if (m>=pt->map_list.size()) {
       pm = new MAPPING_INFO ;
       pt->map_list.push_back(pm);
     }
-    pm = pt->map_list[m];
+
+    int &pos = pt->num_maps; 
+
+    pm = pt->map_list[pos];
     /* data node name */
     pm->dataNode = p1->list[m]->key ;
     /* data node io type */
-    if ((p2=find(p1->list[m],(char*)ioTypeSec[0]))) 
+    if ((p2=find(p1->list[m],(char*)ioTypeSec[0]))) {
       pm->io_type = p2->value==tRead[0]?it_read:
         p2->value==tWrite[0]?it_write:it_both;
+    } else {
+      pm->io_type = it_both ;
+    }
+
+    pos++ ;
   }
+
   return 0;
 }
 
@@ -307,8 +365,14 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
       strTbl);
     return -1;
   }
+
   for (m=0;m<p1->list.size();m++) {
     SHARDING_EXTRA se ;
+
+    /* search duplicated sharding keys */
+    if (check_duplicate(__func__,p1->list,m)) {
+      continue ;
+    }
 
     /* rules */
     if (!(p2=find(p1->list[m],(char*)ruleSec[0]))) {
@@ -316,15 +380,19 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
         p1->list[m]->key.c_str());
       return -1;
     }
+
     /* TODO: more rule types */
     rule = p2->value==rRgnMap[0]?t_rangeMap:
       p2->value==rModN[0]?t_modN:
       t_dummy;
+
     /* add to sharding key list */
     m_shds.add(strSchema,strTbl,
       (char*)p1->list[m]->key.c_str(),
       rule, &se);
+
   } /* end for(...) */
+
   return 0;
 }
 
@@ -338,9 +406,15 @@ myproxy_config::parse_globalid_list(jsonKV_t *jsonTbl, char *strTbl, char *strSc
   if (!(p1=find(jsonTbl,(char*)globalIdSec[0]))) {
     log_print("found NO global id columns for table %s\n", 
       strTbl);
-    return -1;
+    return 0;
   }
+
   for (m=0;m<p1->list.size();m++) {
+
+    /* search duplicated global id */
+    if (check_duplicate(__func__,p1->list,m)) {
+      continue ;
+    }
 
     /* interval */
     if (!(p2=find(p1->list[m],(char*)intervSec[0]))) {
@@ -349,11 +423,14 @@ myproxy_config::parse_globalid_list(jsonKV_t *jsonTbl, char *strTbl, char *strSc
       return -1;
     }
     intv = atoi(p2->value.c_str());
+
     /* add to sharding key list */
     m_gidConf.add(strSchema,strTbl,
       (char*)p1->list[m]->key.c_str(),
       intv);
+
   } /* end for(...) */
+
   return 0;
 }
 
@@ -373,13 +450,21 @@ int myproxy_config::parse_schemas(void)
     log_print("schema entry not found\n");
     return -1;
   }
-  for (i=0,num_schemas=0;i<pj->list.size();
-     i++,num_schemas++) {
+  for (i=0,num_schemas=0;i<pj->list.size();i++) {
+
+    /* search duplicated tables */
+    if (check_duplicate(__func__,pj->list,i)) {
+      continue ;
+    }
+
     if (i>=m_schemas.size()) {
       ps = new SCHEMA_BLOCK ;
       m_schemas.push_back(ps);
     }
-    ps = m_schemas[i];
+
+    int &pos0 = num_schemas ;
+
+    ps = m_schemas[pos0];
     /* schema name */
     pi = pj->list[i] ;
     ps->name = pi->key;
@@ -407,13 +492,21 @@ int myproxy_config::parse_schemas(void)
         ps->name.c_str());
       continue;
     }
-    for (n=0,ps->num_tbls=0;n<tmp->list.size();
-       n++,ps->num_tbls++) {
+    for (n=0,ps->num_tbls=0;n<tmp->list.size();n++) {
+
+      /* search duplicated tables */
+      if (check_duplicate(__func__,tmp->list,n)) {
+        continue ;
+      }
+
       if (n>=ps->table_list.size()) {
         pt = new TABLE_INFO ;
         ps->table_list.push_back(pt);
       }
-      pt = ps->table_list[n] ;
+
+      int &pos = ps->num_tbls;
+
+      pt = ps->table_list[pos] ;
       /* table name */
       pt->name = tmp->list[n]->key ;
       /* 
@@ -440,7 +533,11 @@ int myproxy_config::parse_schemas(void)
         continue ;
       }
       /* TODO: more attributes here */
+
+      pos++;
     }
+
+    pos0++;
   }
   return 0;
 }

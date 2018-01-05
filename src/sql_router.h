@@ -31,6 +31,12 @@ protected:
   /* calculates routing by doing mod(N) */
   int get_route_by_modN(int,sv_t*,int&,int);
 
+  /* get route to related tables in statement */
+  int get_related_table_route(tSqlParseItem*,std::vector<uint8_t>&);
+
+  /* get route by sharding column values */
+  int get_sharding_route(tSqlParseItem*,std::vector<uint8_t>&);
+
 public:
   sql_router(safeDataNodeList&) ;
   ~sql_router(void) ;
@@ -38,8 +44,10 @@ public:
 public:
   /* calculate sql routing infomations */
   int get_route(int, tSqlParseItem*,std::vector<uint8_t>&);
+  /* get route to configured data nodes */
+  int get_full_route_by_conf(tSqlParseItem*,std::vector<uint8_t>&);
   /* get route to all data nodes */
-  int get_full_route(/*int,*/std::vector<uint8_t>&);
+  int get_full_route(std::vector<uint8_t> &rlist);
 } ;
 
 

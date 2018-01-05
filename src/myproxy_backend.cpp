@@ -127,7 +127,7 @@ myproxy_backend::get_route(int xaid,
   }
 
   sql_router router(*nodes) ;
-  if (fullroute?router.get_full_route(rlist):
+  if (fullroute?router.get_full_route_by_conf(&sp,rlist):
      router.get_route(cid,&sp,rlist)) {
     log_print("error calculating routes\n");
     /* return back the datanodes */

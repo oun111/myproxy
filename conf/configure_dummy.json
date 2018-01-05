@@ -115,9 +115,10 @@
           }
         },
         "test_tbl": {
-          "Mappings": {
+          /* "Mappings": {
+            "dn1": { "IoType": "read"},
             "dn2": { "IoType": "read"}
-          },
+          }, */
           "shardingKey": {
             "id": { "rule": "modN" }
           },

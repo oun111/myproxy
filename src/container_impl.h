@@ -203,6 +203,8 @@ public:
   std::vector<uint8_t> m_types;
   /* the aggregated info */
   unsafeAggInfoList m_aggs ;
+  /* targeting table list */
+  unsafeTblKeyList m_tblKeyLst ;
 
 public:
   tSqlParseItem(void) ;

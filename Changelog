@@ -1,4 +1,9 @@
 Changelog:
+  Jan 5, 2018:
+    1. add vertical sharding support
+
+    2. update to v0.01.14
+
   Dec 1, 2017:
     1. using move instead of copying sql parsing results(tSqlParseItem)
 

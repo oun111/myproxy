@@ -76,6 +76,8 @@ protected:
 
   int update_tbl_extra_info(tDNInfo*,tTblDetails*);
 
+  int add_dn_by_conf(auto sch, auto tbl);
+
 public:
   int initialize(void);
 } ;

@@ -12,7 +12,7 @@
 #ifdef __VER_STR__
 #undef __VER_STR__
 #endif
-#define __VER_STR__  "myproxy-0.01.13 alpha"
+#define __VER_STR__  "myproxy-0.01.14 alpha"
 
 /* 
  * the front-end of myproxy 

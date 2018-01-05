@@ -165,7 +165,7 @@ int sql_parser::enum_sharding_configs(
   TABLE_NAME *pt = 0;
   SHARDING_KEY *ps = 0;
 
-  for (pt=m_tblKeyLst.next(true);pt;(pt=m_tblKeyLst.next())) {
+  for (pt=sp->m_tblKeyLst.next(true);pt;(pt=sp->m_tblKeyLst.next())) {
     /* try to match the sharding list */
     ps = m_shds.get((char*)pt->sch.c_str(),
       (char*)pt->tbl.c_str(),strCol);
@@ -226,7 +226,8 @@ int sql_parser::deal_binary_sv(int idx, tSqlParseItem *sp, stxNode *nd1)
   } else {
     /* the operand is not the types above, removing it */
     sp->drop_sv(idx);
-    log_print("fatal: no matching opt node, droping it\n");
+    log_print("fatal: no matching opt node(type %s - %s), droping it\n",
+      main_type_str(nd1->type), sub_type_str(nd1->type));
     return -1;
   }
   return 0;
@@ -313,7 +314,7 @@ int sql_parser::deal_endpoints(
     /* 
      * 1# treat it as an alias 
      */
-    pt = m_tblKeyLst.get(node->name);
+    pt = sp->m_tblKeyLst.get(node->name);
     if (pt) {
       ps = m_shds.get((char*)pt->sch.c_str(),(char*)pt->tbl.c_str(),
         node->op_lst[0]->name);
@@ -584,7 +585,7 @@ int sql_parser::collect_target_tbls(
         return -1;
       }
       //log_print("table: %s.%s, alias %s\n",pdb,tbl,tbl_a);
-      m_tblKeyLst.add(pdb,tbl,tbl_a);
+      sp->m_tblKeyLst.add(pdb,tbl,tbl_a);
     } /* end for(...) */
   }
   for (i=0;i<node->op_lst.size();i++) {
@@ -696,7 +697,7 @@ int sql_parser::scan(char *sql, size_t sz,
   m_ts = &ts ;
 
   /* summary all targeting tables */
-  m_tblKeyLst.clear();
+  sp->m_tblKeyLst.clear();
   if (collect_target_tbls(root,sp,db,err)) {
     log_print("error collect targeting table names\n");
     RETURN(-1);

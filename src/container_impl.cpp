@@ -379,27 +379,6 @@ size_t unsafeShardingValueList::get_sv_count(int index)
 }
 
 #if 0
-int unsafeShardingValueList::add(int &index, SHARDING_VALUE *ps)
-{
-  SHARDING_VALUE *psv = get(index);
-
-  if (!psv) {
-    psv = new SHARDING_VALUE ;
-    insert(psv);
-    /* new value item */
-    m_numValueItems ++ ;
-    /* last one of list */
-    index = m_numValueItems-1;
-  }
-  psv->type = ps->type ;
-  psv->sk   = ps->sk ;
-  psv->opt  = ps->opt ;
-  psv->num_vals= ps->num_vals ;
-  memcpy(psv->sv,ps->sv,sizeof(ps->sv));
-  return 0;
-}
-#endif
-
 int unsafeShardingValueList::add(int &index, SHARDING_KEY *psk,
   uint8_t type,uint16_t opt)
 {
@@ -426,6 +405,31 @@ int unsafeShardingValueList::add(int &index, SHARDING_KEY *psk,
   psv->num_vals = 0;
   return 0;
 }
+#else
+int unsafeShardingValueList::add(int &index, SHARDING_KEY *psk,
+  uint8_t type,uint16_t opt)
+{
+  SHARDING_VALUE *psv = 0;
+
+  /* new value item */
+  psv = new SHARDING_VALUE ;
+  insert(psv);
+  index = m_numValueItems++ ;
+
+  /* 
+   * update the value 
+   */
+  /* column type */
+  psv->type = type ;
+  /* sharding column item */
+  psv->sk   = psk ;
+  /* operator type */
+  psv->opt  = opt ;
+  /* valid value count */
+  psv->num_vals = 0;
+  return 0;
+}
+#endif
 
 int unsafeShardingValueList::drop(int index)
 {
@@ -540,6 +544,7 @@ int unsafeShardingValueList::update(int index,void*val,int nph)
   }
   /* value list's full */
   if (pos>=MAX_SV_ITEMS) {
+    log_print("warning: sharding value list's full!\n");
     return 1;
   }
   if (!val) {
