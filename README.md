@@ -1,15 +1,18 @@
-# Myproxy
- A sharding proxy for MYSQL database clusters
+## What is Myproxy
+ - A proxy application provides: 
+   - 1 management on backend MYSQL databse tables 
+   - 2 shardings on these tables
+ - User may access them through Myproxy by normal MYSQL client applications 
 
-# Features
+## Features
  * supports native MYSQL server/client communication protocols v4.1
  * supports 10k+ clients concurrency 
  * supports dynamic scalability of MYSQL databases
  * supports the commonly used SQLs
  * supports SQL proxy functionalities, for example, ORACLE SQL -> MYSQL SQL
- * supports horizontal sharding on database tables
+ * supports horizontal/vertical sharding on database tables
 
-# HOWTO
+## HOWTO
 
  * start up MYPROXY
  * access it just as you are accessing a real MYSQL server like this:
