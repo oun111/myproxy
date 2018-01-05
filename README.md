@@ -1,8 +1,8 @@
 ## What is Myproxy
- - A proxy application provides: 
-   - 1 management on backend MYSQL databse tables 
-   - 2 shardings on these tables
- - User may access them through Myproxy by normal MYSQL client applications 
+  - A proxy application provides: 
+    - 1 management on backend MYSQL databse tables 
+    - 2 shardings on these tables
+  - User may access them through Myproxy by normal MYSQL client applications 
 
 ## Features
  * supports native MYSQL server/client communication protocols v4.1
