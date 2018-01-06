@@ -103,12 +103,12 @@ Here the diagram consist of 3 parts:
 
 
 ## Dynamic Scalability
-  The `Dynamic Scalability` for ***myproxy*** is that at backend table(s) may be added into or be removed from without restarting ***myproxy*** which will update its backend configs by sending a `SIGUSER2` by the admin manually, see diagram below:
+  The `Dynamic Scalability` for ***myproxy*** is that table(s) may be added into or be removed from backend without restarting ***myproxy*** which will update its backend informations by modifying configure file and sending a `SIGUSER2` by the admin manually, see diagram below:
   
   ![Alt text](https://github.com/oun111/images/blob/master/myproxy_dynamic_scalability_A.png)
   
-  * in case 1, table A is added into backend DB 0, in order to notify ***myproxy*** the admin may send a `SIGUSER2` to it
-  * in case 2, table B is removed from backend DB 1, the admin should send a `SIGUSER2` to force a backend config update
+  * in case 1, table A is added into backend DB 0, in order to notify ***myproxy*** the admin may add table A's settings into config file and send a `SIGUSER2` to it
+  * in case 2, table B is removed from backend DB 1, the admin should update the config file's settings and send a `SIGUSER2` to force a backend information update in ***myproxy***
   
 
 ## SQL Proxy
