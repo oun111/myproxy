@@ -119,11 +119,22 @@ In my thought, a `SQL PROXY` functionality is that ***myproxy*** will translate 
   ***myproxy*** employs [ZAS](https://github.com/oun111/zas) 's `SQL syntax engine` to implement this functionnality and provides 30+ 'ORACLE to MYSQL' translations.
 
 
+## The Cache Modules
+ - In ***myproxy***, there're 2 scenarios of `key-value` storage: 
+    1. the `key - response packet` pairs from multiple backends should be firstly stored in cache before sending to client
+    2. the values in `global column - value` pairs from incoming SQL should be increse by 1 and stored persistently for the next fetch
+ - To implement the cache functionality, some open source caches are employed , such as [bdb](https://en.wikipedia.org/wiki/Berkeley_DB), [leveldb](http://leveldb.org/), [unqlite](https://www.unqlite.org/), [sqlite](http://www.sqlite.org/), [multimap of stdc++ library](http://www.cplusplus.com/reference/map/multimap/),  and a wrapper module named `dbwrapper` that provides simple consistent and abstract interface is used to help managing these various caches, see diagram below:
+ 
+  ![Alt text](https://github.com/oun111/images/blob/master/myproxy_caches.png)
+
+ The `dbwrapper` chooses which cache module to use depending on configurations.
+
 ## HOWTO
 
  - To compile ***myproxy***, do the following steps:
     1. build [ZAS](https://github.com/oun111/zas) 
-    2. build ***myproxy*** with linkage to `ZAS`
+    2. build external cache module like `bdb`, `leveldb`
+    3. build ***myproxy*** with linkage to `ZAS` and `cache` modules
     
  - To access ***myproxy***, just use any MYSQL client applications with the correct address and port like this:
  
