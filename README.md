@@ -116,7 +116,7 @@ In my thought, a `SQL PROXY` functionality is that ***myproxy*** will translate 
 
   ![Alt text](https://github.com/oun111/images/blob/master/myproxy_sql_proxy.png)
   
-  ***myproxy*** uses [ZAS](https://github.com/oun111/zas) 's `SQL syntax engine` to implement this functionnality and provides 30+  'ORACLE to MYSQL' translations.
+  ***myproxy*** employs [ZAS](https://github.com/oun111/zas) 's `SQL syntax engine` to implement this functionnality and provides 30+ 'ORACLE to MYSQL' translations.
 
 
 ## HOWTO
