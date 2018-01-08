@@ -121,7 +121,10 @@ In my thought, a `SQL PROXY` functionality is that ***myproxy*** will translate 
 
 ## HOWTO
 
- * start up ***myproxy***
- * access it just as you are accessing a real MYSQL server like this:
+ - To compile ***myproxy***, do the following steps:
+    1. build [ZAS](https://github.com/oun111/zas) 
+    2. build ***myproxy*** with linkage to `ZAS`
+    
+ - To access ***myproxy***, just use any MYSQL client applications with the correct address and port like this:
  
  ![Alt text](https://github.com/oun111/images/blob/master/myproxy_screen.jpg)
