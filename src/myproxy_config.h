@@ -71,6 +71,8 @@ using GLOBAL_SETTINGS = struct global_settings_t {
   size_t szCachePool ;
   size_t numDnGrp ;
   size_t szThreadPool ;
+  std::string bndAddr ;
+  int listenPort ;
 } ;
 
 class myproxy_config : public SimpleJsonParser 
@@ -134,11 +136,15 @@ public:
 
   size_t get_num_tables(SCHEMA_BLOCK*);
 
-  size_t get_cache_pool_size(void);
+  size_t get_cache_pool_size(void) const ;
 
-  size_t get_dn_group_count(void);
+  size_t get_dn_group_count(void) const ;
 
-  size_t get_thread_pool_size(void);
+  size_t get_thread_pool_size(void) const ;
+
+  char* get_bind_address(void) const;
+
+  int get_listen_port(void) const;
 
 protected:
 

@@ -55,10 +55,12 @@ int main(int argc,char **argv)
   }
 
   size_t szThPool = m_conf.get_thread_pool_size();
+  int port = m_conf.get_listen_port();
+  char *addr = m_conf.get_bind_address();
   /* init the busi module */
   myproxy_frontend m_busi((char*)"myproxy") ;
   /* the epoll module */
-  epoll_impl d1(&m_busi,0,0,szThPool) ;
+  epoll_impl d1(&m_busi,addr,port,szThPool) ;
 
   /* start the proxy */
   d1.start();

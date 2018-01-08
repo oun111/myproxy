@@ -85,11 +85,20 @@ const char *dnGrpSec[] = {
   "DatanodeGroupCount"
 };
 
+const char *bndAddr[] = {
+  "BindAddr"
+};
+
+const char *listenPort[] = {
+  "ListenPort"
+};
+
 }
 
 
 myproxy_config::myproxy_config(void)
 {
+  bzero(&m_globSettings,sizeof(m_globSettings));
 }
 
 myproxy_config::~myproxy_config(void)
@@ -151,23 +160,41 @@ int myproxy_config::parse_global_settings(void)
     if ((tmp=find(pi,(char*)threadPoolSec[0]))) {
       m_globSettings.szThreadPool = atoi(tmp->value.c_str());
     }
+
+    /* parse bind address/port configs */
+    if ((tmp=find(pi,(char*)bndAddr[0]))) {
+      m_globSettings.bndAddr = tmp->value;
+    }
+    if ((tmp=find(pi,(char*)listenPort[0]))) {
+      m_globSettings.listenPort = atoi(tmp->value.c_str());
+    }
   }
   return 0;
 }
 
-size_t myproxy_config::get_cache_pool_size(void)
+size_t myproxy_config::get_cache_pool_size(void) const
 {
   return m_globSettings.szCachePool ;
 }
 
-size_t myproxy_config::get_dn_group_count(void)
+size_t myproxy_config::get_dn_group_count(void) const
 {
   return m_globSettings.numDnGrp ;
 }
 
-size_t myproxy_config::get_thread_pool_size(void)
+size_t myproxy_config::get_thread_pool_size(void) const
 {
   return m_globSettings.szThreadPool ;
+}
+
+char* myproxy_config::get_bind_address(void) const
+{
+  return (char*)m_globSettings.bndAddr.c_str() ;
+}
+
+int myproxy_config::get_listen_port(void) const
+{
+  return m_globSettings.listenPort ;
 }
 
 uint32_t myproxy_config::parse_ipv4(std::string &str)

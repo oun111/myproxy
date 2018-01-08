@@ -8,7 +8,10 @@
     "CachePoolSize" : "5",
 
     "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
-    "DatanodeGroupCount" : "3"
+    "DatanodeGroupCount" : "3",
+
+    "BindAddr" : "127.0.0.1",
+    "ListenPort" : "2331"
   },
 
   "DataNodes": {

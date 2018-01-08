@@ -1,4 +1,7 @@
 Changelog:
+  Jan 8, 2018:
+    1. add bind address/listen port configured options
+
   Jan 5, 2018:
     1. add vertical sharding support
 
