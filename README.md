@@ -112,12 +112,11 @@ Here the diagram consist of 3 parts:
   
 
 ## SQL Proxy
+In my thought, a `SQL PROXY` functionality is that ***myproxy*** will translate the SQL language which is stranged to the backend database from client to a `backend-familiarity-form`, for example, the client requests for 'select nvl(col0) from table1' in ORACLE syntax, then ***myproxy*** will translate it to MYSQL syntax like 'select ifnull(col0,0) from table1' and pass to backend databases, see diagram below:
 
-
-## Cache layers
-
-
-## The hook modules
+  ![Alt text](https://github.com/oun111/images/blob/master/myproxy_sql_proxy.png)
+  
+  ***myproxy*** uses [ZAS](https://github.com/oun111/zas) 's `SQL syntax engine` to implement this functionnality and provides 30+  'ORACLE to MYSQL' translations.
 
 
 ## HOWTO
