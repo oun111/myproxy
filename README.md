@@ -132,7 +132,7 @@ In my thought, a `SQL PROXY` functionality is that ***myproxy*** will translate 
 ## HOWTO
 
  - To compile ***myproxy***, do the following steps:
-    1. build [ZAS](https://github.com/oun111/zas) 
+    1. [build ZAS](https://github.com/oun111/zas/blob/master/README.md#compiling-and-installing) 
     2. build external cache module like `bdb`, `leveldb`
     3. build ***myproxy*** with linkage to `ZAS` and `cache` modules
     
