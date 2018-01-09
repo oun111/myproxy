@@ -3,6 +3,7 @@
  - A proxy application that provides: 
     1. management on backend MYSQL databse tables 
     2. shardings on these tables
+    3. SQL proxy abilities
  - User may access backend tables through myproxy by normal MYSQL client tools 
 
 
