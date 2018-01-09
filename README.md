@@ -140,3 +140,5 @@ In my thought, a `SQL PROXY` functionality is that ***myproxy*** will translate 
  - To access ***myproxy***, just use any MYSQL client applications with the correct address and port like this:
  
  ![Alt text](https://github.com/oun111/images/blob/master/myproxy_screen.jpg)
+ 
+ enjoy!
