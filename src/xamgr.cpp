@@ -87,8 +87,17 @@ xamgr::execute(sock_toolkit *st,
   /* send and execute sql by required datanode set */
   for (i=0;i<dn_set.size();i++) {
     pd = nodes->get(dn_set[i]);
-    if (!pd) 
+    if (!pd) {
+      log_print("error: found no datanode with number %d\n", 
+        dn_set[i]);
       continue ;
+    }
+
+    if (pd->stat!=s_free) {
+      log_print("error: datanode %d no valid\n", dn_set[i]);
+      continue ;
+    }
+
     myfd = pd->mysql->sock ;
 
     /* add to local thread epoll */

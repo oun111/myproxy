@@ -4,6 +4,7 @@
 #include "myproxy_config.h"
 #include "dbg_log.h"
 #include "env.h"
+#include "dnmgr.h"
 
 using namespace GLOBAL_ENV;
 
@@ -154,15 +155,19 @@ int sql_router::get_full_route_by_conf(
   return 0;
 }
 
-int sql_router::get_full_route(std::vector<uint8_t> &rlist)
+int sql_router::get_full_route(std::vector<uint8_t> &lst)
 {
   /* get route to all data nodes */
   safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
-  tDNInfo *pd = m_nodes.next(itr,true);
 
   /* add routes for all data nodes */
-  for (;pd;pd=m_nodes.next(itr,false)) {
-    rlist.push_back(pd->no);
+  for (tDNInfo *pd=m_nodes.next(itr,true);pd;
+    pd=m_nodes.next(itr,false)) {
+
+    if (pd->stat!=s_free)
+      continue;
+
+    lst.push_back(pd->no);
   }
 
   return 0;
@@ -203,33 +208,24 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::vector<uint8_t> &rls
 
   /* iterates each related table */
   for (p_tn=sp->m_tblKeyLst.next(true);p_tn;p_tn=sp->m_tblKeyLst.next()) {
-    SCHEMA_BLOCK *ps = m_conf.get_schema(p_tn->sch.c_str());
 
-    if (!ps) {
-      log_print("fatal: no configs of schema '%s' found\n",p_tn->sch.c_str());
-      continue ;
-    }
+    /* get mapping info from table list */
+    tTblDetails *td = m_tables.get(p_tn->sch.c_str(),p_tn->tbl.c_str());
+    tDnMappings *pm = 0;
 
-    TABLE_INFO *pt = m_conf.get_table(ps,p_tn->tbl.c_str());
+    for (pm=m_tables.first_map(td);pm;pm=m_tables.next_map(pm)) {
 
-    if (!pt) {
-      log_print("fatal: no configs of table '%s' found\n",p_tn->tbl.c_str());
-      return -1;
-    }
-
-    /* iterates mapping list of current table */
-    for (auto itr : pt->map_list) {
-      int dn = m_conf.get_dataNode((char*)itr->dataNode.c_str());
-
-      if (dn<0) {
-        log_print("fatal: dn number of '%s' invalid!\n",itr->dataNode.c_str());
+      if (pm->dn<0) {
+        log_print("fatal: dn number of '%s' invalid!\n",td->table.c_str());
         continue ;
       }
 
-      rlst.push_back(dn);
+      log_print("fetch dn %d\n",pm->dn);
+
+      rlst.push_back(pm->dn);
     }
 
-    /* if no items in mapping list, then using all givin datanodes 
+    /* if no items in mapping list, then using all given datanodes 
      *  by default */
     if (!rlst.size()) {
       get_full_route(rlst);
@@ -278,7 +274,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
 
   /* calculate routes by sharding column values */
   if (get_sharding_route(sp,rlist)) {
-    log_print("get table route fail\n");
+    log_print("get sharding route fail\n");
     return -1;
   }
 

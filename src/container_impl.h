@@ -536,8 +536,12 @@ public:
 public:
   uint64_t gen_key(char*,char*);
   tTblDetails* get(uint64_t);
+  tTblDetails* get(const char*,const char*);
   tColDetails* get_col(char*,char*,char*);
   tColDetails* get_col(char*,char*,tColDetails*);
+  /* table mappings */
+  tDnMappings* first_map(tTblDetails*);
+  tDnMappings* next_map(tDnMappings*);
   /* add empty table */
   int add(char *schema, char *table, 
     char *phy_schema=0, int dn=-1);

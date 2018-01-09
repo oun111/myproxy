@@ -1198,6 +1198,33 @@ tTblDetails* safeTableDetailList::get(uint64_t key)
   return find(key);
 }
 
+tTblDetails* safeTableDetailList::get(const char *sch, const char *tbl)
+{
+  return get(gen_key((char*)sch,(char*)tbl));
+}
+
+tDnMappings* safeTableDetailList::first_map(tTblDetails *td)
+{
+  if (!td) 
+    return NULL;
+
+  {
+    try_read_lock();
+    return td->conf_dn ;
+  }
+}
+
+tDnMappings* safeTableDetailList::next_map(tDnMappings *pm)
+{
+  if (!pm) 
+    return NULL;
+
+  {
+    try_read_lock();
+    return pm->next ;
+  }
+}
+
 int safeTableDetailList::drop(uint64_t key)
 {
   tTblDetails *td = get(key);

@@ -149,11 +149,6 @@ dnmgr::~dnmgr()
 
 int dnmgr::initialize(void)
 {
-
-  if (get_tables_by_conf()) {
-    /* TODO: error messages here */
-    return -1;
-  }
   if (get_datanodes_by_conf()) {
     /* TODO: error messages here */
     return -1;
@@ -165,6 +160,11 @@ int dnmgr::initialize(void)
     return -1;
   }    
 
+  if (get_tables_by_conf()) {
+    /* TODO: error messages here */
+    return -1;
+  }
+
   /* refresh table structs */
   if (refresh_tbl_info()) {
     return -1;
@@ -173,40 +173,72 @@ int dnmgr::initialize(void)
   return 0;
 }
 
-int dnmgr::add_dn_by_conf(auto sch, auto tbl)
+int dnmgr::add_dn_tbl_relations(auto sch, auto tbl)
 {
-  /* no mapping list, map to all datanodes by default */
+  int gid = 0;
+  safeDataNodeList *m_nodes = 0 ;
+
+  if (get_free_group(m_nodes,gid)) {
+    log_print("fatal: found no free datanode groups\n");
+    return -1;
+  }
+
+  /* no mapping config, map to all datanodes by default */
   if (!tbl->map_list.size()) {
 
-    DATA_NODE *pdn = 0;
     int iot = it_both ;
 
-    for (int idn=0;(pdn=m_conf.get_dataNode(idn));idn++) {
+    safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
+
+    for (tDNInfo *pd=m_nodes->next(itr,true);pd;pd=m_nodes->next(itr)) {
+
+      /* check validation of target datanode */
+      if (pd->stat!=s_free) {
+        log_print("data node %d is invalid!\n",pd->no);
+        continue ;
+      }
+
       m_tables.add((char*)sch->name.c_str(),
-        (char*)tbl->name.c_str(),idn,iot);
+        (char*)tbl->name.c_str(),pd->no,iot);
       log_print("added DEFAULT data node %d(%s) io type %d to "
-        "`%s.%s` in table list\n", idn,pdn->name.c_str(),
+        "`%s.%s` in table list\n", pd->no,"",
         iot,sch->name.c_str(),tbl->name.c_str());
     }
-    return 0;
+
   }
 
-  /* add data nodes by mappings */
-  for (auto mi : tbl->map_list) {
+  /* add data nodes by mappings configs */
+  else {
 
-    int idn= m_conf.get_dataNode((char*)mi->dataNode.c_str());
+    for (auto mi : tbl->map_list) {
 
-    if (idn<0) {
-      log_print("data node index of %s not found!!\n",
-        mi->dataNode.c_str());
-      continue ;
+      int idn= m_conf.get_dataNode((char*)mi->dataNode.c_str());
+
+      if (idn<0) {
+        log_print("data node index of %s not found!!\n",
+          mi->dataNode.c_str());
+        continue ;
+      }
+
+      /* check validation of target datanode */
+      tDNInfo *pd = m_nodes->get(idn);
+
+      if (!pd || pd->stat!=s_free) {
+        log_print("data node %d is invalid!\n",pd->no);
+        continue ;
+      }
+
+      m_tables.add((char*)sch->name.c_str(),
+        (char*)tbl->name.c_str(),idn,mi->io_type);
+      log_print("added data node %d(%s) io type %d to "
+        "`%s.%s` in table list\n", idn,mi->dataNode.c_str(),
+        mi->io_type,sch->name.c_str(),tbl->name.c_str());
     }
-    m_tables.add((char*)sch->name.c_str(),
-      (char*)tbl->name.c_str(),idn,mi->io_type);
-    log_print("added data node %d(%s) io type %d to "
-      "`%s.%s` in table list\n", idn,mi->dataNode.c_str(),
-      mi->io_type,sch->name.c_str(),tbl->name.c_str());
-  }
+
+  } // end else{}
+
+  return_group(gid);
+
   return 0;
 }
 
@@ -229,8 +261,8 @@ int dnmgr::get_tables_by_conf(void)
       log_print("db table `%s.%s` is added to list\n",
          sch->name.c_str(),tbl->name.c_str());
 
-      /* add data nodes info */
-      add_dn_by_conf(sch,tbl);
+      /* add 'datanode - table' relationships to table list */
+      add_dn_tbl_relations(sch,tbl);
     }
   } /* end for(i=0) */
 
@@ -337,36 +369,59 @@ int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt)
   return 0;
 }
 
-int dnmgr::refresh_tbl_info(void)
+tDNInfo* dnmgr::get_valid_datanode(safeDataNodeList *nodes, tTblDetails *pt)
 {
-  tDNInfo *pd = 0;
-  tTblDetails *pt = 0;
-  safe_container_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
-  struct in_addr ia ;
-  safeDataNodeList *nodes = 0;
-  int gid = 0;
+  for (tDnMappings *pm=m_tables.first_map(pt);pm;pm=m_tables.next_map(pm)) {
 
-  /* get a free datanode group */
-  get_free_group(nodes,gid);
+    tDNInfo *pd = nodes->get(pm->dn);
 
-  /* query structure of all tables in list */
-  for (pt=m_tables.next(itr,true);pt;(pt=m_tables.next(itr))) {
-    /*log_print("try querying structure of %s.%s at data node %d\n",
-      pt->phy_schema.c_str(),pt->table.c_str(),pt->dn);*/
-
-    if (!(pd=nodes->get(pt->dn))) {
-      log_print("data node %d is NOT found!!\n",
-        pt->dn);
+    if (!pd) {
+      log_print("data node %d is NOT found!!\n",pm->dn);
       continue ;
     }
-    //log_print("fetching table info from datanode %d\n",pt->dn);
+
     if (pd->stat==s_invalid) {
+      struct in_addr ia ;
+
       ia.s_addr = htonl(pd->addr) ;
       log_print("data node %d(@%s:%d) is not active!!\n",
         pt->dn,inet_ntoa(ia),pd->port);
       continue ;
     }
-    //log_print("sql: %s\n", buf);
+
+    return pd ;
+
+  } // end for()
+
+  return NULL ;
+}
+
+int dnmgr::refresh_tbl_info(void)
+{
+  safe_container_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
+  safeDataNodeList *nodes = 0;
+  int gid = 0;
+
+  /* get a free datanode group */
+  if (get_free_group(nodes,gid)) {
+    log_print("fatal: found no free datanode groups\n");
+    return -1;
+  }
+
+  /* query structure of all tables in list */
+  for (tTblDetails *pt=m_tables.next(itr,true);pt;pt=m_tables.next(itr)) {
+
+    tDNInfo *pd = get_valid_datanode(nodes,pt);
+
+    if (!pd) {
+      log_print("fatal: no valid datanode found for `%s.%s`\n",
+        pt->schema.c_str(),pt->table.c_str());
+      continue ;
+    }
+
+    log_print("try query structure of table `%s.%s` on dn %d ...\n",
+      pt->schema.c_str(),pt->table.c_str(),pd->no);
+
     update_tbl_struct(pd,pt);
     /* get extra table info */
     update_tbl_extra_info(pd,pt);
@@ -433,7 +488,7 @@ int dnmgr::new_connection(tDNInfo *pd)
   pd->mysql = mysql_init(0);
   /* ip address string */
   ul2ipv4(host,pd->addr);
-  //log_print("trying connect\n");
+  log_print("trying connect\n");
   /* try connect to new mysql server */
   if (!mysql_real_connect(pd->mysql,host,pd->usr,
      pd->pwd,pd->schema,pd->port,NULL,0)) {

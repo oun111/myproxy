@@ -47,7 +47,7 @@ public:
   /* get route to configured data nodes */
   int get_full_route_by_conf(tSqlParseItem*,std::vector<uint8_t>&);
   /* get route to all data nodes */
-  int get_full_route(std::vector<uint8_t> &rlist);
+  int get_full_route(std::vector<uint8_t>&);
 } ;
 
 

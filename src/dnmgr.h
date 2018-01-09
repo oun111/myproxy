@@ -76,7 +76,9 @@ protected:
 
   int update_tbl_extra_info(tDNInfo*,tTblDetails*);
 
-  int add_dn_by_conf(auto sch, auto tbl);
+  int add_dn_tbl_relations(auto sch, auto tbl);
+
+  tDNInfo* get_valid_datanode(safeDataNodeList*,tTblDetails*);
 
 public:
   int initialize(void);
