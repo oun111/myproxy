@@ -1,4 +1,7 @@
 Changelog:
+  Jan 9, 2018:
+    1. add validation checks of datanodes when adding tables from config file
+
   Jan 8, 2018:
     1. add bind address/listen port configured options
 
