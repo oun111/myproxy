@@ -1,4 +1,9 @@
 Changelog:
+  Jan 10, 2018:
+    1. add validation checks to tables
+
+    2. add 'myproxy internal errors' to errors list
+
   Jan 9, 2018:
     1. add validation checks of datanodes when adding tables from config file
 

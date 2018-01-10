@@ -1,0 +1,160 @@
+{
+  "Globals": {
+
+    "__comment" : "*** total worker threads ***",
+    "ThreadPoolSize" : "10",
+
+    "__comment" : "*** total caches in pool ***",
+    "CachePoolSize" : "5",
+
+    "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
+    "DatanodeGroupCount" : "3",
+
+    "BindAddr" : "127.0.0.1",
+    "ListenPort" : "2331"
+  },
+
+  "DataNodes": {
+    "dn1": {
+      "Address": "127.0.0.1:3306",
+      "Schema": "sc_st_test",
+      "Auth": {"root":"123"}
+    },
+    "dn2": {
+      "Address": "10.200.1.46:11796",
+      "Schema": "ggsc_st_test",
+      "Auth": {"root":"123"}
+    },
+    "dn3": {
+      "Address": "127.0.0.1",
+      "Schema": "b2_st_test",
+      "Auth": {"root":"123"}
+    },
+    "dn4": {
+      "Address": "10.200.1.46:13002",
+      "Schema": "ggb2b_st_test",
+      "Auth": {"root":"123"}
+    }
+  },
+
+  "Schemas": {
+
+    "db1": {
+      "Auth": { "nmts": "abc123", "nmam": "abc123"},
+      "Tables": {
+        "cm_info_customer": {
+          "Mappings": {
+            "dn1": { "IoType": "read"},
+            "dn2": { "IoType": "write"}
+          },
+          "shardingKey": {
+            "CUSTOMERID": { "rule": "dummy" }
+          }
+        },
+        "cm_info_user": {
+          "Mappings": {
+            "dn1": { "IoType": "read"},
+            "dn2": { "IoType": "both"}
+          },
+          "shardingKey": {
+            "USERID": { "rule": "dummy" }
+          }
+        },
+        "st_result_settlecollect": {
+          "Mappings": {
+            "dn1": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "SEQ": { "rule": "dummy" }
+          }
+        },
+        "cd_info_commodity": {
+          "Mappings": {
+            "dn1": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "COMMODITYID": { "rule": "dummy" }
+          }
+        },
+        "ts_order_holdposition": {
+          "Mappings": {
+            "dn1": { "IoType": "read"},
+            "dn2": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "HOLDPOSITIONID": { "rule": "dummy" }
+          }
+        },
+        "ts_order_limit": {
+          "Mappings": {
+            "dn1": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "LIMITORDERID": { "rule": "dummy" }
+          }
+        },
+        "ts_order_closeposition": {
+          "Mappings": {
+            "dn1": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "CLOSEPOSITIONID": { "rule": "dummy" }
+          }
+        },
+        "st_log_settleoperation": {
+          "Mappings": {
+            "dn1": { "IoType": "read"},
+            "dn2": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "SETTLEMENTOPERATEID": { "rule": "dummy" }
+          }
+        }
+      }
+
+    },  
+
+    "db2": {
+      "Auth": { "root": "1234"},
+      "Tables": {
+        "st_result_settlecollect": {
+          "Mappings": {
+            "dn3": { "IoType": "read"},
+            "dn4": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "SEQ": { "rule": "dummy" }
+          }
+        },
+        "st_status_usersettle": {
+          "Mappings": {
+            "dn4": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "userid": { "rule": "dummy" }
+          }
+        },
+        "cm_info_user": {
+          "Mappings": {
+            "dn4": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "userid": { "rule": "dummy" }
+          }
+        },
+        "st_log_settleoperation": {
+          "Mappings": {
+            "dn3": { "IoType": "read"},
+            "dn4": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "SETTLEMENTOPERATEID": { "rule": "dummy" }
+          }
+        }
+      }
+
+    }
+
+  }
+}
+

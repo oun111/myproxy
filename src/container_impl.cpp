@@ -1031,6 +1031,7 @@ int safeTableDetailList::add(char *schema,
   td->table       = table ;
   td->dn          = dn ;
   td->num_cols    = 0;
+  td->bValid      = true;
   if (phy_schema)
     td->phy_schema= phy_schema ;
   return 0;
@@ -1086,6 +1087,7 @@ int safeTableDetailList::add(char *schema,
   /* update table info */
   td->schema      = schema ;
   td->table       = table ;
+  td->bValid      = true;
   return 0;
 }
 
@@ -1223,6 +1225,16 @@ tDnMappings* safeTableDetailList::next_map(tDnMappings *pm)
     try_read_lock();
     return pm->next ;
   }
+}
+
+bool safeTableDetailList::is_valid(tTblDetails *td) const
+{
+  return td && td->bValid==true ;
+}
+
+void safeTableDetailList::set_invalid(tTblDetails *td)
+{
+  if (td) td->bValid = false ;
 }
 
 int safeTableDetailList::drop(uint64_t key)

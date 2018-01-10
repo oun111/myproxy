@@ -255,6 +255,9 @@ struct sql_state {
 { ER_SET_STATEMENT_NOT_SUPPORTED          ,"42000", "" },
 { ER_INVALID_DEFAULT_VALUE_FOR_FIELD      ,"22007", "" },
 
+/* yzhou added */
+{ ER_INTERNAL_GET_ROUTE                   ,"S10000", "" },
+
 } ;
 
 #define NUM_SQL_STATES (sizeof(g_sqlState)/sizeof(g_sqlState[0]))

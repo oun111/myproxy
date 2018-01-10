@@ -130,15 +130,25 @@ myproxy_backend::get_route(int xaid,
   if (fullroute?router.get_full_route_by_conf(&sp,rlist):
      router.get_route(cid,&sp,rlist)) {
     log_print("error calculating routes\n");
+
+    {
+      char outb[MAX_PAYLOAD] = "";
+      size_t sz_out = do_err_response(0,outb,
+        ER_INTERNAL_GET_ROUTE,
+        ER_INTERNAL_GET_ROUTE);
+      m_trx.tx(cid,outb,sz_out);
+    }
     /* return back the datanodes */
-    return -1;
+    return -2;
   }
+
   /* acquire cache if multiple datanodes are invoked */
   if (needcache&& rlist.size()>1) {
     if (m_caches.acquire_cache(xai)) {
       return -1;
     }
   }
+
   return 0;
 }
 
@@ -175,7 +185,7 @@ int myproxy_backend::try_do_pending(void)
 int 
 myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 {
-  int xaid = -1, ret=0 ;
+  int xaid = -1, ret=0, rc=0 ;
   char *pSql = req + 5;
   size_t szSql = sz - 5;
   tSessionDetails *pss = 0;
@@ -225,9 +235,12 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   }
 
   /* calcualte routing infomations */
-  if (get_route(xaid,cid,sp,false,true,rlist)) {
-    m_pendingQ.push(st,cid,com_query,req,sz,st_na);
-    log_print("adding redo for client %d\n", cid);
+  if ((rc=get_route(xaid,cid,sp,false,true,rlist))) {
+
+    if (rc==-1) {
+      m_pendingQ.push(st,cid,com_query,req,sz,st_na);
+      log_print("adding redo for client %d\n", cid);
+    }
 
     ret = -1;
     goto __end_do_query ;
@@ -469,6 +482,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   std::vector<uint8_t> rlist ;
   tSqlParseItem *sp = 0 ;
   safeDnStmtMapList *maps = 0 ;
+  int ret = 0;
 
   /* parse total blob-type place-holders */
   m_stmts.get_total_phs(cid,nphs);
@@ -519,9 +533,13 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   save_sv_by_placeholders(sp,nphs,req,sz);
 
   /* calcualte routing infomations */
-  if (get_route(xaid,cid,*sp,false,true,rlist)) {
-    m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
-    log_print("adding redo for client %d\n", cid);
+  if ((ret=get_route(xaid,cid,*sp,false,true,rlist))) {
+
+    if (ret==-1) {
+      m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
+      log_print("adding redo for client %d\n", cid);
+    }
+
     return -1;
   }
 

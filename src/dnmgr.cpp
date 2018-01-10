@@ -414,6 +414,8 @@ int dnmgr::refresh_tbl_info(void)
     tDNInfo *pd = get_valid_datanode(nodes,pt);
 
     if (!pd) {
+      m_tables.set_invalid(pt);
+
       log_print("fatal: no valid datanode found for `%s.%s`\n",
         pt->schema.c_str(),pt->table.c_str());
       continue ;

@@ -519,7 +519,12 @@ public:
   size_t num_cols ;
   /* configured data node mappings */
   tDnMappings *conf_dn ;
-  /* TODO: add index definitions here */
+  /* 
+   * TODO: add index definitions here 
+   */
+
+  /* is table valid */
+  bool bValid ;
 } ;
 
 
@@ -555,6 +560,8 @@ public:
     char *def_val, char *ext);
   int add(char *schema, char *table, 
     uint8_t dn, uint8_t io_type);
+  bool is_valid(tTblDetails*) const;
+  void set_invalid(tTblDetails*);
   /* delete */
   int drop(uint64_t);
   void clear(void);

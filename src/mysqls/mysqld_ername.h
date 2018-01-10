@@ -970,6 +970,9 @@ static struct mysqld_ername {
 { "ER_INVALID_DEFAULT_VALUE_FOR_FIELD", 1978, "Incorrect default value \'%-.128s\' for column \'%.192s\'" },
 { "ER_KILL_QUERY_DENIED_ERROR", 1979, "You are not owner of query %lu" },
 
+/* yzhou added */
+{ "ER_INTERNAL_GET_ROUTE", ER_INTERNAL_GET_ROUTE, "Myproxy internal error: Get route failed" },
+
 } ;
 
 #define NUM_MYSQLD_ERRORS (sizeof(g_mysqldError)/sizeof(g_mysqldError[0]))

@@ -438,11 +438,13 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
   /* encoding the table name list */
   for (i=0,td=m_tables.next(itr,true);td&&i<ntbls;
      td=m_tables.next(itr),i++) {
-    /* only show tables in current db */
-    if (td->schema!=pss->db) {
+
+    /* only show valid tables in current db */
+    if (td->schema!=pss->db || !m_tables.is_valid(td)) {
       ntbls--, i-- ;
       continue ;
     }
+
     rows[i] = (char*)td->table.c_str();
   }
   sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,

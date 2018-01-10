@@ -225,12 +225,13 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::vector<uint8_t> &rls
       rlst.push_back(pm->dn);
     }
 
+#if 0
     /* if no items in mapping list, then using all given datanodes 
      *  by default */
     if (!rlst.size()) {
       get_full_route(rlst);
     }
-
+#endif
   } // end for()
 
   return 0;
@@ -278,11 +279,33 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return -1;
   }
 
+#if 0
+  /* XXX: test */
+  {
+    log_print("content of route list000: \n");
+    for (auto i : rlist) {
+      log_print(">>> %d \n",i);
+    }
+    log_print("\n\n");
+  }
+#endif
+
   /* calculate routes of related tables in statement by configs */
   if (get_related_table_route(sp,tr)) {
     log_print("get table route fail\n");
     return -1;
   }
+
+#if 0
+  /* XXX: test */
+  {
+    log_print("content of route list111: \n");
+    for (auto i : tr) {
+      log_print(">>> %d \n",i);
+    }
+    log_print("\n\n");
+  }
+#endif
 
   /* get intersection with sharding datanodes and configured datanodes */
   calc_intersection(rlist,tr);
@@ -290,6 +313,12 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
   /* if the rlist is empty, then give it a full route */
   if (unlikely(rlist.empty())) {
     log_print("route list's empty, given a full route (count %zu)\n",tr.size());
+
+    if (tr.size()==0) {
+      log_print("fatal: no route!\n");
+      return -1;
+    }
+
     rlist = tr ;
   }
 
