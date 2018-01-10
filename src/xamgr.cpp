@@ -55,7 +55,7 @@ int
 xamgr::execute(sock_toolkit *st, 
   int xid, /* xa id */
   int cmd, /* the request command id */
-  std::vector<uint8_t> &dn_set, /* datanode set to execute request */
+  std::set<uint8_t> &dn_set, /* datanode set to execute request */
   char *req, size_t szReq, /* the request */
   void *maps,
   void *parent
@@ -64,7 +64,7 @@ xamgr::execute(sock_toolkit *st,
   xa_item *xai = m_xaList.get(xid);
   tDNInfo *pd = 0;
   int myfd = 0;
-  uint16_t i=0;
+  //uint16_t i=0;
 
   if (!xai) {
     log_print("no transaction %d found\n",xid);
@@ -85,16 +85,15 @@ xamgr::execute(sock_toolkit *st,
   xai->m_stVec.clear();
 
   /* send and execute sql by required datanode set */
-  for (i=0;i<dn_set.size();i++) {
-    pd = nodes->get(dn_set[i]);
+  for (auto i : dn_set) {
+    pd = nodes->get(i);
     if (!pd) {
-      log_print("error: found no datanode with number %d\n", 
-        dn_set[i]);
+      log_print("error: found no datanode with number %d\n",i);
       continue ;
     }
 
     if (pd->stat!=s_free) {
-      log_print("error: datanode %d no valid\n", dn_set[i]);
+      log_print("error: datanode %d no valid\n", i);
       continue ;
     }
 
@@ -116,7 +115,7 @@ xamgr::execute(sock_toolkit *st,
       pd->add_ep = 1;
 
       log_print("execute on myfd %d -> %d, dn %d%s\n",myfd, 
-        p->m_efd, dn_set[i], dup?" is dup!":"");
+        p->m_efd, i, dup?" is dup!":"");
 
       //do_modepoll(st,myfd,(void*)xai);
     }

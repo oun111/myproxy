@@ -4,6 +4,9 @@ Changelog:
 
     2. add 'myproxy internal errors' to errors list
 
+    3. fix bug of 'duplicated route' when calculating SQL route
+
+
   Jan 9, 2018:
     1. add validation checks of datanodes when adding tables from config file
 

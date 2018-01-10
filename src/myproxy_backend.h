@@ -44,7 +44,7 @@ protected:
 
   int get_route(int xaid, int id, tSqlParseItem &sp,
     bool fullroute, bool needcache,
-    std::vector<uint8_t> &rlist);
+    std::set<uint8_t> &rlist);
 
   int test_prepared(int cid, const char *req, size_t sz, int xaid);
 

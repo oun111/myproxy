@@ -4,6 +4,7 @@
 
 #include <string>
 #include <memory>
+#include <set>
 #include <stdint.h>
 #include "myproxy_config.h"
 #include "xa_item.h"
@@ -33,7 +34,7 @@ public:
   );
 
   /* send requests to xa channel */
-  int execute(sock_toolkit*,int,int,std::vector<uint8_t>&, 
+  int execute(sock_toolkit*,int,int,std::set<uint8_t>&, 
     char *req, size_t szReq, void*, void*);
 
   /* call back on request's execution complete */

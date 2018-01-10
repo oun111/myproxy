@@ -41,12 +41,12 @@ void sql_router::unregister_rule_handlers(void)
   }
 }
 
-int sql_router::ha_rule_rangeMap(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
+int sql_router::ha_rule_rangeMap(SHARDING_VALUE *psv, std::set<uint8_t> &slst)
 {
   return 0;
 }
 
-int sql_router::ha_rule_modN(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
+int sql_router::ha_rule_modN(SHARDING_VALUE *psv, std::set<uint8_t> &slst)
 {
   int i=0, dn = 0;
   size_t total_dns = m_nodes.size();
@@ -67,7 +67,7 @@ int sql_router::ha_rule_modN(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
       continue ;
     }
     log_print("route to datanode %d, mod op %zu\n", dn, total_dns);
-    slst.push_back(dn);
+    slst.insert(dn);
   }
   return 0;
 }
@@ -120,7 +120,7 @@ int sql_router::get_route_by_modN(int type,sv_t *psv, int &dn, int mod_op)
   return 0;
 }
 
-int sql_router::ha_rule_dummy(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
+int sql_router::ha_rule_dummy(SHARDING_VALUE *psv, std::set<uint8_t> &slst)
 {
   int i=0, dn = 0;
 
@@ -136,14 +136,14 @@ int sql_router::ha_rule_dummy(SHARDING_VALUE *psv, std::vector<uint8_t> &slst)
       continue ;
     }
     log_print("route to datanode %d\n", dn);
-    slst.push_back(dn);
+    slst.insert(dn);
   }
   return 0;
 }
 
 int sql_router::get_full_route_by_conf(
   tSqlParseItem *sp,
-  std::vector<uint8_t> &rlist
+  std::set<uint8_t> &rlist
   )
 {
   /* calculate routes of related tables in statement by configs */
@@ -155,7 +155,7 @@ int sql_router::get_full_route_by_conf(
   return 0;
 }
 
-int sql_router::get_full_route(std::vector<uint8_t> &lst)
+int sql_router::get_full_route(std::set<uint8_t> &lst)
 {
   /* get route to all data nodes */
   safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
@@ -167,18 +167,18 @@ int sql_router::get_full_route(std::vector<uint8_t> &lst)
     if (pd->stat!=s_free)
       continue;
 
-    lst.push_back(pd->no);
+    lst.insert(pd->no);
   }
 
   return 0;
 }
 
 int sql_router::calc_intersection(
-  std::vector<uint8_t> &rlist, /* the ultimated route list */
-  std::vector<uint8_t> &slst /* the route set of a single sharding value */
+  std::set<uint8_t> &rlist, /* the ultimated route list */
+  std::set<uint8_t> &slst /* the route set of a single sharding value */
   )
 {
-  std::vector<uint8_t> tmp{} ;
+  std::set<uint8_t> tmp{} ;
 
   /* initial state: no items in ultimated route list */
   if (rlist.empty()) {
@@ -190,7 +190,7 @@ int sql_router::calc_intersection(
     /* find matching val in rlist */
     for (auto m : rlist) {
       if (m==n) {
-        tmp.push_back(n);
+        tmp.insert(n);
         break ;
       }
     }
@@ -202,7 +202,7 @@ int sql_router::calc_intersection(
 }
 
 int 
-sql_router::get_related_table_route(tSqlParseItem *sp, std::vector<uint8_t> &rlst)
+sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst)
 {
   TABLE_NAME *p_tn = 0;
 
@@ -212,6 +212,7 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::vector<uint8_t> &rls
     /* get mapping info from table list */
     tTblDetails *td = m_tables.get(p_tn->sch.c_str(),p_tn->tbl.c_str());
     tDnMappings *pm = 0;
+    std::set<uint8_t> tr ;
 
     for (pm=m_tables.first_map(td);pm;pm=m_tables.next_map(pm)) {
 
@@ -220,25 +221,21 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::vector<uint8_t> &rls
         continue ;
       }
 
-      log_print("fetch dn %d\n",pm->dn);
+      log_print("fetch dn %d for `%s.%s`\n",pm->dn,
+        p_tn->sch.c_str(),p_tn->tbl.c_str());
 
-      rlst.push_back(pm->dn);
+      tr.insert(pm->dn);
     }
 
-#if 0
-    /* if no items in mapping list, then using all given datanodes 
-     *  by default */
-    if (!rlst.size()) {
-      get_full_route(rlst);
-    }
-#endif
+    calc_intersection(rlst,tr);
+
   } // end for()
 
   return 0;
 }
 
 int 
-sql_router::get_sharding_route(tSqlParseItem *sp, std::vector<uint8_t> &rlist)
+sql_router::get_sharding_route(tSqlParseItem *sp, std::set<uint8_t> &rlist)
 {
   uint16_t i = 0;
   SHARDING_KEY *psk = 0;
@@ -267,9 +264,9 @@ sql_router::get_sharding_route(tSqlParseItem *sp, std::vector<uint8_t> &rlist)
 }
 
 int sql_router::get_route(int cid,tSqlParseItem *sp, 
-  std::vector<uint8_t> &rlist)
+  std::set<uint8_t> &rlist)
 {
-  std::vector<uint8_t> tr{} ;
+  std::set<uint8_t> tr{} ;
 
   rlist.clear();
 
@@ -279,7 +276,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return -1;
   }
 
-#if 0
+#if 1
   /* XXX: test */
   {
     log_print("content of route list000: \n");
@@ -296,7 +293,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return -1;
   }
 
-#if 0
+#if 1
   /* XXX: test */
   {
     log_print("content of route list111: \n");
@@ -312,12 +309,13 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
 
   /* if the rlist is empty, then give it a full route */
   if (unlikely(rlist.empty())) {
-    log_print("route list's empty, given a full route (count %zu)\n",tr.size());
 
     if (tr.size()==0) {
       log_print("fatal: no route!\n");
       return -1;
     }
+
+    log_print("route list's empty, given a full route (count %zu)\n",tr.size());
 
     rlist = tr ;
   }

@@ -115,7 +115,7 @@ myproxy_backend::get_route(int xaid,
   tSqlParseItem &sp,
   bool fullroute, /* route to all datanodes or not */ 
   bool needcache,
-  std::vector<uint8_t> &rlist)
+  std::set<uint8_t> &rlist)
 {
   xa_item *xai = m_xa.get_xa(xaid);
   int gid = xai->get_gid();
@@ -189,7 +189,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   char *pSql = req + 5;
   size_t szSql = sz - 5;
   tSessionDetails *pss = 0;
-  std::vector<uint8_t> rlist ;
+  std::set<uint8_t> rlist ;
   std::string newStmt ;
   tContainer err ;
   tContainer buff ;
@@ -277,7 +277,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   const char *pOldReq = req ;
   const size_t szOldReq = sz ;
   tSessionDetails *pss = 0;
-  std::vector<uint8_t> rlist ;
+  std::set<uint8_t> rlist ;
   tContainer err ;
   sql_parser parser ;
   tSqlParseItem sp ;
@@ -479,7 +479,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   char *breq = 0;
   size_t len = 0;
   tSessionDetails *pss = 0;
-  std::vector<uint8_t> rlist ;
+  std::set<uint8_t> rlist ;
   tSqlParseItem *sp = 0 ;
   safeDnStmtMapList *maps = 0 ;
   int ret = 0;

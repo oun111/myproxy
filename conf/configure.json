@@ -42,6 +42,7 @@
     "db1": {
       "Auth": { "nmts": "abc123", "nmam": "abc123"},
       "Tables": {
+
         "cm_info_customer": {
           "Mappings": {
             "dn1": { "IoType": "read"},
@@ -51,6 +52,7 @@
             "CUSTOMERID": { "rule": "dummy" }
           }
         },
+
         "cm_info_user": {
           "Mappings": {
             "dn1": { "IoType": "read"},
@@ -60,6 +62,7 @@
             "USERID": { "rule": "dummy" }
           }
         },
+
         "st_result_settlecollect": {
           "Mappings": {
             "dn1": { "IoType": "read"}
@@ -68,6 +71,7 @@
             "SEQ": { "rule": "dummy" }
           }
         },
+
         "cd_info_commodity": {
           "Mappings": {
             "dn1": { "IoType": "read"}
@@ -76,6 +80,7 @@
             "COMMODITYID": { "rule": "dummy" }
           }
         },
+
         "ts_order_holdposition": {
           "Mappings": {
             "dn1": { "IoType": "read"},
@@ -85,6 +90,7 @@
             "HOLDPOSITIONID": { "rule": "dummy" }
           }
         },
+
         "ts_order_limit": {
           "Mappings": {
             "dn1": { "IoType": "read"}
@@ -93,6 +99,7 @@
             "LIMITORDERID": { "rule": "dummy" }
           }
         },
+
         "ts_order_closeposition": {
           "Mappings": {
             "dn1": { "IoType": "read"}
@@ -101,6 +108,7 @@
             "CLOSEPOSITIONID": { "rule": "dummy" }
           }
         },
+
         "st_log_settleoperation": {
           "Mappings": {
             "dn1": { "IoType": "read"},
@@ -110,6 +118,7 @@
             "SETTLEMENTOPERATEID": { "rule": "dummy" }
           }
         }
+
       }
 
     },  
@@ -117,6 +126,7 @@
     "db2": {
       "Auth": { "root": "1234"},
       "Tables": {
+
         "st_result_settlecollect": {
           "Mappings": {
             "dn3": { "IoType": "read"},
@@ -126,6 +136,7 @@
             "SEQ": { "rule": "dummy" }
           }
         },
+
         "st_status_usersettle": {
           "Mappings": {
             "dn4": { "IoType": "read"}
@@ -134,6 +145,7 @@
             "userid": { "rule": "dummy" }
           }
         },
+
         "cm_info_user": {
           "Mappings": {
             "dn4": { "IoType": "read"}
@@ -142,6 +154,27 @@
             "userid": { "rule": "dummy" }
           }
         },
+
+        "fx_mall_order": {
+          "Mappings": {
+            "dn4": { "IoType": "read"},
+            "dn3": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "orderid": { "rule": "dummy" }
+          }
+        },
+
+        "fx_mall_order_sub": {
+          "Mappings": {
+            "dn4": { "IoType": "read"},
+            "dn3": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "order_sub_id": { "rule": "dummy" }
+          }
+        },
+
         "st_log_settleoperation": {
           "Mappings": {
             "dn3": { "IoType": "read"},
@@ -151,6 +184,7 @@
             "SETTLEMENTOPERATEID": { "rule": "dummy" }
           }
         }
+
       }
 
     }
