@@ -93,12 +93,6 @@ protected:
   /*
    * sub commands handling
    */
-  /* 'set autocommit=x' response */
-  int do_set_autocommit(int,int);
-
-  /* process 'desc table' response */
-  size_t calc_desc_tbl_resp_size(tTblDetails*);
-  int do_desc_table(int,int,char*);
 
   /* 'select DATABASE()' reponse */
   int do_sel_cur_db(int,int);
@@ -111,6 +105,9 @@ protected:
 
   /* 'show tables' response */
   int do_show_tbls(int,int);
+
+  /* 'show processlist' response */
+  int do_show_proclst(int,int);
 
   /* send greeting to client when login */
   int do_server_greeting(int);

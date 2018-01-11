@@ -129,6 +129,7 @@ myproxy_backend::get_route(int xaid,
   sql_router router(*nodes) ;
   if (fullroute?router.get_full_route_by_conf(&sp,rlist):
      router.get_route(cid,&sp,rlist)) {
+
     log_print("error calculating routes\n");
 
     {
@@ -227,7 +228,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 
   /* dig informations from statement */
   if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
-    log_print("error parse statement %s\n",pSql);
+    log_print("error scan statement %s\n",pSql);
     /*  send the error message to client */
     do_send(cid,err.tc_data(),err.tc_length());
     ret = -1;

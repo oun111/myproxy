@@ -127,6 +127,19 @@
       "Auth": { "root": "1234"},
       "Tables": {
 
+        "t1": {
+          "Mappings": {
+            "dn1": { "IoType": "read"},
+            "dn2": { "IoType": "read"},
+            "dn3": { "IoType": "read"},
+            "dn4": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "a": { "rule": "dummy" }
+          }
+        },
+
+
         "st_result_settlecollect": {
           "Mappings": {
             "dn3": { "IoType": "read"},
@@ -148,7 +161,7 @@
 
         "cm_info_user": {
           "Mappings": {
-            "dn4": { "IoType": "read"}
+            "dn1": { "IoType": "read"}
           },
           "shardingKey": {
             "userid": { "rule": "dummy" }

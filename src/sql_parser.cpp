@@ -73,73 +73,47 @@ namespace global_parser_items {
     size_t len, int &cmd)
   {
     cmd = s_na ;
-    /* the 'commit'/'rollback' command */
-    if (!strncasecmp(stmt,"commit",6) || 
-       !strncasecmp(stmt,"rollback",8)) { 
-      cmd = s_sharding ;
-      return 0;
-    }
-    /* the 'set' commands */
-    if (!strncasecmp(stmt,"set",3)) {
-      if (strcasestr(stmt+3,"autocommit")) {
-        cmd = s_set_autocommit;
-      }
-      return 0;
-    }
-    /* the 'select' statements */
+
+    /*
+     * statements that are to be processed by front-end
+     */
     if (!strncasecmp(stmt,"select",6)) {
-      if (strcasestr(stmt+6,"@@version_comment")) {
+      if (strcasestr(stmt+6,"@@version_comment")) 
         cmd = s_sel_ver_comment;
-      }
-      else if (strcasestr(stmt+6,"DATABASE()")) {
+      else if (strcasestr(stmt+6,"DATABASE()")) 
         cmd = s_sel_cur_db;
-      } else {
-        /* the statement should be splited and 
-         *  executed by back-end */
-        cmd = s_sharding;
-      }
-      return 0;
     }
-    /* the 'update' statements */
-    if (!strncasecmp(stmt,"update",6)) {
-      /* the statement should be splited and 
-       *  executed by back-end */
-      cmd = s_sharding;
-      return 0;
-    }
-    /* the 'insert' statements */
-    if (!strncasecmp(stmt,"insert",6)) {
-      /* the statement should be splited and 
-       *  executed by back-end */
-      cmd = s_sharding;
-      return 0;
-    }
-    /* the 'delete' statements */
-    if (!strncasecmp(stmt,"delete",6)) {
-      /* the statement should be splited and 
-       *  executed by back-end */
-      cmd = s_sharding;
-      return 0;
-    }
-    /* the create & drop statement */
-    if (!strncasecmp(stmt,"create",6) || 
-       !strncasecmp(stmt,"drop",4)) {
-      cmd = s_sharding;
-      return 0;
-    }
-    /* the 'show' commands */
+
     if (!strncasecmp(stmt,"show",4)) {
       if (strcasestr(stmt+4,"databases")) 
         cmd = s_show_dbs ;
-      else if (strcasestr(stmt+4,"tables"))
+      else if (strcasestr(stmt+4,"tables")) 
         cmd = s_show_tbls;
+      else if (strcasestr(stmt+4,"processlist")) 
+        cmd = s_show_proclst;
+    }
+
+    if (cmd!=s_na) {
       return 0;
     }
-    /* the 'desc' commands */
-    if (!strncasecmp(stmt,"desc",4)) {
-      cmd = s_desc_tbl ;
+
+    /* 
+     * commands that need to be executed at backends 
+     */
+    if (!strncasecmp(stmt,"commit",6) || 
+       !strncasecmp(stmt,"rollback",8) ||
+       (!strncasecmp(stmt,"set",3) && strcasestr(stmt+3,"autocommit")) ||
+       !strncasecmp(stmt,"select",6) ||
+       !strncasecmp(stmt,"update",6) ||
+       !strncasecmp(stmt,"insert",6) ||
+       !strncasecmp(stmt,"delete",6) ||
+       !strncasecmp(stmt,"create",6) || 
+       !strncasecmp(stmt,"drop",4) ||
+       !strncasecmp(stmt,"desc",4)) {
+      cmd = s_sharding ;
       return 0;
     }
+
     /* invalid commands */
     return -1;
   }
@@ -147,7 +121,7 @@ namespace global_parser_items {
 } ;
 
 sql_parser::sql_parser(): 
-  m_shds(m_conf.m_shds),m_ts(0)
+  m_shds(m_conf.m_shds)
 {
 }
 
@@ -260,7 +234,7 @@ int sql_parser::deal_operator(tSqlParseItem *sp,
     return -1;
   }
   /* get another operand node */
-  i = m_ts->get_parent_pos(nd0)==1?0:1;
+  i = m_ts.get_parent_pos(nd0)==1?0:1;
   nd1 = pParent->op_lst[i] ;
   /* save sharding column type */
   ct = parse_opt(pParent->type) ;
@@ -407,7 +381,7 @@ int sql_parser::collect_shd_cols_4_normal_insert(
   }
   //log_print("schema %s, table %s\n",db,tbl);
   /* get the format list */
-  pFmt = m_ts->find_in_tree(root,mktype(m_list,s_fmt));
+  pFmt = m_ts.find_in_tree(root,mktype(m_list,s_fmt));
   /* eliminate '()' */
   eliminate_norm_lst(pFmt) ;
   /*
@@ -456,7 +430,7 @@ int sql_parser::collect_shd_cols_4_normal_insert(
    */
   sp->add_sv(idx,ps,pc->col.type,opt_eval);
   /* the value list should be existing */
-  pVal = m_ts->find_in_tree(root,mktype(m_list,s_val));
+  pVal = m_ts.find_in_tree(root,mktype(m_list,s_val));
   /* eliminate '()' */
   eliminate_norm_lst(pVal) ;
   //print_tree(pVal,0);
@@ -474,7 +448,7 @@ int sql_parser::collect_sharding_col_4_insert(
   )
 {
   /* if there's 'select' sub statement, treat it as normal statement */
-  if (m_ts->find_in_tree(root,mktype(m_stmt,s_select))) {
+  if (m_ts.find_in_tree(root,mktype(m_stmt,s_select))) {
     return collect_sharding_cols(root,sp,db);
   }
   /* deal with 'insert statements' in 'format + values' form */
@@ -515,6 +489,7 @@ int sql_parser::collect_sharding_columns(
   if (get_stmt_type(root,nd,type)) {
     return -1;
   }
+  sp->stmt_type = type ;
   /* statements: the 'select',  'delete', 'update'  */
   if (sget(type)==s_select || sget(type)==s_delete ||
      sget(type)==s_update) {
@@ -534,8 +509,26 @@ int sql_parser::collect_sharding_columns(
      sget(type)==s_dTbl || sget(type)==s_dTbl_cond) {
     return 0;
   }
-  /* TODO: more statement types */
+  /* show xxx */
+  else if (sget(type)==s_show) {
+    return 0;
+  }
+  /* desc xxx */
+  else if (sget(type)==s_desc) {
+    return 0;
+  }
+  /* set xxx */
+  else if (sget(type)==s_setparam) {
+    return 0;
+  }
+
+  /* 
+   * TODO: more statement types 
+   */
+
+  /* errors */
   log_print("unknown statement type %d\n",sget(type));
+  sp->stmt_type = -1;
   return -1;
 }
 
@@ -588,6 +581,22 @@ int sql_parser::collect_target_tbls(
       sp->m_tblKeyLst.add(pdb,tbl,tbl_a);
     } /* end for(...) */
   }
+
+  /* deal table names from the 'show create table' */
+  else if (node->type==mktype(m_stmt,s_cTbl)) {
+    sp->m_tblKeyLst.add(def_db,node->name,NULL);
+    return 0;
+  }
+
+  /* deal table names from the 'desc xxx'/ 'drop table' */
+  else if (node->type==mktype(m_stmt,s_desc) ||
+     node->type==mktype(m_stmt,s_dTbl) ||
+     node->type==mktype(m_stmt,s_dTbl_cond)) {
+    stxNode *tmp = m_ts.find_in_tree(node,mktype(m_endp,s_col));
+    sp->m_tblKeyLst.add(def_db,tmp->name,NULL);
+    return 0;
+  }
+
   for (i=0;i<node->op_lst.size();i++) {
     ret = collect_target_tbls(node->op_lst[i],sp,def_db,err) ;
     if (ret) 
@@ -645,7 +654,7 @@ int sql_parser::collect_agg_info(stxNode *node, tSqlParseItem *sp)
 
   /* search for aggregation functions */
   for (i=0;i<nd->op_lst.size();i++) {
-    auto p = m_ts->find_in_tree(nd->op_lst[i],mktype(m_endp,s_func));
+    auto p = m_ts.find_in_tree(nd->op_lst[i],mktype(m_endp,s_func));
 
     if (!p || !is_agg_func(p->name,t)) {
       continue ;
@@ -687,14 +696,16 @@ int sql_parser::scan(char *sql, size_t sz,
   )
 {
 #define RETURN(__rc__) do {\
-  if (!pTree) m_ts->destroy_tree(root); \
+  if (!pTree) m_ts.destroy_tree(root); \
   return (__rc__); \
 }while(0)
   stxNode* root = pTree?pTree:parse_tree(sql,sz);
   int num_phs = 0; /* place holder number */
-  tree_serializer ts ;
-
-  m_ts = &ts ;
+  auto gen_err = [](auto &err, auto rc) {
+    err.tc_resize(1024);
+    size_t sz = do_err_response(0,err.tc_data(),rc,rc);
+    err.tc_update(sz);
+  } ;
 
   /* summary all targeting tables */
   sp->m_tblKeyLst.clear();
@@ -706,6 +717,7 @@ int sql_parser::scan(char *sql, size_t sz,
   /* collect place-holders */
   m_maps.clear();
   if (collect_place_holders(root,num_phs)) {
+    gen_err(err,ER_INTERNAL_SCAN_PLACEHOLDER);
     log_print("error collect place-holders info\n");
     RETURN(-1);
   }
@@ -714,12 +726,14 @@ int sql_parser::scan(char *sql, size_t sz,
   sp->reset();
   /* fetch sharding key info from statement */
   if (collect_sharding_columns(root,sp,db)) {
+    gen_err(err,ER_INTERNAL_SCAN_SHARDING_COL);
     log_print("error collect sharding columns\n");
     RETURN(-1);
   }
 
   /* collect aggregated informations, for example, sum(), count() */
   if (collect_agg_info(root,sp)) {
+    gen_err(err,ER_INTERNAL_SCAN_AGGREGATES);
     log_print("error collect aggregated infos\n");
     RETURN(-1);
   }

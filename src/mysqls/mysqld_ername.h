@@ -1,3 +1,8 @@
+
+#ifndef __MYSQLD_ERNAME_H__
+#define __MYSQLD_ERNAME_H__
+
+
 /* 
  * porting from $(mysqld source)/include/ 
  */
@@ -971,7 +976,11 @@ static struct mysqld_ername {
 { "ER_KILL_QUERY_DENIED_ERROR", 1979, "You are not owner of query %lu" },
 
 /* yzhou added */
-{ "ER_INTERNAL_GET_ROUTE", ER_INTERNAL_GET_ROUTE, "Myproxy internal error: Get route failed" },
+{ "ER_INTERNAL_GET_ROUTE", ER_INTERNAL_GET_ROUTE, "myproxy error: get route failed" },
+{ "ER_INTERNAL_SCAN_PLACEHOLDER", ER_INTERNAL_SCAN_PLACEHOLDER, "myproxy error: scan place-holders failed" },
+{ "ER_INTERNAL_SCAN_SHARDING_COL", ER_INTERNAL_SCAN_SHARDING_COL, "myproxy error: scan sharding columns failed" },
+{ "ER_INTERNAL_SCAN_AGGREGATES", ER_INTERNAL_SCAN_AGGREGATES, "myproxy error: scan aggregates failed" },
+{ "ER_INTERNAL_UNSUPPORT_SQL", ER_INTERNAL_UNSUPPORT_SQL, "myproxy error: un-supported SQL: %s" },
 
 } ;
 
@@ -987,3 +996,7 @@ static struct mysqld_ername {
     }\
   s;\
 })
+
+
+#endif /* __MYSQLD_ERNAME_H__*/
+

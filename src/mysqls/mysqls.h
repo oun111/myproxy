@@ -105,6 +105,9 @@ extern int mysqls_gen_dummy_qry_field_resp(char*,uint16_t,
 extern int mysqls_gen_desc_tbl_resp(char*,uint16_t, 
   int,uint32_t,char**,size_t*[],size_t);
 
+extern int mysqls_gen_show_proc_list_resp(char*,uint16_t, 
+  int,uint32_t,char**,size_t*[],size_t);
+
 /* get serial number of a packet */
 extern int mysqls_extract_sn(char*);
 

@@ -762,6 +762,100 @@ int mysqls_gen_desc_tbl_resp(char *inb, uint16_t sql_stat,
   return end-begin;
 }
 
+int mysqls_gen_show_proc_list_resp(char *inb, uint16_t sql_stat, 
+  int char_set, uint32_t sn, char **rows, size_t *sz_rows[],
+  size_t num_rows)
+{
+  uint16_t i=0;
+  char *psz = inb, *end = inb, *begin = inb ;
+
+  /*
+   * #1 field count
+   */
+  /* packet size */
+  ul3store(1,end);
+  end+=3;
+  /* fill in serial number */
+  end[0] = sn++ ;
+  end++ ;
+  /* column count */
+  end[0] = 9;
+  end++;
+  /* 
+   * #2 column definitions
+   */
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"Id",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"User",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"Host",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"db",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"Command",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"Time",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"State",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"Info",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+
+  end += mysqls_gen_col_def(end,sn++,(char*)"",
+    (char*)"",(char*)"",(char*)"Progress",
+    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
+    NOT_NULL_FLAG,NULL);
+  /* 
+   * #3 eof packet
+   */
+  end += mysqls_gen_eof(end,sn++,0,sql_stat);
+  /*
+   * #4 encoding rows
+   */
+  for (i=0;i<num_rows;i++) {
+    inb = end ;
+    /* SKIP packet size */
+    psz = inb ;
+    end+=3;
+    /* fill in serial number */
+    end[0] = sn++ ;
+    end++ ;
+    /* row content */
+    memcpy(end,rows[i],*sz_rows[i]);
+    end += *sz_rows[i];
+    /* write back packet size */
+    ul3store(end-inb-4,psz);
+  }
+  /*
+   * #5 eof packet
+   */
+  end += mysqls_gen_eof(end,sn++,0,sql_stat);
+  return end-begin;
+}
+
 int mysqls_gen_simple_qry_resp(char *inb, uint16_t sql_stat, 
   int char_set, uint32_t sn, char *col, char **rows, size_t num_rows)
 {

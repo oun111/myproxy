@@ -233,126 +233,6 @@ int myproxy_frontend::do_com_field_list(int connid,char *inb,
   return MP_OK;
 }
 
-size_t myproxy_frontend::calc_desc_tbl_resp_size(tTblDetails *td)
-{
-  tColDetails *cd = 0;
-  size_t total = 0;
-  uint16_t i=0;
-
-  /* response column size */
-  total = 512 ;
-  /* 
-   * calculate resp size 
-   */
-  for (i=0,cd=td->columns;cd&&i<td->num_cols;
-     i++,cd=cd->next) {
-    /* XXX: column name: strings a 'length-encoded' */
-    total += strlen(cd->col.name)+1 +4;
-    /* column type */
-    total += strlen(mysqlc_type2str(cd->col.type))+1+10;
-    /* null-able */
-    total += (cd->ext.null_able?3:2)+1;
-    /* FIXME: key type */
-    total += 4+3;
-    /* default */
-    total += strlen(cd->ext.default_val)+1+4;
-    /* extra */
-    total += strlen(cd->ext.extra)+1+4;
-  }
-  /* the 'EOF' packet */
-  total += 10;
-  return total ;
-}
-
-int myproxy_frontend::do_desc_table(int connid,int sn,
-  char *tbl)
-{
-  tSessionDetails *pss = m_lss.get_session(connid);
-  tTblDetails *td = 0;
-  tColDetails *cd = 0;
-  size_t total = 0, sz_out = 0, **sz_rows=0;
-  uint16_t i=0;
-  char *outb=0, **rows = 0, *rbuf = 0, *ptr=0, 
-    *begin=0;
-  tContainer con ;
-
-  if (!pss) {
-    /* FATAL: */
-    log_print("connection region %d NOT found\n",connid);
-    return MP_ERR;
-  }
-  /* trim spaces to get table name */
-  for (;isspace(*tbl);tbl++) ;
-  /* get table structure */
-  td = m_tables.get(m_tables.gen_key
-    ((char*)pss->db.c_str(),tbl));
-  if (!td) {
-    char errbuf[MAX_PAYLOAD];
-
-    sz_out = do_err_response(sn,errbuf,ER_NO_SUCH_TABLE,
-      ER_NO_SUCH_TABLE,(char*)pss->db.c_str(),tbl,0);
-
-    m_trx.tx(connid,errbuf,sz_out);
-    /* FATAL: */
-    log_print("%s.%s NOT found\n",pss->db.c_str(),tbl);
-    return MP_ERR;
-  }
-  /* calculate size */
-  total = calc_desc_tbl_resp_size(td) ;
-  con.tc_resize(total);
-  /* allocate row buffer: (max-row-len+size_t-size) × column-count */
-  rbuf = new char[total + sizeof(size_t)*td->num_cols];
-  /* row size pointers */
-  sz_rows = new size_t*[td->num_cols];
-  /* row pointers */
-  rows = new char*[td->num_cols];
-  /* iterate each columns */
-  ptr = rbuf ;
-  for (i=0,cd=td->columns;cd&&i<td->num_cols;
-     i++,cd=cd->next) {
-    begin = ptr ;
-    /* column name */
-    ptr += lenenc_str_set(ptr,cd->col.name);
-    /* column type */
-    //ptr += lenenc_str_set(ptr,(char*)mysqlc_type2str(cd->col.type));
-    ptr += lenenc_str_set(ptr,cd->ext.display_type);
-    /* null-able */
-    ptr += lenenc_str_set(ptr,(char*)(cd->ext.null_able?"YES":"NO"));
-    /* key type */
-    ptr += lenenc_str_set(
-      ptr,(char*)(cd->ext.key_type==0?"PRI":
-      cd->ext.key_type==1?"MUL":
-      cd->ext.key_type==2?"UNI":"")
-      );
-    /* default */
-    ptr += lenenc_str_set(ptr,cd->ext.default_val);
-    //log_print("default: %s\n",cd->ext.default_val);
-    /* extra */
-    ptr += lenenc_str_set(ptr,cd->ext.extra);
-    /* row content */
-    rows[i] = begin ;
-    /* row len */
-    sz_rows[i]= (size_t*)ptr;
-    *sz_rows[i] = ptr-begin ;
-    /* next row */
-    ptr+=sizeof(size_t) ;
-  }
-  /* generate the response */
-  outb = con.tc_data();
-  sz_out = mysqls_gen_desc_tbl_resp(outb,m_svrStat,
-    m_charSet, sn+1,rows,sz_rows,td->num_cols);
-  /*printf("%s: szout: %d, total: %d\n",
-   * _func__,sz_out,total);*/
-
-  delete [] rbuf ;
-  delete [] sz_rows ;
-  delete [] rows ;
-
-  m_trx.tx(connid,outb,sz_out);
-
-  return MP_OK;
-}
-
 int myproxy_frontend::do_sel_cur_db(int connid,int sn)
 {
   /* get connection region */
@@ -374,18 +254,6 @@ int myproxy_frontend::do_sel_cur_db(int connid,int sn)
   return MP_OK;
 }
 
-int myproxy_frontend::do_set_autocommit(int connid,int sn)
-{
-  char outb[MAX_PAYLOAD] ;
-  size_t sz_out = 0;
-
-  /* FIXME: deal 'autocommit' setting with trasactions */
-  sz_out  = do_ok_response(sn,m_svrStat,outb);
-
-  m_trx.tx(connid,outb,sz_out);
-  return MP_OK;
-}
-
 int myproxy_frontend::do_sel_ver_comment(int connid,int sn)
 {
   char *rows[1], outb[MAX_PAYLOAD] ;
@@ -402,29 +270,37 @@ int myproxy_frontend::do_sel_ver_comment(int connid,int sn)
 int myproxy_frontend::do_show_dbs(int connid,int sn)
 {
   uint16_t i=0;
-  char /***rows=0,*/ outb[MAX_PAYLOAD] ;
-  size_t sz_out = 0;
+  size_t sz_out = 0, sz_total = 100;
   const size_t ndbs = m_conf.get_num_schemas();
   char *rows[ndbs];
 
-  //rows = new char* [ndbs];
   for (i=0;i<m_conf.get_num_schemas();i++) {
     rows[i] = (char*)m_conf.get_schema(i)->name.c_str();
-  }
-  sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,
-    m_charSet,sn+1, (char*)"DataBase",rows,ndbs);
-  //delete []rows ;
 
-  m_trx.tx(connid,outb,sz_out);
+    sz_total += m_conf.get_schema(i)->name.length()+5;
+  }
+
+  {
+    /* allocates out buffer */
+    char *outb = new char [sz_total];
+
+    sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,
+      m_charSet,sn+1, (char*)"DataBase",rows,ndbs);
+    m_trx.tx(connid,outb,sz_out);
+
+    delete []outb ;
+  }
+
   return MP_OK;
 }
 
 int myproxy_frontend::do_show_tbls(int connid,int sn)
 {
   uint16_t i=0;
-  char **rows=0, outb[MAX_PAYLOAD] ;
-  size_t sz_out = 0;
-  size_t ntbls =m_tables.size();
+  size_t sz_out = 0, sz_total = 150;
+  const size_t c_ntbls =m_tables.size();
+  size_t valid_tbls = c_ntbls ;
+  char *rows[c_ntbls];
   tTblDetails *td = 0;
   /* get connection region */
   tSessionDetails *pss = m_lss.get_session(connid);
@@ -434,24 +310,53 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
     log_print("FATAL: connetion id %d not found\n",connid);
     return MP_ERR;
   }
-  rows  = new char* [ntbls];
+
   /* encoding the table name list */
-  for (i=0,td=m_tables.next(itr,true);td&&i<ntbls;
+  for (i=0,td=m_tables.next(itr,true);td&&i<c_ntbls;
      td=m_tables.next(itr),i++) {
 
     /* only show valid tables in current db */
     if (td->schema!=pss->db || !m_tables.is_valid(td)) {
-      ntbls--, i-- ;
+      valid_tbls--, i-- ;
       continue ;
     }
 
     rows[i] = (char*)td->table.c_str();
-  }
-  sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,
-    m_charSet,sn+1, (char*)"Table",rows,ntbls);
-  delete []rows ;
 
+    sz_total += td->table.length() + 5;
+  }
+
+  {
+    /* allocate output buffer */
+    char *outb = new char [sz_total] ;
+
+    sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,
+      m_charSet,sn+1, (char*)"Table",rows,valid_tbls);
+    m_trx.tx(connid,outb,sz_out);
+
+    delete []outb ;
+  }
+
+  return MP_OK;
+}
+
+int myproxy_frontend::do_show_proclst(int connid,int sn)
+{
+  //uint16_t i=0;
+  char /***rows=0,*/ *outb = 0 ;
+  size_t sz_out = 0, **sz_rows = 0, sz_total = 400;
+  const size_t nConn = m_lss.size();
+  char *rows[nConn];
+
+  /* allocates out buffer */
+  outb = new char [sz_total];
+
+  sz_out = mysqls_gen_show_proc_list_resp(outb,m_svrStat,
+      m_charSet, sn+1,rows,sz_rows,0);
   m_trx.tx(connid,outb,sz_out);
+
+  delete [] outb ;
+
   return MP_OK;
 }
 
@@ -481,12 +386,6 @@ int myproxy_frontend::do_com_query(int connid,
         ret = m_exec.get()->do_query(st,connid,inb,sz);
       }
       break ;
-    /* 'desc table' */
-    case s_desc_tbl:
-      {
-        ret = do_desc_table(connid,sn,pStmt+4);
-      }
-      break ;
     /* 'select DATABASE()' */
     case s_sel_cur_db:
       {
@@ -511,22 +410,25 @@ int myproxy_frontend::do_com_query(int connid,
         ret = do_show_tbls(connid,sn);
       }
       break ;
-    /* 'set autocommit' */
-    case s_set_autocommit:
+    /* 'show tables' */
+    case s_show_proclst:
       {
-        ret = do_set_autocommit(connid,sn);
+        ret = do_show_proclst(connid,sn);
       }
       break ;
+
     /* un-support commands */
     default:
       {
         size_t sz_out = 0;
         char outb[MAX_PAYLOAD] ;
 
+        log_print("un-support query command : %s\n", pStmt);
+
         /* allocate response buffer */
-        sz_out = do_err_response(sn,outb,ER_PARSE_ERROR,
-          ER_PARSE_ERROR,find_mysqld_error(ER_SYNTAX_ERROR),
-          pStmt,0);
+        sz_out = do_err_response(sn,outb,ER_INTERNAL_UNSUPPORT_SQL,
+          ER_INTERNAL_UNSUPPORT_SQL, pStmt);
+        (void)g_mysqldError ;
 
         m_trx.tx(connid,outb,sz_out);
         ret = MP_ERR;

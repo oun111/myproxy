@@ -1,4 +1,12 @@
 Changelog:
+  Jan 11, 2018:
+    1. make 'desc', 'set', 'commit'/'rollback' be executed by backend
+
+    2. add proxy internal errors feedbacks while scanning the SQL and getting routes
+
+    3. optimised the logic that determining the requests are dealed by front-end or backend
+
+
   Jan 10, 2018:
     1. add validation checks to tables
 

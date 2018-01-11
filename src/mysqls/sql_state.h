@@ -256,7 +256,11 @@ struct sql_state {
 { ER_INVALID_DEFAULT_VALUE_FOR_FIELD      ,"22007", "" },
 
 /* yzhou added */
-{ ER_INTERNAL_GET_ROUTE                   ,"S10000", "" },
+{ ER_INTERNAL_GET_ROUTE                   ,"M0000", "" },
+{ ER_INTERNAL_SCAN_PLACEHOLDER            ,"M0001", "" },
+{ ER_INTERNAL_SCAN_SHARDING_COL           ,"M0002", "" },
+{ ER_INTERNAL_SCAN_AGGREGATES             ,"M0003", "" },
+{ ER_INTERNAL_UNSUPPORT_SQL               ,"M0004", "" },
 
 } ;
 

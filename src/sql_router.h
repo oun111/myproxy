@@ -33,7 +33,7 @@ protected:
   int get_route_by_modN(int,sv_t*,int&,int);
 
   /* get route to related tables in statement */
-  int get_related_table_route(tSqlParseItem*,std::set<uint8_t>&);
+  int get_related_table_route(tSqlParseItem*,std::set<uint8_t>&,const unsigned long=999999);
 
   /* get route by sharding column values */
   int get_sharding_route(tSqlParseItem*,std::set<uint8_t>&);

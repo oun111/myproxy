@@ -14,9 +14,6 @@
 enum stmt_type {
   s_na,
 
-  /* set xxx statements */
-  s_set_xxx,
-
   /* remotely sql that are to be splited 
    *  and pass over to processor side */
   s_sharding,
@@ -27,17 +24,22 @@ enum stmt_type {
   /* the 'show tables' statements */
   s_show_tbls,
 
+  /* the 'show processlist' statements */
+  s_show_proclst,
+
   /* 'select version-comment' statement */
   s_sel_ver_comment,
 
   /* 'select DATABASE()' statement */
   s_sel_cur_db,
 
+#if 0
   /* 'desc table' statement */
   s_desc_tbl,
 
   /* 'set autocommit' statement */
   s_set_autocommit,
+#endif
 
   s_max,
 } ;
@@ -62,7 +64,7 @@ protected:
   /* the tree node - place holder number map */
   using pholder_map = std::unordered_map<stxNode*,int> ;
   pholder_map m_maps;
-  tree_serializer *m_ts ;
+  tree_serializer m_ts ;
 
 public:
   sql_parser();

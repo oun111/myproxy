@@ -5,8 +5,10 @@
 #include "dbg_log.h"
 #include "env.h"
 #include "dnmgr.h"
+#include "sql_tree.h"
 
 using namespace GLOBAL_ENV;
+using namespace STREE_TYPES;
 
 sql_router::sql_router(safeDataNodeList &lst):
   m_nodes(lst),m_handlers(0)
@@ -148,7 +150,7 @@ int sql_router::get_full_route_by_conf(
 {
   /* calculate routes of related tables in statement by configs */
   if (get_related_table_route(sp,rlist)) {
-    log_print("get table route fail\n");
+    log_print("get full table route fail\n");
     return -1;
   }
 
@@ -202,7 +204,7 @@ int sql_router::calc_intersection(
 }
 
 int 
-sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst)
+sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, const unsigned long max)
 {
   TABLE_NAME *p_tn = 0;
 
@@ -230,6 +232,18 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst)
     calc_intersection(rlst,tr);
 
   } // end for()
+
+  /* remove result elements by 'max' */
+  unsigned long cnt = 0;
+  for (auto i : rlst) {
+    if (cnt>=max) {
+      rlst.erase(rlst.find(i),rlst.end());
+      break ;
+    }
+    cnt++ ;
+  }
+
+  log_print("limit : %ld, size: %zu\n",max,rlst.size());
 
   return 0;
 }
@@ -270,13 +284,57 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
 
   rlist.clear();
 
+  /* 
+   * for statements:
+   *
+   *  'show xxx'
+   *  'desc xxx' 
+   */
+  if (sp->stmt_type==mktype(m_stmt,s_show) || 
+     sp->stmt_type==mktype(m_stmt,s_desc)) {
+
+    log_print("try to get a single route\n");
+
+    /* route to any one valid datanode */
+    if (get_related_table_route(sp,rlist,1) || !rlist.size()) {
+      return -1;
+    }
+
+    return 0;
+  }
+
+  /* 
+   * for statements:
+   *
+   *  'create table'
+   *  'create table if not exists'
+   *  'commit'
+   *  'rollback'
+   *  'set xxx'
+   */
+  if (sp->stmt_type==mktype(m_stmt,s_cTbl) || 
+     sp->stmt_type==mktype(m_stmt,s_cTbl_cond) ||
+     sp->stmt_type==mktype(m_stmt,s_commit) ||
+     sp->stmt_type==mktype(m_stmt,s_rollback) ||
+     sp->stmt_type==mktype(m_stmt,s_setparam)) {
+
+    log_print("try to get full routes\n");
+
+    /* route to all valid datanodes */
+    if (get_full_route(rlist) || !rlist.size()) {
+      return -1;
+    }
+
+    return 0;
+  }
+
   /* calculate routes by sharding column values */
   if (get_sharding_route(sp,rlist)) {
     log_print("get sharding route fail\n");
     return -1;
   }
 
-#if 1
+#if 0
   /* XXX: test */
   {
     log_print("content of route list000: \n");
@@ -293,7 +351,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return -1;
   }
 
-#if 1
+#if 0
   /* XXX: test */
   {
     log_print("content of route list111: \n");

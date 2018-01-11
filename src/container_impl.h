@@ -205,6 +205,8 @@ public:
   unsafeAggInfoList m_aggs ;
   /* targeting table list */
   unsafeTblKeyList m_tblKeyLst ;
+  /* statement type */
+  int stmt_type;
 
 public:
   tSqlParseItem(void) ;
