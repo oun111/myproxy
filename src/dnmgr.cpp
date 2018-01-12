@@ -173,11 +173,15 @@ void dnmgr::update_task(int arg)
     /* the datanode groups are free */
     if (m_nDnGroups==m_freeGroupIds.size()) {
       gf ++ ;
+    } else {
+      /* reset 'free seconds' if the group(s) 
+       *  are found not free*/
+      gf = 0;
     }
 
     if (++cnt>interval) {
 
-      /* the datanode groups are free over 'free_s' seconds */
+      /* all datanode groups are free over 'free_s' seconds */
       if (gf>free_s) {
         gf = 0;
 
@@ -185,6 +189,7 @@ void dnmgr::update_task(int arg)
 
         keep_dn_conn();
 
+        /* dont update table structures */
         refresh_tbl_info(false);
       }
 
