@@ -164,8 +164,7 @@ dnmgr::~dnmgr()
 
 void dnmgr::update_task(int arg)
 {
-  int cnt = 0, gf = 0;
-  const int interval = 60;
+  int gf = 0;
   const int free_s = 30;
 
   while (1) {
@@ -179,21 +178,16 @@ void dnmgr::update_task(int arg)
       gf = 0;
     }
 
-    if (++cnt>interval) {
+    /* all datanode groups are free over 'free_s' seconds */
+    if (gf>free_s) {
+      gf = 0;
 
-      /* all datanode groups are free over 'free_s' seconds */
-      if (gf>free_s) {
-        gf = 0;
+      log_print("refreshing...\n");
 
-        log_print("refreshing...\n");
+      keep_dn_conn();
 
-        keep_dn_conn();
-
-        /* dont update table structures */
-        refresh_tbl_info(false);
-      }
-
-      cnt = 0;
+      /* dont update table structures */
+      refresh_tbl_info(false);
     }
 
     sleep(1);
@@ -626,7 +620,7 @@ int dnmgr::keep_dn_conn(void)
           continue ;
         }
 
-        log_print("datanode %d is in-active!!\n",pd->no);
+        //log_print("datanode %d is in-active!!\n",pd->no);
 
         mysql_close(pd->mysql);
       }
