@@ -1,4 +1,9 @@
 Changelog:
+  Jan 12, 2018:
+    1. add a timed task to scan & keep connections to backend servers so that 
+        the SQL route calculation and table listing may work properly due to
+        the latest backend states
+
   Jan 11, 2018:
     1. make 'desc', 'set', 'commit'/'rollback' be executed by backend
 

@@ -166,7 +166,7 @@ int sql_router::get_full_route(std::set<uint8_t> &lst)
   for (tDNInfo *pd=m_nodes.next(itr,true);pd;
     pd=m_nodes.next(itr,false)) {
 
-    if (pd->stat!=s_free)
+    if (!m_nodes.is_alive(pd))
       continue;
 
     lst.insert(pd->no);
@@ -213,13 +213,18 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, 
 
     /* get mapping info from table list */
     tTblDetails *td = m_tables.get(p_tn->sch.c_str(),p_tn->tbl.c_str());
-    tDnMappings *pm = 0;
     std::set<uint8_t> tr ;
+    safeTableDetailList::dnMap_itr i;
 
-    for (pm=m_tables.first_map(td);pm;pm=m_tables.next_map(pm)) {
+    for (tDnMappings *pm=m_tables.next_map(td,i,true);pm;pm=m_tables.next_map(td,i)) {
 
       if (pm->dn<0) {
         log_print("fatal: dn number of '%s' invalid!\n",td->table.c_str());
+        continue ;
+      }
+
+      if (!m_nodes.is_alive(pm->dn)) {
+        log_print("fatal: datanode %d 's in-active!\n",pm->dn);
         continue ;
       }
 

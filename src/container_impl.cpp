@@ -11,6 +11,7 @@
 #include "connstr.h"
 #include "sql_tree.h"
 #include "dbug.h"
+#include "dnmgr.h"
 
 
 /*
@@ -931,6 +932,23 @@ tDNInfo* safeDataNodeList::get_by_fd(int myfd)
   return 0;
 }
 
+bool safeDataNodeList::is_alive(tDNInfo *pd) 
+{
+  return pd && pd->stat==s_free;
+}
+
+bool safeDataNodeList::is_alive(int dn) 
+{
+  tDNInfo *pd = get(dn);
+
+  return is_alive(pd);
+}
+
+void safeDataNodeList::set_alive(tDNInfo *pd)
+{
+  pd->stat = s_free;
+}
+
 int safeDataNodeList::add(int dn, tDNInfo *info)
 {
   tDNInfo *pd = get(dn);
@@ -944,6 +962,9 @@ int safeDataNodeList::add(int dn, tDNInfo *info)
   {
     try_write_lock();
     memcpy(pd,info,sizeof(tDNInfo));
+    pd->mysql = 0;
+    pd->stat  = s_invalid;
+    pd->add_ep= 0;
   }
   return 0;
 }
@@ -962,11 +983,15 @@ int safeDataNodeList::add(int dn, uint32_t addr, int port,
   }
   {
     try_write_lock();
+    pd->no  =dn ;
     pd->addr=addr;
     pd->port=port ;
+    pd->mysql = 0;
     strcpy(pd->schema,schema);
     strcpy(pd->usr,usr);
     strcpy(pd->pwd,pwd);
+    pd->stat  = s_invalid;
+    pd->add_ep= 0;
   }
   return 0;
 }
@@ -998,14 +1023,24 @@ void safeDataNodeList::clear(void)
 }
 
 /* inactivate all items */
-void safeDataNodeList::update_batch_stats(int st)
+void safeDataNodeList::reset_stats(void)
 {
   try_read_lock();
 
   list_foreach_container_item {
-    i.second->stat = st;
+    i.second->stat = s_invalid;
   }
 }
+
+void safeDataNodeList::reset_single_stat(tDNInfo *pd)
+{
+  try_read_lock();
+  pd->stat = s_invalid ;
+
+  /* XXX: also reset mysql fd */
+  pd->mysql = 0 ;
+}
+
 
 /*
  * class safeTableDetailList
@@ -1020,20 +1055,24 @@ int safeTableDetailList::add(char *schema,
     td = new tTblDetails ;
     td->key     = key ;
     td->columns = 0;
-    td->conf_dn = 0;
+    td->dn_maps.clear();
     try_write_lock();
     insert(key,td);
   } else {
     log_print("warning: found existing entry for %lu\n",key);
   }
+
   /* update table info */
-  td->schema      = schema ;
-  td->table       = table ;
-  td->dn          = dn ;
-  td->num_cols    = 0;
-  td->bValid      = true;
-  if (phy_schema)
-    td->phy_schema= phy_schema ;
+  {
+    try_write_lock();
+    td->schema      = schema ;
+    td->table       = table ;
+    td->num_cols    = 0;
+    td->bValid      = true;
+    if (phy_schema)
+      td->phy_schema= phy_schema ;
+  }
+
   return 0;
 }
 
@@ -1049,45 +1088,50 @@ int safeTableDetailList::add(char *schema,
   if (!td) {
     td = new tTblDetails ;
     td->key = key ;
+    td->dn_maps.clear();
     try_write_lock();
     insert(key,td);
   }
-  /* iterate column list */
-  for (cd=td->columns;nCol<td->num_cols&&cd/*&&cd->next*/;
-     prev=cd,cd=cd->next,nCol++) {
-    if (!strcasecmp(column,cd->col.name))
-      break ;
-  }
-  if (nCol>=td->num_cols) {
-    /* table's empty, create the first one */
-    if (!td->columns) {
-      td->columns = new tColDetails ;
-      cd = td->columns ;
-      cd->next = NULL;
-    /*log_print("insert entry for %s.%s, col %s, pid: %d\n",
-      schema,table,column,getpid());*/
-    } else if (!cd/*->next*/) {
-      /* add to tail of column list */
-      cd = new tColDetails ;
-      cd->next  = NULL;
-      prev->next= cd ;
-    /*log_print("insert1 entry for %s.%s, col %s, pid: %d\n",
-      schema,table,column,getpid());*/
+
+  {
+    try_write_lock();
+
+    /* iterate column list */
+    for (cd=td->columns;nCol<td->num_cols&&cd/*&&cd->next*/;
+       prev=cd,cd=cd->next,nCol++) {
+      if (!strcasecmp(column,cd->col.name))
+        break ;
     }
-    td->num_cols ++ ;
+
+    if (nCol>=td->num_cols) {
+      /* table's empty, create the first one */
+      if (!td->columns) {
+        td->columns = new tColDetails ;
+        cd = td->columns ;
+        cd->next = NULL;
+      } else if (!cd/*->next*/) {
+        /* add to tail of column list */
+        cd = new tColDetails ;
+        cd->next  = NULL;
+        prev->next= cd ;
+      }
+      td->num_cols ++ ;
+    }
+
+    /* update the column */
+    strcpy(cd->col.schema,schema);
+    strcpy(cd->col.tbl,table);
+    strcpy(cd->col.name,column);
+    cd->col.charset = charset ;
+    cd->col.len     = maxlen ;
+    cd->col.type    = type ;
+    cd->col.flags   = flags ;
+    /* update table info */
+    td->schema      = schema ;
+    td->table       = table ;
+    td->bValid      = true;
   }
-  /* update the column */
-  strcpy(cd->col.schema,schema);
-  strcpy(cd->col.tbl,table);
-  strcpy(cd->col.name,column);
-  cd->col.charset = charset ;
-  cd->col.len     = maxlen ;
-  cd->col.type    = type ;
-  cd->col.flags   = flags ;
-  /* update table info */
-  td->schema      = schema ;
-  td->table       = table ;
-  td->bValid      = true;
+
   return 0;
 }
 
@@ -1106,27 +1150,34 @@ int safeTableDetailList::add(char *schema,
     log_print("fatal: no entry for %lu found\n",key);
     return -1;
   }
-  try_read_lock();
-  /* iterate column list */
-  for (cd=td->columns;nCol<td->num_cols&&cd&&cd->next;
-     cd=cd->next,nCol++) {
-    if (!strcmp(cd->col.name,col))
-      break ;
+
+  {
+    try_write_lock();
+
+    /* iterate column list */
+    for (cd=td->columns;nCol<td->num_cols&&cd&&cd->next;
+       cd=cd->next,nCol++) {
+      if (!strcmp(cd->col.name,col))
+        break ;
+    }
+
+    if (nCol>=td->num_cols) {
+      /* no specific column found */
+      return -1;
+    }
+
+    /* update the column extra information */
+    bzero(&cd->ext,sizeof(cd->ext));
+    cd->ext.null_able = null_able ;
+    cd->ext.key_type  = key_type ;
+    if (dtype) 
+      strcpy(cd->ext.display_type,dtype);
+    if (def_val) 
+      strcpy(cd->ext.default_val,def_val);
+    if (ext) 
+      strcpy(cd->ext.extra,ext);
   }
-  if (nCol>=td->num_cols) {
-    /* no specific column found */
-    return -1;
-  }
-  /* update the column extra information */
-  bzero(&cd->ext,sizeof(cd->ext));
-  cd->ext.null_able = null_able ;
-  cd->ext.key_type  = key_type ;
-  if (dtype) 
-    strcpy(cd->ext.display_type,dtype);
-  if (def_val) 
-    strcpy(cd->ext.default_val,def_val);
-  if (ext) 
-    strcpy(cd->ext.extra,ext);
+
   return 0;
 }
 
@@ -1135,30 +1186,33 @@ int safeTableDetailList::add(char *schema,
 {
   uint64_t key = gen_key(schema,table);
   tTblDetails *td = get(key);
-  tDnMappings *pm = 0, *dm = 0;
+  tDnMappings *pm = 0;
 
   if (!td) {
     /* FATAL: no table entry found */
     log_print("fatal: no entry for %lu found\n",key);
     return -1;
   }
-  /* find suitable item */
-  for (pm=td->conf_dn;pm&&pm->next&&
-    pm->dn!=dn; pm=pm->next) ;
-  /* found matched space */
-  if (pm&&pm->dn==dn) {
-    pm->io_type = io_type ;
-  } else {
-    /* no data node config, then add one */
-    dm = new tDnMappings ;
-    dm->next   = 0;
-    dm->dn     = dn;
-    dm->io_type= io_type;
-    if (!td->conf_dn) td->conf_dn = dm ;
-    else if (!pm->next) pm->next = dm ;
+
+  {
+    try_read_lock();
+    dnMap_itr i = td->dn_maps.find(dn) ;
+
+    if (i!=td->dn_maps.end()) {
+      i->second->io_type = io_type ;
+      return 0;
+    }
   }
-  if (td->dn<0) 
-    td->dn = dm->dn ;
+
+  {
+    pm = new tDnMappings ;
+    pm->dn     = dn;
+    pm->io_type= io_type;
+
+    try_write_lock();
+    td->dn_maps[dn] = pm;
+  }
+
   return 0;
 }
 
@@ -1185,12 +1239,18 @@ tColDetails* safeTableDetailList::get_col(char *sch, char *tbl, char *col)
   if (!td) {
     return 0;
   }
-  /* iterates the column list */
-  for (pc=td->columns,ncol=0;pc&&ncol<td->num_cols;
-     pc=pc->next,ncol++) {
-    if (!strcasecmp(pc->col.name,col)) 
-      return pc ;
-  } /* end for(...) */
+
+  {
+    try_read_lock();
+
+    /* iterates the column list */
+    for (pc=td->columns,ncol=0;pc&&ncol<td->num_cols;
+       pc=pc->next,ncol++) {
+      if (!strcasecmp(pc->col.name,col)) 
+        return pc ;
+    } /* end for(...) */
+  }
+
   return 0;
 }
 
@@ -1205,26 +1265,19 @@ tTblDetails* safeTableDetailList::get(const char *sch, const char *tbl)
   return get(gen_key((char*)sch,(char*)tbl));
 }
 
-tDnMappings* safeTableDetailList::first_map(tTblDetails *td)
+tDnMappings* 
+safeTableDetailList::next_map(tTblDetails *td, dnMap_itr &itr, bool bStart)
 {
-  if (!td) 
-    return NULL;
+  try_read_lock();
 
-  {
-    try_read_lock();
-    return td->conf_dn ;
+  if (bStart) itr = td->dn_maps.begin();
+  else itr ++ ;
+
+  if (itr==td->dn_maps.end()) {
+    return NULL ;
   }
-}
 
-tDnMappings* safeTableDetailList::next_map(tDnMappings *pm)
-{
-  if (!pm) 
-    return NULL;
-
-  {
-    try_read_lock();
-    return pm->next ;
-  }
+  return itr->second ;
 }
 
 bool safeTableDetailList::is_valid(tTblDetails *td) const
@@ -1237,11 +1290,15 @@ void safeTableDetailList::set_invalid(tTblDetails *td)
   if (td) td->bValid = false ;
 }
 
+void safeTableDetailList::set_valid(tTblDetails *td)
+{
+  if (td) td->bValid = true ;
+}
+
 int safeTableDetailList::drop(uint64_t key)
 {
   tTblDetails *td = get(key);
   tColDetails *cd = 0, *pc = 0;
-  tDnMappings *pd=0, *dm=0 ;
 
   if (!td)
     return -1;
@@ -1256,11 +1313,18 @@ int safeTableDetailList::drop(uint64_t key)
     delete cd ;
   }
   /* release data node mappings */
+#if 0
   for (pd=td->conf_dn;pd;) {
     dm = pd ;
     pd = pd->next ;
     delete dm ;
   }
+#else
+  for (auto dm : td->dn_maps) {
+    delete dm.second ;
+  }
+  td->dn_maps.clear();
+#endif
   delete td ;
   log_print("droping entry key %lu\n",key);
   return 0;
@@ -1269,27 +1333,36 @@ int safeTableDetailList::drop(uint64_t key)
 void safeTableDetailList::clear(void)
 {
   tColDetails *cd = 0, *pc = 0;
-  tDnMappings *pd=0, *dm=0 ;
 
-  try_write_lock();
+  {
+    try_write_lock();
 
-  list_foreach_container_item {
-    /* release columns */
-    for (pc=i.second->columns;pc;) {
-      cd = pc ;
-      pc=pc->next ;
-      delete cd ;
+    list_foreach_container_item {
+      /* release columns */
+      for (pc=i.second->columns;pc;) {
+        cd = pc ;
+        pc=pc->next ;
+        delete cd ;
+      }
+      /* release data node mappings */
+#if 0
+      for (pd=i.second->conf_dn;pd;) {
+        dm = pd ;
+        pd = pd->next ;
+        delete dm ;
+      }
+#else
+      for (auto dm : i.second->dn_maps) {
+        delete dm.second ;
+      }
+      i.second->dn_maps.clear();
+#endif
+      /* release table */
+      delete i.second ;
     }
-    /* release data node mappings */
-    for (pd=i.second->conf_dn;pd;) {
-      dm = pd ;
-      pd = pd->next ;
-      delete dm ;
-    }
-    /* release table */
-    delete i.second ;
+
+    m_list.clear();
   }
-  m_list.clear();
 }
 
 uint64_t safeTableDetailList::gen_key(char *schema, char *tbl)
@@ -1902,6 +1975,11 @@ int safeStdVector::pop(int &v)
     }
   }
   return 0;
+}
+
+size_t safeStdVector::size(void)
+{
+  return m_queue.size();
 }
 
 /*

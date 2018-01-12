@@ -42,6 +42,11 @@ int dnGroups::create_grp_by_conf(void)
   pNodeGroups = new safeDataNodeList[m_nDnGroups] ;
   m_dnGroup = std::shared_ptr<safeDataNodeList>(pNodeGroups);
 
+  /* init free groups */
+  for (int i=0;i<m_nDnGroups;i++) {
+    return_group(i);
+  }
+
   return 0;
 }
 
@@ -53,9 +58,12 @@ safeDataNodeList* dnGroups::get_specific_group(int gid)
     return NULL;
   }
 
+#if 0
+  /* test empty */
   if (m_dnGroup.use_count()<=0) {
     return NULL ;
   }
+#endif
 
   pNodeGroups = m_dnGroup.get();
   if (!pNodeGroups) {
@@ -74,9 +82,12 @@ int dnGroups::get_free_group(safeDataNodeList* &nodes, int &gid)
     return -1;
   }
 
+#if 0
+  /* test empty */
   if (m_dnGroup.use_count()<=0) {
     return -1 ;
   }
+#endif
 
   pNodeGroups = m_dnGroup.get();
   if (!pNodeGroups) {
@@ -141,10 +152,49 @@ dnmgr::dnmgr()
   if (signal(SIGUSR2,reload)==SIG_ERR) {
     return ;
   }
+
+  /* init the updater task */
+  m_thread.bind(&dnmgr::update_task,this,0);
+  m_thread.start();
 }
 
 dnmgr::~dnmgr() 
 {
+}
+
+void dnmgr::update_task(int arg)
+{
+  int cnt = 0, gf = 0;
+  const int interval = 60;
+  const int free_s = 30;
+
+  while (1) {
+
+    /* the datanode groups are free */
+    if (m_nDnGroups==m_freeGroupIds.size()) {
+      gf ++ ;
+    }
+
+    if (++cnt>interval) {
+
+      /* the datanode groups are free over 'free_s' seconds */
+      if (gf>free_s) {
+        gf = 0;
+
+        log_print("refreshing...\n");
+
+        keep_dn_conn();
+
+        refresh_tbl_info(false);
+      }
+
+      cnt = 0;
+    }
+
+    sleep(1);
+
+  } // end while()
+
 }
 
 int dnmgr::initialize(void)
@@ -193,13 +243,13 @@ int dnmgr::add_dn_tbl_relations(auto sch, auto tbl)
     for (tDNInfo *pd=m_nodes->next(itr,true);pd;pd=m_nodes->next(itr)) {
 
       /* check validation of target datanode */
-      if (pd->stat!=s_free) {
-        log_print("data node %d is invalid!\n",pd->no);
-        continue ;
+      if (!m_nodes->is_alive(pd)) {
+        log_print("warning: data node %d is in-active!\n",pd->no);
       }
 
       m_tables.add((char*)sch->name.c_str(),
         (char*)tbl->name.c_str(),pd->no,iot);
+
       log_print("added DEFAULT data node %d(%s) io type %d to "
         "`%s.%s` in table list\n", pd->no,"",
         iot,sch->name.c_str(),tbl->name.c_str());
@@ -221,15 +271,13 @@ int dnmgr::add_dn_tbl_relations(auto sch, auto tbl)
       }
 
       /* check validation of target datanode */
-      tDNInfo *pd = m_nodes->get(idn);
-
-      if (!pd || pd->stat!=s_free) {
-        log_print("data node %d is invalid!\n",pd->no);
-        continue ;
+      if (!m_nodes->is_alive(idn)) {
+        log_print("warning: data node %d is in-active!\n",idn);
       }
 
       m_tables.add((char*)sch->name.c_str(),
         (char*)tbl->name.c_str(),idn,mi->io_type);
+
       log_print("added data node %d(%s) io type %d to "
         "`%s.%s` in table list\n", idn,mi->dataNode.c_str(),
         mi->io_type,sch->name.c_str(),tbl->name.c_str());
@@ -371,7 +419,10 @@ int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt)
 
 tDNInfo* dnmgr::get_valid_datanode(safeDataNodeList *nodes, tTblDetails *pt)
 {
-  for (tDnMappings *pm=m_tables.first_map(pt);pm;pm=m_tables.next_map(pm)) {
+  safeTableDetailList::dnMap_itr i;
+
+  log_print("trying table `%s - %s`\n",pt->schema.c_str(),pt->table.c_str());
+  for (tDnMappings *pm=m_tables.next_map(pt,i,true);pm;pm=m_tables.next_map(pt,i)) {
 
     tDNInfo *pd = nodes->get(pm->dn);
 
@@ -380,12 +431,12 @@ tDNInfo* dnmgr::get_valid_datanode(safeDataNodeList *nodes, tTblDetails *pt)
       continue ;
     }
 
-    if (pd->stat==s_invalid) {
+    if (!nodes->is_alive(pd)) {
       struct in_addr ia ;
 
       ia.s_addr = htonl(pd->addr) ;
       log_print("data node %d(@%s:%d) is not active!!\n",
-        pt->dn,inet_ntoa(ia),pd->port);
+        pd->no,inet_ntoa(ia),pd->port);
       continue ;
     }
 
@@ -396,7 +447,7 @@ tDNInfo* dnmgr::get_valid_datanode(safeDataNodeList *nodes, tTblDetails *pt)
   return NULL ;
 }
 
-int dnmgr::refresh_tbl_info(void)
+int dnmgr::refresh_tbl_info(bool updateStructs)
 {
   safe_container_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
   safeDataNodeList *nodes = 0;
@@ -413,19 +464,29 @@ int dnmgr::refresh_tbl_info(void)
 
     tDNInfo *pd = get_valid_datanode(nodes,pt);
 
+    /* check & update table state */
     if (!pd) {
       m_tables.set_invalid(pt);
 
-      log_print("fatal: no valid datanode found for `%s.%s`\n",
+      log_print("no valid datanode found for `%s.%s`\n",
         pt->schema.c_str(),pt->table.c_str());
       continue ;
+    }
+
+    m_tables.set_valid(pt);
+
+    /* no need to update table structures */
+    if (!updateStructs) {
+      continue;
     }
 
     log_print("try query structure of table `%s.%s` on dn %d ...\n",
       pt->schema.c_str(),pt->table.c_str(),pd->no);
 
+    /* get table structure by the given datanode */
     update_tbl_struct(pd,pt);
-    /* get extra table info */
+
+    /* get table extra info by the given datanode */
     update_tbl_extra_info(pd,pt);
   }
 
@@ -440,7 +501,6 @@ int dnmgr::get_datanodes_by_conf(void)
   uint16_t i=0, n=0 ;
   DATA_NODE *pd = 0;
   size_t cnt = m_conf.get_num_dataNodes();
-  tDNInfo /**pd = 0,*/ di ;
 
   for (n=0;n<get_num_groups();n++) {
 
@@ -448,32 +508,23 @@ int dnmgr::get_datanodes_by_conf(void)
 
     /* clean up the list first */
     m_nodes->clear();
+
     /* iterates the data node configs */
-    log_print("data node count: %zu\n",cnt);
     for (i=0;i<cnt;i++) {
       pd = m_conf.get_dataNode(i) ;
       if (!pd)
         break ;
       log_print("processing data node %d******\n",i);
-      di.no = i;
-      di.addr = pd->address;
-      di.port = pd->port ;
-      strcpy(di.usr,pd->auth.usr.c_str());
-      strcpy(di.pwd,pd->auth.pwd.c_str());
-      strcpy(di.schema,pd->schema.c_str());
-      log_print("data node addr: %x:%d, auth %s(%s), "
-        "schema: %s\n", di.addr,di.port,di.usr,di.pwd,
-        di.schema);
-      /* set data node invalid */
-      di.stat = s_invalid ;
-      di.add_ep= 0;
-      di.mysql= 0;
+      log_print("addr: %x:%d, auth %s(%s), schema: %s\n", 
+        pd->address,pd->port,pd->auth.usr.c_str(),
+        pd->auth.pwd.c_str(),pd->schema.c_str());
       /* update or add data node 'no' */
-      m_nodes->add(di.no,&di);
+      m_nodes->add(i,pd->address,pd->port,(char*)pd->schema.c_str(),
+        (char*)pd->auth.usr.c_str(),(char*)pd->auth.pwd.c_str());
     }
 
     /* add to the free groups container */
-    return_group(n);
+    //return_group(n);
   }
 
   /* get total data node count */
@@ -513,13 +564,12 @@ int dnmgr::update_dn_conn(void)
     auto m_nodes = get_specific_group(n);
 
     /* make all connections inactive */
-    m_nodes->update_batch_stats(s_invalid);
+    m_nodes->reset_stats();
 
     /* update all connections by configs */
     for (pd=m_nodes->next(itr,true);pd;pd=m_nodes->next(itr)) {
 
       /* TODO: do a validation check for the socket */
-      //log_print("mysql: %p,group %d, dn no %d\n",pd->mysql,n,pd->no);
 
       if (pd->mysql) {
 #if 0
@@ -531,15 +581,61 @@ int dnmgr::update_dn_conn(void)
 #endif
           mysql_close(pd->mysql);
       }
+
       /* try connect to new mysql server */
       if (new_connection(pd)) {
         /* TODO: failed, should do a retry? */
-        pd->stat = s_invalid ;
+        m_nodes->reset_single_stat(pd);
         log_print("login to '%s' of '%s'@'0x%x:%d' fail\n",
           pd->schema,pd->usr,pd->addr,pd->port);
         continue ;
       }
-      pd->stat = s_free ;
+
+      m_nodes->set_alive(pd);
+
+      log_print("login to '%s' of '%s'@'0x%x:%d' dn %d ok\n",
+        pd->schema,pd->usr, pd->addr,pd->port,pd->no);
+    } /* for (pd) */ 
+
+  } /* for (n) */
+  return 0;
+}
+
+int dnmgr::keep_dn_conn(void)
+{
+  uint16_t n=0;
+  tDNInfo *pd = 0;
+  safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
+
+  for (n=0;n<get_num_groups();n++) {
+
+    auto m_nodes = get_specific_group(n);
+
+    /* update all connections by configs */
+    for (pd=m_nodes->next(itr,true);pd;pd=m_nodes->next(itr)) {
+
+      if (pd->mysql) {
+        
+        /* test connection by ping */
+        if (!test_conn(pd->mysql)) {
+          continue ;
+        }
+
+        log_print("datanode %d is in-active!!\n",pd->no);
+
+        mysql_close(pd->mysql);
+      }
+
+      /* try connect to new mysql server */
+      if (new_connection(pd)) {
+        log_print("login to '%s' of '%s'@'0x%x:%d' fail\n",
+          pd->schema,pd->usr,pd->addr,pd->port);
+        m_nodes->reset_single_stat(pd);
+        continue ;
+      }
+
+      m_nodes->set_alive(pd);
+
       log_print("login to '%s' of '%s'@'0x%x:%d' ok\n",
         pd->schema,pd->usr, pd->addr,pd->port);
     } /* for (pd) */ 

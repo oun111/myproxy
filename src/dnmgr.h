@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "container_impl.h"
+#include "thread_helper.h"
 
 /* data node states */
 enum dnStats {
@@ -56,6 +57,9 @@ class tDNInfo;
 class tTblDetails;
 class dnmgr : public dnGroups
 {
+protected:
+  thread_helper<void(dnmgr::*)(int),dnmgr> m_thread;
+
 public:
   dnmgr() ;
   virtual ~dnmgr() ;
@@ -70,7 +74,7 @@ protected:
 
   int new_connection(tDNInfo*);
 
-  int refresh_tbl_info(void);
+  int refresh_tbl_info(bool=true);
 
   int update_tbl_struct(tDNInfo*,tTblDetails*);
 
@@ -79,6 +83,10 @@ protected:
   int add_dn_tbl_relations(auto sch, auto tbl);
 
   tDNInfo* get_valid_datanode(safeDataNodeList*,tTblDetails*);
+
+  int keep_dn_conn(void);
+
+  void update_task(int);
 
 public:
   int initialize(void);

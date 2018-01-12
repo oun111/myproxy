@@ -500,16 +500,17 @@ class tDnMappings {
 public:
   uint8_t dn ;
   uint8_t io_type ;
-  tDnMappings *next ;
 } ;
 
 class tTblDetails {
 public:
   /* combined with: schema-id + table-id */
   uint64_t key ;
+#if 0
   /* data node number to execute sql, only processor 
    *  uses this bytes */
   int dn ;
+#endif
   /* physical schema name */
   std::string phy_schema ;
   /* logical schema name */
@@ -520,7 +521,8 @@ public:
   tColDetails *columns ; 
   size_t num_cols ;
   /* configured data node mappings */
-  tDnMappings *conf_dn ;
+  //tDnMappings *conf_dn ;
+  std::map<uint8_t,tDnMappings*> dn_maps ;
   /* 
    * TODO: add index definitions here 
    */
@@ -540,6 +542,7 @@ public:
   safeTableDetailList (void) { lock_init(); }
   ~safeTableDetailList(void) { clear(); lock_release(); }
 
+  using dnMap_itr = std::map<uint8_t,tDnMappings*>::iterator;
 public:
   uint64_t gen_key(char*,char*);
   tTblDetails* get(uint64_t);
@@ -547,8 +550,7 @@ public:
   tColDetails* get_col(char*,char*,char*);
   tColDetails* get_col(char*,char*,tColDetails*);
   /* table mappings */
-  tDnMappings* first_map(tTblDetails*);
-  tDnMappings* next_map(tDnMappings*);
+  tDnMappings* next_map(tTblDetails*,dnMap_itr&,bool=false);
   /* add empty table */
   int add(char *schema, char *table, 
     char *phy_schema=0, int dn=-1);
@@ -564,6 +566,7 @@ public:
     uint8_t dn, uint8_t io_type);
   bool is_valid(tTblDetails*) const;
   void set_invalid(tTblDetails*);
+  void set_valid(tTblDetails*);
   /* delete */
   int drop(uint64_t);
   void clear(void);
@@ -599,6 +602,9 @@ public:
   /* get related dtanode info */
   tDNInfo* get(int) ;
   tDNInfo* get_by_fd(int) ;
+  bool is_alive(int) ;
+  bool is_alive(tDNInfo*) ;
+  void set_alive(tDNInfo*);
   /* add new processor/client mapping */
   int add(int,uint32_t,int,char*,char*,char*);
   int add(int,tDNInfo*);
@@ -607,7 +613,8 @@ public:
   /* clear all items */
   void clear(void);
   /* update all items' states */
-  void update_batch_stats(int);
+  void reset_stats(void);
+  void reset_single_stat(tDNInfo*);
   /* get next data node item */
   //tDNInfo* next(bool=false);
   /* get data node count */
@@ -622,6 +629,7 @@ public:
 public:
   void push(int);
   int pop(int&); 
+  size_t size(void);
 } ;
 
 class tSchedule {

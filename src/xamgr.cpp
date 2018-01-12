@@ -92,7 +92,7 @@ xamgr::execute(sock_toolkit *st,
       continue ;
     }
 
-    if (pd->stat!=s_free) {
+    if (!nodes->is_alive(pd)) {
       log_print("error: datanode %d no valid\n", i);
       continue ;
     }
