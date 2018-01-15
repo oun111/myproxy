@@ -1,8 +1,29 @@
 Changelog:
+  Jan 15, 2018:
+    1. make the 'idle time' of the idle task configurable
+
+    2. make the xxx_active() APIs in safeDataNodeList thread-safe
+
+    3. make the xxx_valid() APIs in safeTableDetailList thread-safe
+
+    4. make datanode sockets blocked while scaning datanodes in idle task
+
+    5. make datanode sockets blocked while refreshing table structures in idle task
+
+    6. when scaning table structures, the idle task will try on next datanode
+        if the previous one is failed, if all datanodes are failed, this
+        table is marked 'invalid'
+
+    7. lock datanode groups while refreshing backend connections and 
+        table structures
+
+    8. add validation checks during reading global configs
+
+
   Jan 12, 2018:
-    1. add a timed task to scan & keep connections to backend servers so that 
-        the SQL route calculation and table listing may work properly due to
-        the latest backend states
+    1. add a timed 'idle task' to scan & keep connections to 
+        backend servers so that the SQL route calculation and table 
+        listing may work properly according to the latest backend states
 
   Jan 11, 2018:
     1. make 'desc', 'set', 'commit'/'rollback' be executed by backend

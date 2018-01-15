@@ -11,7 +11,10 @@
     "DatanodeGroupCount" : "3",
 
     "BindAddr" : "127.0.0.1",
-    "ListenPort" : "2331"
+    "ListenPort" : "2331",
+
+    "__comment" : "*** the idle task runs if the idle time reaches this 'IdleSeconds' ***",
+    "IdleSeconds" : "30"
   },
 
   "DataNodes": {
@@ -152,7 +155,7 @@
 
         "st_status_usersettle": {
           "Mappings": {
-            "dn4": { "IoType": "read"}
+            "dn3": { "IoType": "read"}
           },
           "shardingKey": {
             "userid": { "rule": "dummy" }

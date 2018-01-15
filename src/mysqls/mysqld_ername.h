@@ -981,6 +981,7 @@ static struct mysqld_ername {
 { "ER_INTERNAL_SCAN_SHARDING_COL", ER_INTERNAL_SCAN_SHARDING_COL, "myproxy error: scan sharding columns failed" },
 { "ER_INTERNAL_SCAN_AGGREGATES", ER_INTERNAL_SCAN_AGGREGATES, "myproxy error: scan aggregates failed" },
 { "ER_INTERNAL_UNSUPPORT_SQL", ER_INTERNAL_UNSUPPORT_SQL, "myproxy error: un-supported SQL: %s" },
+{ "ER_INTERNAL_NO_SUCH_TBL", ER_INTERNAL_NO_SUCH_TBL, "myproxy error: no such table: %s.%s" },
 
 } ;
 

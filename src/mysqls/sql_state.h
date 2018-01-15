@@ -261,6 +261,7 @@ struct sql_state {
 { ER_INTERNAL_SCAN_SHARDING_COL           ,"M0002", "" },
 { ER_INTERNAL_SCAN_AGGREGATES             ,"M0003", "" },
 { ER_INTERNAL_UNSUPPORT_SQL               ,"M0004", "" },
+{ ER_INTERNAL_NO_SUCH_TBL                 ,"M0005", "" },
 
 } ;
 

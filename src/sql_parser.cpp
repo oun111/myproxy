@@ -567,12 +567,12 @@ int sql_parser::collect_target_tbls(
       }
       /* check for existence of table */
       td = m_tables.get(m_tables.gen_key(pdb,tbl));
-      if (!td) {
+      if (!td || !m_tables.is_valid(td)) {
         size_t sz = 0;
         
         err.tc_resize(1024);
-        sz = do_err_response(0,err.tc_data(),ER_NO_SUCH_TABLE,
-          ER_NO_SUCH_TABLE,pdb,tbl);
+        sz = do_err_response(0,err.tc_data(),ER_INTERNAL_NO_SUCH_TBL,
+          ER_INTERNAL_NO_SUCH_TBL,pdb,tbl);
         err.tc_update(sz);
         log_print("error: %s.%s dose NOT exists\n",pdb,tbl);
         return -1;

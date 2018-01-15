@@ -1,6 +1,7 @@
 
 #include <string>
 #include <vector>
+#include <regex>
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -12,6 +13,7 @@
 #include "myproxy_config.h"
 #include "dbg_log.h"
 #include "dbug.h"
+#include "framework.h"
 
 /*
  * keywords in the configure file
@@ -93,6 +95,10 @@ const char *listenPort[] = {
   "ListenPort"
 };
 
+const char *idleSeconds[] = {
+  "IdleSeconds"
+};
+
 }
 
 
@@ -149,24 +155,66 @@ int myproxy_config::parse_global_settings(void)
     /* parse cache pool configs */
     if ((tmp=find(pi,(char*)cachePoolSec[0]))) {
       m_globSettings.szCachePool = atoi(tmp->value.c_str());
+
+      if (m_globSettings.szCachePool<=0 || m_globSettings.szCachePool>50) {
+        log_print("cache pool size %zu not valid\n", m_globSettings.szCachePool);
+        m_globSettings.szCachePool = 5;
+      }
     }
 
     /* parse datanode group configs */
     if ((tmp=find(pi,(char*)dnGrpSec[0]))) {
       m_globSettings.numDnGrp = atoi(tmp->value.c_str());
+
+      if (m_globSettings.numDnGrp<=0 || m_globSettings.numDnGrp>50) {
+        log_print("datanode group size %zu not valid\n", m_globSettings.numDnGrp);
+        m_globSettings.numDnGrp = 3;
+      }
     }
 
     /* parse thread pool configs */
     if ((tmp=find(pi,(char*)threadPoolSec[0]))) {
       m_globSettings.szThreadPool = atoi(tmp->value.c_str());
+
+      if (m_globSettings.szThreadPool<=0 || m_globSettings.szThreadPool>64) {
+        log_print("thread pool size %zu not valid\n", m_globSettings.szThreadPool);
+        m_globSettings.szThreadPool = 10;
+      }
     }
 
     /* parse bind address/port configs */
     if ((tmp=find(pi,(char*)bndAddr[0]))) {
-      m_globSettings.bndAddr = tmp->value;
+      std::regex r(
+        "([1-9]|[1-9][\\d]|1[\\d]{1,2}|2[0-4][\\d]|25[0-5])\\."
+        "([\\d]|[1-9][\\d]|1[\\d]{1,2}|2[0-4][\\d]|25[0-5])\\."
+        "([\\d]|[1-9][\\d]|1[\\d]{1,2}|2[0-4][\\d]|25[0-5])\\."
+        "([\\d]|[1-9][\\d]|1[\\d]{1,2}|2[0-4][\\d]|25[0-5])"
+      ); 
+
+      if (!std::regex_match(tmp->value.c_str(),r)) {
+        log_print("bind address %s not valid\n", tmp->value.c_str());
+        m_globSettings.bndAddr = "127.0.0.1";
+      } else {
+        m_globSettings.bndAddr = tmp->value;
+      }
     }
     if ((tmp=find(pi,(char*)listenPort[0]))) {
       m_globSettings.listenPort = atoi(tmp->value.c_str());
+
+      if (m_globSettings.listenPort<=0 || m_globSettings.listenPort>65535) {
+        log_print("listen port %d not valid\n", m_globSettings.listenPort);
+        m_globSettings.listenPort = DEFAULT_BUSI_PORT;
+      }
+    }
+
+    /* parse the idle time configs */
+    if ((tmp=find(pi,(char*)idleSeconds[0]))) {
+      m_globSettings.idleSeconds = atoi(tmp->value.c_str());
+
+      if (m_globSettings.idleSeconds<=0 || m_globSettings.idleSeconds>3600) {
+        log_print("idle seconds %d not valid\n", m_globSettings.idleSeconds);
+        m_globSettings.idleSeconds = 30;
+      }
     }
   }
   return 0;
@@ -195,6 +243,11 @@ char* myproxy_config::get_bind_address(void) const
 int myproxy_config::get_listen_port(void) const
 {
   return m_globSettings.listenPort ;
+}
+
+int myproxy_config::get_idle_seconds(void) const
+{
+  return m_globSettings.idleSeconds ;
 }
 
 uint32_t myproxy_config::parse_ipv4(std::string &str)

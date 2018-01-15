@@ -33,6 +33,9 @@ protected:
 
   uint16_t m_nDnGroups ;
 
+  /* idle seconds counter */
+  int m_idleCount ;
+
 public:
   dnGroups();
   virtual ~dnGroups(void);
@@ -51,6 +54,10 @@ public:
   safeDataNodeList* get_specific_group(int);
 
   int get_num_groups(void) const;
+
+  int acquire_all_groups(void);
+
+  int release_all_groups(void);
 } ;
 
 class tDNInfo;
@@ -74,11 +81,11 @@ protected:
 
   int new_connection(tDNInfo*);
 
-  int refresh_tbl_info(bool=true);
+  int refresh_tbl_info(bool=false);
 
-  int update_tbl_struct(tDNInfo*,tTblDetails*);
+  int update_tbl_struct(tDNInfo*,tTblDetails*,bool=false);
 
-  int update_tbl_extra_info(tDNInfo*,tTblDetails*);
+  int update_tbl_extra_info(tDNInfo*,tTblDetails*,bool=false);
 
   int add_dn_tbl_relations(auto sch, auto tbl);
 
@@ -86,7 +93,7 @@ protected:
 
   int keep_dn_conn(void);
 
-  void update_task(int);
+  void datanode_idle_task(int);
 
 public:
   int initialize(void);

@@ -59,6 +59,8 @@ typedef struct tHostAddr {
 #define set_nonblock(fd)  \
   fcntl((fd),F_SETFL, \
     fcntl((fd),F_GETFL,0)| O_NONBLOCK);
+#define set_block(fd) \
+  fcntl((fd),F_SETFL,fcntl((fd),F_GETFL,0)&~O_NONBLOCK)
 /* iterates each epoll events */
 #define list_foreach_events(i,so,fd,ev,po)      \
   for (i=0,get_svr_events(&so);i<num_events(&so) &&  \

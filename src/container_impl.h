@@ -528,7 +528,7 @@ public:
    */
 
   /* is table valid */
-  bool bValid ;
+  int bValid ;
 } ;
 
 

@@ -73,6 +73,7 @@ using GLOBAL_SETTINGS = struct global_settings_t {
   size_t szThreadPool ;
   std::string bndAddr ;
   int listenPort ;
+  int idleSeconds ;
 } ;
 
 class myproxy_config : public SimpleJsonParser 
@@ -145,6 +146,8 @@ public:
   char* get_bind_address(void) const;
 
   int get_listen_port(void) const;
+
+  int get_idle_seconds(void) const;
 
 protected:
 

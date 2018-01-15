@@ -934,7 +934,8 @@ tDNInfo* safeDataNodeList::get_by_fd(int myfd)
 
 bool safeDataNodeList::is_alive(tDNInfo *pd) 
 {
-  return pd && pd->stat==s_free;
+  //return pd && pd->stat==s_free;
+  return pd && __sync_fetch_and_add(&pd->stat,0)==s_free;
 }
 
 bool safeDataNodeList::is_alive(int dn) 
@@ -946,7 +947,8 @@ bool safeDataNodeList::is_alive(int dn)
 
 void safeDataNodeList::set_alive(tDNInfo *pd)
 {
-  pd->stat = s_free;
+  //pd->stat = s_free;
+  __sync_lock_test_and_set(&pd->stat,s_free);
 }
 
 int safeDataNodeList::add(int dn, tDNInfo *info)
@@ -1068,7 +1070,7 @@ int safeTableDetailList::add(char *schema,
     td->schema      = schema ;
     td->table       = table ;
     td->num_cols    = 0;
-    td->bValid      = true;
+    td->bValid      = 1;
     if (phy_schema)
       td->phy_schema= phy_schema ;
   }
@@ -1129,7 +1131,7 @@ int safeTableDetailList::add(char *schema,
     /* update table info */
     td->schema      = schema ;
     td->table       = table ;
-    td->bValid      = true;
+    td->bValid      = 1;
   }
 
   return 0;
@@ -1225,6 +1227,8 @@ tColDetails* safeTableDetailList::get_col(char *sch, char *tbl, tColDetails *pre
   if (!td) {
     return 0;
   }
+
+  try_read_lock();
   return !prev?td->columns:prev->next;
 }
 
@@ -1282,17 +1286,20 @@ safeTableDetailList::next_map(tTblDetails *td, dnMap_itr &itr, bool bStart)
 
 bool safeTableDetailList::is_valid(tTblDetails *td) const
 {
-  return td && td->bValid==true ;
+  //return td && td->bValid==true ;
+  return td && __sync_fetch_and_add(&td->bValid,0)==1 ;
 }
 
 void safeTableDetailList::set_invalid(tTblDetails *td)
 {
-  if (td) td->bValid = false ;
+  //if (td) td->bValid = false ;
+  if (td) __sync_lock_test_and_set(&td->bValid,0) ;
 }
 
 void safeTableDetailList::set_valid(tTblDetails *td)
 {
-  if (td) td->bValid = true ;
+  //if (td) td->bValid = true ;
+  if (td) __sync_lock_test_and_set(&td->bValid,1) ;
 }
 
 int safeTableDetailList::drop(uint64_t key)
@@ -1306,6 +1313,7 @@ int safeTableDetailList::drop(uint64_t key)
     try_write_lock();
     safe_container_base<uint64_t,tTblDetails*>::drop(key);
   }
+
   /* release columns */
   for (pc=td->columns;pc;) {
     cd = pc ;
@@ -1313,20 +1321,14 @@ int safeTableDetailList::drop(uint64_t key)
     delete cd ;
   }
   /* release data node mappings */
-#if 0
-  for (pd=td->conf_dn;pd;) {
-    dm = pd ;
-    pd = pd->next ;
-    delete dm ;
-  }
-#else
   for (auto dm : td->dn_maps) {
     delete dm.second ;
   }
   td->dn_maps.clear();
-#endif
   delete td ;
+
   log_print("droping entry key %lu\n",key);
+
   return 0;
 }
 
@@ -1344,19 +1346,13 @@ void safeTableDetailList::clear(void)
         pc=pc->next ;
         delete cd ;
       }
+
       /* release data node mappings */
-#if 0
-      for (pd=i.second->conf_dn;pd;) {
-        dm = pd ;
-        pd = pd->next ;
-        delete dm ;
-      }
-#else
       for (auto dm : i.second->dn_maps) {
         delete dm.second ;
       }
       i.second->dn_maps.clear();
-#endif
+
       /* release table */
       delete i.second ;
     }

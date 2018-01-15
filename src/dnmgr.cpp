@@ -7,13 +7,14 @@
 #include "dbg_log.h"
 #include "simple_types.h"
 #include "env.h"
+#include "sock_toolkit.h"
 
 using namespace GLOBAL_ENV ;
 
 /* 
  * class dnGroups
  */
-dnGroups::dnGroups() : m_nDnGroups(0)
+dnGroups::dnGroups() : m_nDnGroups(0), m_idleCount(0)
 {
   /* create datanode groups */
   create_grp_by_conf();
@@ -43,6 +44,31 @@ int dnGroups::create_grp_by_conf(void)
   m_dnGroup = std::shared_ptr<safeDataNodeList>(pNodeGroups);
 
   /* init free groups */
+  release_all_groups();
+
+  return 0;
+}
+
+int dnGroups::acquire_all_groups(void)
+{
+  safeDataNodeList *plst = 0;
+  int gid = 0, i=0;
+
+  /* init free groups */
+  for (i=0;i<m_nDnGroups;i++) {
+    get_free_group(plst,gid);
+  }
+
+  if (i<m_nDnGroups) {
+    log_print("warning: not all groups can be acquired\n");
+    return -1;
+  }
+
+  return 0;
+}
+
+int dnGroups::release_all_groups(void)
+{
   for (int i=0;i<m_nDnGroups;i++) {
     return_group(i);
   }
@@ -57,13 +83,6 @@ safeDataNodeList* dnGroups::get_specific_group(int gid)
   if (gid>=m_nDnGroups) {
     return NULL;
   }
-
-#if 0
-  /* test empty */
-  if (m_dnGroup.use_count()<=0) {
-    return NULL ;
-  }
-#endif
 
   pNodeGroups = m_dnGroup.get();
   if (!pNodeGroups) {
@@ -82,19 +101,15 @@ int dnGroups::get_free_group(safeDataNodeList* &nodes, int &gid)
     return -1;
   }
 
-#if 0
-  /* test empty */
-  if (m_dnGroup.use_count()<=0) {
-    return -1 ;
-  }
-#endif
-
   pNodeGroups = m_dnGroup.get();
   if (!pNodeGroups) {
     return -1 ;
   }
 
   nodes = &pNodeGroups[gid] ;
+
+  /* reset the idle counter */
+  m_idleCount = 0;
 
   log_print("acquired datanode group %d\n",gid);
 
@@ -141,7 +156,7 @@ namespace {
 
 }
 
-dnmgr::dnmgr() 
+dnmgr::dnmgr()
 {
   /* FIXME: I know it's ugly, but HOW? */
   m_gDnMgr = this ;
@@ -154,7 +169,7 @@ dnmgr::dnmgr()
   }
 
   /* init the updater task */
-  m_thread.bind(&dnmgr::update_task,this,0);
+  m_thread.bind(&dnmgr::datanode_idle_task,this,0);
   m_thread.start();
 }
 
@@ -162,32 +177,33 @@ dnmgr::~dnmgr()
 {
 }
 
-void dnmgr::update_task(int arg)
+void dnmgr::datanode_idle_task(int arg)
 {
-  int gf = 0;
-  const int free_s = 30;
+  int idle_s = m_conf.get_idle_seconds();
+
+  log_print("idle seconds: %d\n",idle_s);
 
   while (1) {
 
-    /* the datanode groups are free */
+    /* the datanode groups are idle */
     if (m_nDnGroups==m_freeGroupIds.size()) {
-      gf ++ ;
+      m_idleCount ++ ;
     } else {
-      /* reset 'free seconds' if the group(s) 
-       *  are found not free*/
-      gf = 0;
+      /* reset 'idle seconds' if the group(s) 
+       *  are found not idle*/
+      m_idleCount = 0;
     }
 
-    /* all datanode groups are free over 'free_s' seconds */
-    if (gf>free_s) {
-      gf = 0;
+    /* all datanode groups are idle over 'idle_s' seconds */
+    if (m_idleCount>idle_s) {
+      m_idleCount = 0;
 
       log_print("refreshing...\n");
 
       keep_dn_conn();
 
       /* dont update table structures */
-      refresh_tbl_info(false);
+      refresh_tbl_info(true);
     }
 
     sleep(1);
@@ -318,7 +334,7 @@ int dnmgr::get_tables_by_conf(void)
   return 0;
 }
 
-int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt)
+int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt, bool check)
 {
   uint8_t kt = 0;
   bool nullable = false;
@@ -328,21 +344,29 @@ int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt)
   char **results = 0;
 
   /* only query table structure, no need result set */
-  sprintf(buf,"desc %s.%s",pt->phy_schema.c_str(),
-    pt->table.c_str());
+  sprintf(buf,"desc %s.%s",pd->schema,pt->table.c_str());
   /* execute the sql */
   if (mysql_query(pd->mysql,buf)) {
     log_print("execute sql %s failed: %s\n",
       buf,mysql_error(pd->mysql));
     return -1;
   }
+
+  /* check result of SQL exection above only */
+  if (check) {
+    return 0;
+  }
+
   log_print("********extra info of table %s.%s*********\n",
     pt->schema.c_str(),pt->table.c_str());
+
   /* get query result */
   mr = pd->mysql->res ;
   /* initiates the iteration */
   mysql_store_result(pd->mysql);
+
   while ((results=mysql_fetch_row(mr))) {
+
     for (n=0;n<mysql_num_fields(mr);n++) {
       switch (n) {
         /* column name */
@@ -373,18 +397,22 @@ int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt)
       }
       log_print("column %d: %s\n", n,
         results[n][0]=='\0'?"null":results[n]);
+
     }
+
     /* add extra infos to table list */
     m_tables.add(const_cast<char*>(pt->schema.c_str()),
       const_cast<char*>(pt->table.c_str()),cname,dtype,
       nullable,kt,def,extra);
   }
-  log_print("******** %zu columns in %s ********\n", 
+
+  log_print("%zu columns in %s\n", 
     pt->num_cols, pt->table.c_str());
+
   return 0;
 }
 
-int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt)
+int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt, bool check)
 {
   uint16_t nCol=0;
   char buf[128];
@@ -392,27 +420,38 @@ int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt)
 
   /* only query table structure, no need result set */
   sprintf(buf,"select *from %s.%s where 1<>1",
-    pt->phy_schema.c_str(),pt->table.c_str());
+    pd->schema,pt->table.c_str());
   /* execute the sql */
   if (mysql_query(pd->mysql,buf)) {
     log_print("execute sql %s failed: %s\n",
       buf,mysql_error(pd->mysql));
     return -1;
   }
+
+  /* check result of SQL exection above only */
+  if (check) {
+    return 0;
+  }
+
   log_print("********struct of table %s.%s*********\n",
     pt->schema.c_str(),pt->table.c_str());
+
   for (nCol=0,pt->num_cols=0;nCol<pd->mysql->columns.number;nCol++) {
+
     /* extract column details */
     mf = ((MYSQL_FIELD*)pd->mysql->columns.c)+nCol ;
     log_print("column %d: %s, charset: %d, type: %d, "
       "max len: %d, flags: 0x%x\n",nCol,mf->name,
       mf->charset,mf->type,mf->len,mf->flags);
+
     /* add column to table list */
     m_tables.add(const_cast<char*>(pt->schema.c_str()),mf->tbl,
       mf->name,mf->charset,mf->len,mf->type,mf->flags);
   }
-  log_print("******** %zu columns in %s ********\n", 
+
+  log_print("%zu columns in %s\n", 
     pt->num_cols, pt->table.c_str());
+
   return 0;
 }
 
@@ -446,7 +485,7 @@ tDNInfo* dnmgr::get_valid_datanode(safeDataNodeList *nodes, tTblDetails *pt)
   return NULL ;
 }
 
-int dnmgr::refresh_tbl_info(bool updateStructs)
+int dnmgr::refresh_tbl_info(bool check)
 {
   safe_container_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
   safeDataNodeList *nodes = 0;
@@ -461,33 +500,62 @@ int dnmgr::refresh_tbl_info(bool updateStructs)
   /* query structure of all tables in list */
   for (tTblDetails *pt=m_tables.next(itr,true);pt;pt=m_tables.next(itr)) {
 
-    tDNInfo *pd = get_valid_datanode(nodes,pt);
+    //tDNInfo *pd = get_valid_datanode(nodes,pt);
+    safeTableDetailList::dnMap_itr i;
+    tDnMappings *pm = 0;
 
-    /* check & update table state */
-    if (!pd) {
+    log_print("trying table `%s - %s`\n",pt->schema.c_str(),pt->table.c_str());
+
+    /* iterate every single mapping nodes for table 'pt' */
+    for (pm=m_tables.next_map(pt,i,true);pm;pm=m_tables.next_map(pt,i)) {
+      tDNInfo *pd = nodes->get(pm->dn);
+
+      /* check & update table state */
+      if (!pd) {
+        m_tables.set_invalid(pt);
+
+        log_print("no valid datanode found for `%s.%s`\n",
+          pt->schema.c_str(),pt->table.c_str());
+        continue ;
+      }
+
+      if (!nodes->is_alive(pd)) {
+        struct in_addr ia ;
+
+        ia.s_addr = htonl(pd->addr) ;
+        log_print("data node %d(@%s:%d) is not active!!\n",
+          pd->no,inet_ntoa(ia),pd->port);
+        continue ;
+      }
+
+#if 0
+      log_print("try query structure of table `%s.%s` on dn %d ...\n",
+        pt->schema.c_str(),pt->table.c_str(),pd->no);
+#endif
+
+      /* set block mode to fetch the query results */
+      set_block(pd->mysql->sock);
+
+      /* get table structure/extra info by the given datanode, 
+       *  try other datanodes if failed */
+      if (update_tbl_struct(pd,pt,check) || 
+         update_tbl_extra_info(pd,pt,check)) {
+        continue ;
+      }
+
+      m_tables.set_valid(pt);
+      /* the table is ok */
+      log_print("OK!\n");
+      break ;
+
+    } // end for()
+
+    if (!pm) {
       m_tables.set_invalid(pt);
-
-      log_print("no valid datanode found for `%s.%s`\n",
-        pt->schema.c_str(),pt->table.c_str());
-      continue ;
+      log_print("FAIL!\n");
     }
 
-    m_tables.set_valid(pt);
-
-    /* no need to update table structures */
-    if (!updateStructs) {
-      continue;
-    }
-
-    log_print("try query structure of table `%s.%s` on dn %d ...\n",
-      pt->schema.c_str(),pt->table.c_str(),pd->no);
-
-    /* get table structure by the given datanode */
-    update_tbl_struct(pd,pt);
-
-    /* get table extra info by the given datanode */
-    update_tbl_extra_info(pd,pt);
-  }
+  } // end for()
 
   /* return back the gropu */
   return_group(gid);
@@ -606,6 +674,10 @@ int dnmgr::keep_dn_conn(void)
   tDNInfo *pd = 0;
   safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
 
+  /* XXX: occupy all groups to forbid the collision that 
+   *  others may acquire the same group  */
+  acquire_all_groups();
+
   for (n=0;n<get_num_groups();n++) {
 
     auto m_nodes = get_specific_group(n);
@@ -614,7 +686,10 @@ int dnmgr::keep_dn_conn(void)
     for (pd=m_nodes->next(itr,true);pd;pd=m_nodes->next(itr)) {
 
       if (pd->mysql) {
-        
+
+        /* set block mode to fetch the 'ping' replies */
+        set_block(pd->mysql->sock);
+
         /* test connection by ping */
         if (!test_conn(pd->mysql)) {
           continue ;
@@ -640,6 +715,9 @@ int dnmgr::keep_dn_conn(void)
     } /* for (pd) */ 
 
   } /* for (n) */
+
+  release_all_groups();
+
   return 0;
 }
 
