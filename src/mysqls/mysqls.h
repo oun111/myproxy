@@ -45,12 +45,6 @@ typedef struct mysqls_global_var_t
   uint16_t server_status ;
 } MYSQLS_VAR;
 
-/* generates a 'client connects in' notice */
-//extern int mysqls_gen_conn_in_notice(char*);
-
-/* generates the 'sync priv' request */
-//int mysqls_gen_sync_priv(char*,char*,size_t);
-
 /* check packet by size */
 extern bool mysqls_is_packet_valid(char*,size_t);
 
@@ -81,32 +75,13 @@ extern int mysqls_gen_ok(char*,uint16_t,uint32_t,uint64_t,uint64_t);
 /* generates an Error response packet */
 extern int mysqls_gen_error(char*,uint16_t, 
   int,uint32_t,va_list);
-extern int mysqls_gen_error1(char*,char*, 
-  int,uint32_t,char*);
 extern int do_err_response(uint32_t, char*,int,int , ...);
 extern int do_ok_response(uint32_t,int,char[/*MAX_PAYLOAD*/]);
 extern uint8_t mysqls_is_error(char*,size_t);
 
-/* generates dummy response for query command */
-extern int mysqls_gen_dummy_qry_resp(char*,uint16_t, 
-  int, uint32_t);
-
-/* generates response to query for '@@version_commet' */
-extern int mysqls_gen_ver_cmt_qry_resp(char*,uint16_t,
-  int,uint32_t);
-
-extern int mysqls_gen_simple_qry_resp(char*, uint16_t, 
-  int ,uint32_t, char*, char**, size_t);
-
-/* generates dummy response for query field command */
-extern int mysqls_gen_dummy_qry_field_resp(char*,uint16_t, 
-  int, uint32_t);
-
-extern int mysqls_gen_desc_tbl_resp(char*,uint16_t, 
-  int,uint32_t,char**,size_t*[],size_t);
-
-extern int mysqls_gen_show_proc_list_resp(char*,uint16_t, 
-  int,uint32_t,char**,size_t*[],size_t);
+/* generates response for query field command */
+extern int mysqls_gen_qry_field_resp(char *inb, uint16_t sql_stat, 
+  int char_set,uint32_t sn, char *db, char *tbl, char **rows, size_t numRows);
 
 /* get serial number of a packet */
 extern int mysqls_extract_sn(char*);
@@ -116,21 +91,8 @@ extern char* mysqls_get_body(char*);
 
 extern int mysqls_sprintf(char*,int,va_list) ;
 
-extern size_t mysqls_calc_col_def(void*, size_t);
-
-extern size_t mysqls_calc_common_ok_res(void);
-
-extern int mysqls_gen_common_query_resp_hdr(char*, 
-  size_t, int*, void*, int);
-
-extern int mysqls_gen_normal_proto_hdr(char*,size_t,int);
-
-extern int mysqls_gen_res_end(char*,uint32_t,uint16_t);
-
 extern int mysqls_extract_column_count(char*,size_t) ;
 
-extern int mysqls_extract_column_def(char*,size_t, 
-  void*, size_t,char*) ;
 extern char* mysqls_save_one_col_def(void *pc, char *ptr, char *def_db);
 
 extern int mysqls_extract_prepared_info(char *inb, 
@@ -138,9 +100,6 @@ extern int mysqls_extract_prepared_info(char *inb,
 
 extern int mysqls_get_col_full_name(void*,int,char**,
   char**,char**,uint8_t*);
-
-extern int mysqls_extract_next_rec(char*, int, 
-  char**, int*);
 
 extern bool mysqls_is_digit_type(uint8_t);
 
@@ -150,29 +109,19 @@ extern uint8_t mysqls_get_cmd(char *inb);
 
 extern void mysqls_set_cmd(char *inb, uint8_t cmd);
 
-extern int mysqls_get_command(char*,size_t);
-
-extern size_t mysqls_calc_stmt_prep_res_size(void*,size_t, 
-  void*, size_t);
-
-extern size_t mysqls_gen_stmt_prep_res(char*,int,
-  void*,size_t,void*,size_t,int,int);
-
 extern int mysqls_get_stmt_prep_stmt_id(char*,size_t,int*);
 
-extern int mysqls_get_param_count(char*,size_t,uint16_t*);
-
 extern int mysqls_update_stmt_prep_stmt_id(char*,size_t,int);
-
-extern int mysqls_update_stmt_newbound_flag(char*,size_t,uint8_t);
-
-extern size_t mysqls_calc_err_res(char*);
 
 extern size_t mysqls_get_body_size(char*);
 
 extern size_t mysqls_get_req_size(char*);
 
 extern void mysqls_update_req_size(char*,size_t);
+
+extern int mysqls_gen_normal_resp(char *inb, uint16_t sql_stat, 
+  int char_set, uint32_t sn, char *db, char *tbl, char **cols, 
+  size_t num_cols, char **rows, size_t num_rows);
 
 #ifdef __cplusplus
 }

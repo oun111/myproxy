@@ -435,6 +435,18 @@ public:
   std::string usr;
   /* related login pwd */
   std::string pwd;
+  /* ip address/port */
+  std::string addr;
+  /* session id */
+  std::string id;
+  /* command */
+  std::string cmd;
+  /* state */
+  std::string stat;
+  /* time */
+  long long times ;
+  std::string s_times ;
+  std::string info ;
   /* session related xa identifier */
   int xaid ;
 
@@ -452,17 +464,26 @@ enum eConnStats
   cs_login_ok,
 } ;
 
+enum cmdStat
+{
+  st_idle,
+  st_qry,
+  st_error,
+} ;
+
 class safeLoginSessions : public safe_container_base<int,tSessionDetails*>
 {
+protected:
+  long long m_id ;
+
 public:
-  safeLoginSessions(void) { lock_init(); }
+  safeLoginSessions(void):m_id(0L) { lock_init(); }
   ~safeLoginSessions(void) { lock_release(); }
 
 public:
   /* get variable value */
   tSessionDetails* get_session(int) ;
   /* add new variable by fd */
-  int add_session(int,tSessionDetails*);
   tSessionDetails* add_session(int);
   /* delete fd's variable */
   int drop_session(int);
@@ -472,6 +493,8 @@ public:
   int get_xaid(int);
   int save_xaid(int,int);
   int reset_xaid(int);
+  /* set current command */
+  int set_cmd(int,int,char* = NULL);
 } ;
 
 /* extra column details */

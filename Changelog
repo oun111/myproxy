@@ -1,4 +1,18 @@
 Changelog:
+  Jan 16, 2018:
+    1. add support for 'read-write-seperation' mode on backends
+
+    2. improve the 'mysqls' library by reducing unused APIs and 
+        optimising the mysqls_gen_normal_resp() function
+
+    3. add support for 'show processlist' command
+
+    4. improve the 'com_field_list' command logic by returning 
+        'real' table columns instead of dummy ones
+
+    5. optimise logics of other 'local query' commands 
+
+
   Jan 15, 2018:
     1. make the 'idle time' of the idle task configurable
 

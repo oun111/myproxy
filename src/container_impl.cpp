@@ -807,34 +807,10 @@ tSessionDetails* safeLoginSessions::get_session(int cid)
   return find(cid);
 }
 
-int safeLoginSessions::add_session(int cid, tSessionDetails *pv)
-{
-  tSessionDetails *v = get_session(cid);
-
-  /* not exist */
-  if (!v) {
-    v = new tSessionDetails ;
-    try_write_lock();
-    insert(cid,v);
-  }
-#if 0
-  /* update content */
-  memcpy(v,pv,sizeof(*pv));
-#else
-  memcpy(v->scramble,pv->scramble,pv->sc_len);
-  v->sc_len = pv->sc_len ;
-  v->status = pv->status;
-  v->db = pv->db;
-  v->usr= pv->usr;
-  v->pwd= pv->pwd;
-  v->xaid = -1;
-#endif
-  return 0 ;
-}
-
 tSessionDetails* safeLoginSessions::add_session(int cid)
 {
   tSessionDetails *v = get_session(cid);
+  char chId[64];
 
   if (v) {
     return v;
@@ -846,6 +822,9 @@ tSessionDetails* safeLoginSessions::add_session(int cid)
   v->sc_len = AP_LENGTH-1;
   v->status = cs_init ;
   v->xaid = -1;
+  sprintf(chId,"%lld",__sync_fetch_and_add(&m_id,1));
+  v->id = chId;
+  v->times= time(NULL);
   {
     try_write_lock();
     insert(cid,v);
@@ -864,6 +843,11 @@ int safeLoginSessions::drop_session(int cid)
     drop(cid);
   }
   delete v ;
+
+  if (m_list.size()==0) {
+    __sync_fetch_and_and(&m_id,0);
+  }
+
   return 0;
 }
 
@@ -905,6 +889,39 @@ int safeLoginSessions::reset_xaid(int cid)
   return save_xaid(cid,-1);
 }
 
+int safeLoginSessions::set_cmd(int cid, int st, char *cmd)
+{
+  tSessionDetails *v = get_session(cid);
+
+  /* not exist */
+  if (!v) {
+    return -1;
+  }
+
+  try_read_lock();
+  /* idle */
+  if (st==st_idle) {
+    v->cmd  = "Sleep";
+    v->stat = " ";
+    v->info = "NULL";
+  }
+  /* error */
+  else if (st==st_error) {
+    v->cmd  = "Init";
+    v->stat = "ERROR";
+    v->info = cmd;
+  } 
+  /* query */
+  else {
+    v->cmd  = "Init";
+    v->stat = "Query";
+    v->info = cmd;
+  }
+
+  v->times = time(NULL);
+
+  return 0;
+}
 
 /*
  * class safeDataNodeList

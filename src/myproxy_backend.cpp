@@ -811,6 +811,9 @@ myproxy_backend::deal_query_res(
 
     /* reset if it's under statement prepare mode */
     m_stmts.reset(cfd);
+
+    /* reset session command states */
+    m_lss.set_cmd(cfd,st_idle);
   }
 
   /* send the delayed responses */

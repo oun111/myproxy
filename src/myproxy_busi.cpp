@@ -189,6 +189,16 @@ int myproxy_frontend::do_com_login(int connid,
   pss->db = db ;
   pss->usr= usr;
   pss->pwd= pwd_in;
+  {
+    struct sockaddr_in sa ;
+    socklen_t ln = sizeof(sa) ;
+    char chPort[32];
+
+    getpeername(connid,(struct sockaddr*)&sa,&ln);
+    sprintf(chPort,":%d",sa.sin_port);
+    pss->addr = inet_ntoa(sa.sin_addr);
+    pss->addr += chPort;
+  }
   /* move region to next status */
   pss->status = cs_login_ok;
   log_print("(%d) user %s@%s login ok\n",connid,usr,db);
@@ -215,21 +225,67 @@ int myproxy_frontend::do_com_field_list(int connid,char *inb,
   size_t sz)
 {
   int sn = 0;
-  char outb[MAX_PAYLOAD];
   size_t sz_out=0;
+  std::string tbl ;
+  tSessionDetails *pss = m_lss.get_session(connid);
+
+  if (!pss) {
+    log_print("FATAL: connetion id %d not found\n",
+      connid);
+    return MP_ERR;
+  }
 
   /* extract serial number */
   sn = mysqls_extract_sn(inb);
 
-  /* TODO: parse field structure of target table */
-  /* allocate response buffer */
-  /* send a dummy reply */
-  if ((sz_out=mysqls_gen_dummy_qry_field_resp(
-     outb,m_svrStat,m_charSet,sn+1))<0) {
-    return MP_ERR ;
+  /* target table name */
+  tbl = inb+5 ;
+
+  /* get table details */
+  tTblDetails *td = m_tables.get(pss->db.c_str(),tbl.c_str());
+
+  /* if table detail not available, send a dummy response */
+  if (!td || !m_tables.is_valid(td)) {
+    char outb[MAX_PAYLOAD];
+    char *rows[] {(char*)"com_field_list failed"};
+
+    sz_out  = mysqls_gen_qry_field_resp(outb,
+      m_svrStat,m_charSet,sn+1,(char*)pss->db.c_str(),
+      (char*)tbl.c_str(),rows,1);
+    m_trx.tx(connid,outb,sz_out);
+    return MP_OK ;
   }
 
-  m_trx.tx(connid,outb,sz_out);
+  /* send actual table column details */
+  {
+    const size_t numRows = td->num_cols;
+    char *rows[numRows];
+    tColDetails *cd = 0;
+    char *outb = 0;
+    size_t total = 0;
+
+    /* calc the packet size and assign column names */
+    for (uint16_t i=0;i<numRows;i++) {
+      /* get each columns */
+      cd = m_tables.get_col((char*)pss->db.c_str(),(char*)tbl.c_str(),cd);
+      if (!cd)
+        break ;
+
+      total += strlen(cd->col.name)+pss->db.length()+tbl.length()+100 ;
+
+      rows[i] = cd->col.name ;
+    }
+
+    outb = new char [total];
+
+    sz_out = mysqls_gen_qry_field_resp(outb,
+      m_svrStat,m_charSet,sn+1,(char*)pss->db.c_str(),
+      (char*)tbl.c_str(),rows,numRows);
+    m_trx.tx(connid,outb,sz_out);
+
+    delete []outb ;
+  }
+
   return MP_OK;
 }
 
@@ -237,7 +293,7 @@ int myproxy_frontend::do_sel_cur_db(int connid,int sn)
 {
   /* get connection region */
   tSessionDetails *pss = m_lss.get_session(connid);
-  char *rows[1], outb[MAX_PAYLOAD] ;
+  char outb[MAX_PAYLOAD] ;
   size_t sz_out = 0;
 
   if (!pss) {
@@ -245,25 +301,31 @@ int myproxy_frontend::do_sel_cur_db(int connid,int sn)
       connid);
     return MP_ERR;
   }
-  rows[0] = (char*)pss->db.c_str();
-  sz_out  = mysqls_gen_simple_qry_resp(outb,
-    m_svrStat,m_charSet,sn+1,
-    (char*)"DATABASE()",rows,1);
 
-  m_trx.tx(connid,outb,sz_out);
+  {
+    char *cols[] = { (char*)"DATABASE()" };
+    char *rows[1] = { (char*)pss->db.c_str(), };
+
+    sz_out  = mysqls_gen_normal_resp(outb,
+      m_svrStat,m_charSet,sn+1,(char*)"",(char*)"",
+      cols,1,rows,1);
+    m_trx.tx(connid,outb,sz_out);
+  }
+
   return MP_OK;
 }
 
 int myproxy_frontend::do_sel_ver_comment(int connid,int sn)
 {
-  char *rows[1], outb[MAX_PAYLOAD] ;
+  char outb[MAX_PAYLOAD] ;
   size_t sz_out = 0;
+  char *rows[1] { (char*)"myproxy source", } ;
+  char *cols[] { (char*)"@@version_comment"}  ;
 
-  rows[0] = (char*)"myproxy source";
-  sz_out  = mysqls_gen_simple_qry_resp(outb,m_svrStat,
-    m_charSet,sn+1,(char*)"@@version_comment",rows,1);
-
+  sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
+    m_charSet,sn+1,(char*)"",(char*)"",cols,1,rows,1);
   m_trx.tx(connid,outb,sz_out);
+
   return MP_OK;
 }
 
@@ -277,15 +339,16 @@ int myproxy_frontend::do_show_dbs(int connid,int sn)
   for (i=0;i<m_conf.get_num_schemas();i++) {
     rows[i] = (char*)m_conf.get_schema(i)->name.c_str();
 
-    sz_total += m_conf.get_schema(i)->name.length()+5;
+    sz_total += m_conf.get_schema(i)->name.length()+10;
   }
 
   {
     /* allocates out buffer */
     char *outb = new char [sz_total];
+    char *cols[] {(char*)"DataBase"} ;
 
-    sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,
-      m_charSet,sn+1, (char*)"DataBase",rows,ndbs);
+    sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
+      m_charSet,sn+1,(char*)"",(char*)"",cols,1,rows,ndbs);
     m_trx.tx(connid,outb,sz_out);
 
     delete []outb ;
@@ -321,17 +384,17 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
       continue ;
     }
 
-    rows[i] = (char*)td->table.c_str();
-
-    sz_total += td->table.length() + 5;
+    rows[i]  = (char*)td->table.c_str();
+    sz_total+= td->table.length() + 5;
   }
 
   {
     /* allocate output buffer */
     char *outb = new char [sz_total] ;
+    char *cols[] {(char*)"Table"} ;
 
-    sz_out = mysqls_gen_simple_qry_resp(outb,m_svrStat,
-      m_charSet,sn+1, (char*)"Table",rows,valid_tbls);
+    sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
+      m_charSet,sn+1,(char*)"",(char*)"",cols,1,rows,valid_tbls);
     m_trx.tx(connid,outb,sz_out);
 
     delete []outb ;
@@ -342,20 +405,58 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
 
 int myproxy_frontend::do_show_proclst(int connid,int sn)
 {
-  //uint16_t i=0;
-  char /***rows=0,*/ *outb = 0 ;
-  size_t sz_out = 0, **sz_rows = 0, sz_total = 400;
+  char *outb = 0 ;
+  size_t total = 400, sz_out = 0;
+  const size_t nCols = 9;
   const size_t nConn = m_lss.size();
-  char *rows[nConn];
+  tSessionDetails* ps = 0;
+  safeLoginSessions::ITR_TYPE itr ;
+  char *rows[nConn*nCols] ;
+  uint16_t i=0;
 
-  /* allocates out buffer */
-  outb = new char [sz_total];
+  /* FIXME: NOT thread-safe */
+  for (i=0,ps=m_lss.next(itr,true);ps;ps=m_lss.next(itr),i++) {
 
-  sz_out = mysqls_gen_show_proc_list_resp(outb,m_svrStat,
-      m_charSet, sn+1,rows,sz_rows,0);
-  m_trx.tx(connid,outb,sz_out);
+    total += ps->db.length()+ ps->usr.length() + 50 ;
 
-  delete [] outb ;
+    /* session id */
+    rows[i*nCols+0] = (char*)ps->id.c_str();
+    /* user */
+    rows[i*nCols+1] = (char*)ps->usr.c_str();
+    /* host */
+    rows[i*nCols+2] = (char*)ps->addr.c_str();
+    /* db */
+    rows[i*nCols+3] = (char*)ps->db.c_str();
+    /* command */
+    rows[i*nCols+4] = (char*)ps->cmd.c_str();
+    /* time */
+    char tmp[64] = "";
+    sprintf(tmp,"%lld",time(NULL)-ps->times);
+    ps->s_times = tmp ;
+    rows[i*nCols+5] = (char*)ps->s_times.c_str();
+    /* state */
+    rows[i*nCols+6] = (char*)ps->stat.c_str();
+    /* info */
+    rows[i*nCols+7] = (char*)ps->info.c_str();
+    /* progress */
+    rows[i*nCols+8] = (char*)" ";
+  }
+
+  {
+    const char *cols[] {"Id", "User", "Host", "Db",
+      "Command", "Time", "State", "Info", "Progress"
+    } ;
+
+    /* allocates out buffer */
+    outb = new char [total];
+
+    sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
+      m_charSet,sn+1,(char*)"",(char*)"",(char**)cols,nCols,
+      rows,nConn);
+    m_trx.tx(connid,outb,sz_out);
+
+    delete [] outb ;
+  }
 
   return MP_OK;
 }
@@ -371,10 +472,12 @@ int myproxy_frontend::do_com_query(int connid,
 
   /* do a simple parse on incoming statement */
   ret = do_simple_explain(pStmt,sz-5,cmd);
-  if (ret==-1) {
-    log_print("command error: %s\n",pStmt);
-    return MP_ERR;
+
+  /* mark down the activities */
+  if (ret==MP_OK) {
+    m_lss.set_cmd(connid,st_qry,pStmt);
   }
+
   switch (cmd) {
     /* make this com_query request be sharding
      *  in backends */
@@ -435,6 +538,12 @@ int myproxy_frontend::do_com_query(int connid,
       }
       break ;
   }
+
+  /* for any errors, mark down it */
+  if (ret==MP_ERR) {
+    m_lss.set_cmd(connid,st_error,pStmt);
+  }
+
   return ret;
 }
 
@@ -584,15 +693,7 @@ int myproxy_frontend::do_server_greeting(int cid)
   /* 
    * create new connection region 
    */
-#if 0
-  mysqls_gen_rand_string(cs.scramble,AP_LENGTH-1);
-  cs.scramble[AP_LENGTH] = 0;
-  cs.sc_len = AP_LENGTH-1;
-  cs.status = cs_init ;
-  m_lss.add_session(cid,&cs);
-#else
   cs = m_lss.add_session(cid);
-#endif
   /* 
    * generate greeting packet 
    */

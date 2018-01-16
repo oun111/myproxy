@@ -228,8 +228,23 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, 
         continue ;
       }
 
-      log_print("fetch dn %d for `%s.%s`\n",pm->dn,
-        p_tn->sch.c_str(),p_tn->tbl.c_str());
+      /*  for 'select' statements, route to 'read' or 'both' type datanodes */
+      if (sp->stmt_type==mktype(m_stmt,s_select)) {
+        if (pm->io_type==it_write) {
+          log_print("dn %d %s conflicts with 'select'\n",pm->dn,iot2str(pm->io_type));
+          continue ;
+        }
+      }
+      /* other statements, route to 'write' or 'both' type datanodes */
+      else {
+        if (pm->io_type==it_read) {
+          log_print("dn %d %s conflicts with others\n",pm->dn,iot2str(pm->io_type));
+          continue ;
+        }
+      }
+
+      log_print("fetch dn %d for `%s.%s` %s\n",pm->dn,
+        p_tn->sch.c_str(),p_tn->tbl.c_str(),iot2str(pm->io_type));
 
       tr.insert(pm->dn);
     }

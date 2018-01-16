@@ -21,6 +21,14 @@ enum ioTypes {
   it_write,
   it_both
 } ;
+
+auto iot2str = [&](auto &iot) {
+  return iot==it_read?"ioType 'read'" : 
+    iot==it_write?"ioType 'write'" : 
+    iot==it_both?"ioType 'both'" :
+    "ioType error";
+} ;
+
 using MAPPING_INFO = struct mapping_info_t {
   std::string dataNode; /* target data node name */
   uint8_t io_type ; /* 0 read, 1 write, 2 both */

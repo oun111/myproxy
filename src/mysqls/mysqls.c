@@ -361,29 +361,6 @@ int mysqls_sprintf(char *outb, int err, va_list args)
   return 0;
 }
 
-size_t mysqls_calc_err_res(char *err)
-{
-  /*
-   * mysql error packet format:
-   *
-   *   size [3 bytes]
-   *
-   *   serial [1byte]
-   *
-   *   err header [1byte]
-   *
-   *   err code [2 bytes]
-   *
-   *   sql state marker [1byte]
-   *
-   *   sql state string [5 bytes]
-   *
-   *   error message [null-terminated]
-   *
-   */
-  return 4+1+2+1+5+strlen(err)+1;
-}
-
 uint8_t mysqls_is_error(char *inb,size_t sz)
 {
   return sz<5?true:(inb[4]&0xff)==0xff;
@@ -442,24 +419,6 @@ int mysqls_gen_error(char *inb, uint16_t sql_stat,
   end += 5;
   /* the error string */
   mysqls_sprintf(end,err_code,args);
-  end = strend(end)+1;
-  /* set packet size */
-  ul3store(end-inb-4,psz);
-  return end-inb;
-}
-
-int mysqls_gen_error1(char *inb, char *sql_stat, 
-  int err_code, uint32_t sn, char *err)
-{
-  char *psz = inb, *end = inb ;
-
-  end += mysqls_gen_err(inb,err_code,sn);
-  /* the sql state string */
-  if (sql_stat) memcpy(end,sql_stat,5);
-  else bzero(end,5);
-  end += 5;
-  /* the error string */
-  strcpy(end,err);
   end = strend(end)+1;
   /* set packet size */
   ul3store(end-inb-4,psz);
@@ -614,29 +573,22 @@ void mysqls_update_req_size(char *inb, size_t sz)
   ul3store(sz,inb);
 }
 
-int mysqls_gen_normal_proto_hdr(char *inb, size_t sz, int sn)
+int mysqls_gen_qry_field_resp(char *inb, uint16_t sql_stat, 
+  int char_set,uint32_t sn, char *db, char *tbl, char **rows, 
+  size_t numRows)
 {
   char *end = inb ;
-
-  /* length bytes */
-  ul3store(sz,end);
-  end += 3;
-  *end++ = sn ;
-  return end-inb;
-}
-
-int mysqls_gen_dummy_qry_field_resp(char *inb, 
-  uint16_t sql_stat, int char_set, uint32_t sn)
-{
-  char *end = inb ;
+  uint16_t i=0;
 
   /* 
    * #1 column definitions
    */
-  end += mysqls_gen_col_def(end,sn++,(char*)"dummy db",
-    (char*)"dummy table",(char*)"dummy table",(char*)"dummy column",
-    (char*)"dummy column",char_set,64,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,(char*)"0");
+  for (i=0;i<numRows;i++) {
+    end += mysqls_gen_col_def(end,sn++,db,
+      tbl,(char*)"",rows[i],(char*)"",
+      char_set,64,MYSQL_TYPE_VAR_STRING,
+      NOT_NULL_FLAG,(char*)"0");
+  }
   /* 
    * #2 eof packet
    */
@@ -644,47 +596,10 @@ int mysqls_gen_dummy_qry_field_resp(char *inb,
   return end-inb;
 }
 
-int mysqls_gen_res_end(char *inb, uint32_t sn, 
-  uint16_t stat)
-{
-  return mysqls_gen_eof(inb,sn,0,stat);
-}
-
-int mysqls_gen_common_query_resp_hdr(char *inb, 
-  size_t nCol, int *sn, void *pvFields, int stat)
-{
-  char *end = inb ;
-  uint16_t n = 0;
-  MYSQL_FIELD *fields = pvFields ;
-
-  /*
-   * #0 column count packet
-   */
-  /* length bytes */
-  ul3store(1,end);
-  end += 3;
-  *end++ = (*sn)++ ;
-  /* column count */
-  *end++ = nCol ;
-  /* 
-   * #1 column def details 
-   */
-  for (n=0;n<nCol;n++) {
-    end += mysqls_gen_col_def(end,(*sn)++,fields[n].schema,
-      fields[n].tbl,fields[n].tbl_alias,fields[n].name,
-      fields[n].alias,fields[n].charset,fields[n].len,
-      fields[n].type,fields[n].flags,0);
-  }
-  /* 
-   * #2 eof packet
-   */
-  end += mysqls_gen_eof(end,(*sn)++,0,stat);
-  return end-inb;
-}
-
-int mysqls_gen_desc_tbl_resp(char *inb, uint16_t sql_stat, 
-  int char_set, uint32_t sn, char **rows, size_t *sz_rows[],
-  size_t num_rows)
+int mysqls_gen_normal_resp(char *inb, uint16_t sql_stat, 
+  int char_set, uint32_t sn, char *db, char *tbl, 
+  char **cols, size_t num_cols,
+  char **rows, size_t num_rows)
 {
   uint16_t i=0;
   char *psz = inb, *end = inb, *begin = inb ;
@@ -699,41 +614,17 @@ int mysqls_gen_desc_tbl_resp(char *inb, uint16_t sql_stat,
   end[0] = sn++ ;
   end++ ;
   /* column count */
-  end[0] = 6;
+  end[0] = num_cols;
   end++;
   /* 
    * #2 column definitions
    */
-  /* 'Field' */
-  end += mysqls_gen_col_def(end,sn++,(char*)"information_schema",
-    (char*)"COLUMNS",(char*)"COLUMNS",(char*)"Field",
-    (char*)"COLUMN_NAME",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 'Type' */
-  end += mysqls_gen_col_def(end,sn++,(char*)"information_schema",
-    (char*)"COLUMNS",(char*)"COLUMNS",(char*)"Type",
-    (char*)"COLUMN_TYPE",char_set,65535,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 'Null' */
-  end += mysqls_gen_col_def(end,sn++,(char*)"information_schema",
-    (char*)"COLUMNS",(char*)"COLUMNS",(char*)"Null",
-    (char*)"IS_NULLABLE",char_set,9,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 'Key' */
-  end += mysqls_gen_col_def(end,sn++,(char*)"information_schema",
-    (char*)"COLUMNS",(char*)"COLUMNS",(char*)"Key",
-    (char*)"COLUMN_KEY",char_set,9,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 'Default' */
-  end += mysqls_gen_col_def(end,sn++,(char*)"information_schema",
-    (char*)"COLUMNS",(char*)"COLUMNS",(char*)"Default",
-    (char*)"COLUMN_DEFAULT",char_set,9,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 'Extra' */
-  end += mysqls_gen_col_def(end,sn++,(char*)"information_schema",
-    (char*)"COLUMNS",(char*)"COLUMNS",(char*)"Extra",
-    (char*)"COLUMN_EXTRA",char_set,9,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
+  for (i=0;i<num_cols;i++) {
+    end += mysqls_gen_col_def(end,sn++,db,
+      tbl,(char*)"",(char*)cols[i],
+      (char*)"",char_set,64,MYSQL_TYPE_VAR_STRING,
+      NOT_NULL_FLAG,NULL);
+  }
   /* 
    * #3 eof packet
    */
@@ -749,155 +640,12 @@ int mysqls_gen_desc_tbl_resp(char *inb, uint16_t sql_stat,
     /* fill in serial number */
     end[0] = sn++ ;
     end++ ;
-    /* row content */
-    memcpy(end,rows[i],*sz_rows[i]);
-    end += *sz_rows[i];
-    /* write back packet size */
-    ul3store(end-inb-4,psz);
-  }
-  /*
-   * #5 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-  return end-begin;
-}
 
-int mysqls_gen_show_proc_list_resp(char *inb, uint16_t sql_stat, 
-  int char_set, uint32_t sn, char **rows, size_t *sz_rows[],
-  size_t num_rows)
-{
-  uint16_t i=0;
-  char *psz = inb, *end = inb, *begin = inb ;
+    /* row contents by columns */
+    for (int n=0;n<num_cols;n++) {
+      end += lenenc_str_set(end,rows[i*num_cols+n]);
+    }
 
-  /*
-   * #1 field count
-   */
-  /* packet size */
-  ul3store(1,end);
-  end+=3;
-  /* fill in serial number */
-  end[0] = sn++ ;
-  end++ ;
-  /* column count */
-  end[0] = 9;
-  end++;
-  /* 
-   * #2 column definitions
-   */
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"Id",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"User",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"Host",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"db",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"Command",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"Time",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"State",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"Info",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"Progress",
-    (char*)"",char_set,192,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 
-   * #3 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-  /*
-   * #4 encoding rows
-   */
-  for (i=0;i<num_rows;i++) {
-    inb = end ;
-    /* SKIP packet size */
-    psz = inb ;
-    end+=3;
-    /* fill in serial number */
-    end[0] = sn++ ;
-    end++ ;
-    /* row content */
-    memcpy(end,rows[i],*sz_rows[i]);
-    end += *sz_rows[i];
-    /* write back packet size */
-    ul3store(end-inb-4,psz);
-  }
-  /*
-   * #5 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-  return end-begin;
-}
-
-int mysqls_gen_simple_qry_resp(char *inb, uint16_t sql_stat, 
-  int char_set, uint32_t sn, char *col, char **rows, size_t num_rows)
-{
-  uint16_t i=0;
-  char *psz = inb, *end = inb, *begin = inb ;
-
-  /*
-   * #1 field count
-   */
-  /* packet size */
-  ul3store(1,end);
-  end+=3;
-  /* fill in serial number */
-  end[0] = sn++ ;
-  end++ ;
-  /* column count */
-  end[0] = 1;
-  end++;
-  /* 
-   * #2 column definitions
-   */
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)col,
-    (char*)"",char_set,64,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 
-   * #3 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-  /*
-   * #4 encoding rows
-   */
-  for (i=0;i<num_rows;i++) {
-    inb = end ;
-    /* SKIP packet size */
-    psz = inb ;
-    end+=3;
-    /* fill in serial number */
-    end[0] = sn++ ;
-    end++ ;
-    /* row content */
-    end += lenenc_str_set(end,(char*)rows[i]);
     /* write back packet #2 size */
     ul3store(end-inb-4,psz);
   }
@@ -906,74 +654,6 @@ int mysqls_gen_simple_qry_resp(char *inb, uint16_t sql_stat,
    */
   end += mysqls_gen_eof(end,sn++,0,sql_stat);
   return end-begin;
-}
-
-int mysqls_gen_ver_cmt_qry_resp(char *inb, uint16_t sql_stat, 
-  int char_set, uint32_t sn)
-{
-  char *psz = inb, *end = inb, *begin = inb ;
-
-  /*
-   * #1 field count
-   */
-  /* packet size */
-  ul3store(1,end);
-  end+=3;
-  /* fill in serial number */
-  end[0] = sn++ ;
-  end++ ;
-  /* column count */
-  end[0] = 1;
-  end++;
-  /* 
-   * #2 column definitions
-   */
-  end += mysqls_gen_col_def(end,sn++,(char*)"",
-    (char*)"",(char*)"",(char*)"@@version_comment",
-    (char*)"",char_set,64,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 
-   * #3 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-  /*
-   * #4 rows
-   */
-  inb = end ;
-  /* SKIP packet size */
-  psz = inb ;
-  end+=3;
-  /* fill in serial number */
-  end[0] = sn++ ;
-  end++ ;
-  /* row content */
-  end += lenenc_str_set(end,(char*)"myproxy dist source");
-  /* write back packet #2 size */
-  ul3store(end-inb-4,psz);
-  /*
-   * #5 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-  return end-begin;
-}
-
-int mysqls_extract_next_rec(char *inb, int sz, 
-  char **rec, int *szRec)
-{
-  *szRec = 0;
-  /* not enough bytes */
-  if (sz<5) {
-    return -1;
-  }
-  /* it's eof */
-  if ((inb[4]&0xff)==0xfe) {
-    return 1;
-  }
-  /* begining of record */
-  *rec  = inb ;
-  /* get size bytes */
-  *szRec = byte3_2_ul(inb)+4 ;
-  return 0;
 }
 
 bool mysqls_is_digit_type(uint8_t type)
@@ -1043,22 +723,6 @@ char* mysqls_save_one_col_def(void *p, char *ptr, char *def_db)
   return ptr ;
 }
 
-
-int mysqls_extract_column_def(char *inb, size_t sz, 
-  void *cols, size_t num_cols, char *def_db)
-{
-  MYSQL_COLUMN *pc = cols ;
-  char *ptr = inb ;
-  int nCol = 0;
-
-  /* skip column count packet */
-  ptr += 5 ;
-  for (nCol=0;nCol<num_cols;nCol++,pc++) {
-    ptr= mysqls_save_one_col_def(pc,ptr,def_db);
-  }
-  return 0;
-}
-
 int 
 mysqls_extract_prepared_info(
   char *inb, 
@@ -1107,220 +771,6 @@ int mysqls_extract_column_count(char *inb, size_t sz)
   return inb[0]&0xff;
 }
 
-int mysqls_gen_dummy_qry_resp(char *inb, uint16_t sql_stat, 
-  int char_set, uint32_t sn)
-{
-  char *psz = inb, *end = inb, *begin = inb ;
-
-  /*
-   * #1 field count
-   */
-  /* packet size */
-  ul3store(1,end);
-  end+=3;
-  /* fill in serial number */
-  end[0] = sn++ ;
-  end++ ;
-  /* column count */
-  end[0] = 1;
-  end++;
-  /* 
-   * #2 column definitions
-   */
-  end += mysqls_gen_col_def(end,sn++,(char*)"db2",
-    (char*)"table",(char*)"table0",(char*)"column",
-    (char*)"column0",char_set,64,MYSQL_TYPE_VAR_STRING,
-    NOT_NULL_FLAG,NULL);
-  /* 
-   * #3 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-#if 1
-  /*
-   * #4 rows
-   */
-  inb = end ;
-  /* SKIP packet size */
-  psz = inb ;
-  end+=3;
-  /* fill in serial number */
-  end[0] = sn++ ;
-  end++ ;
-  /* row content */
-  end += lenenc_str_set(end,(char*)"row0");
-  /* write back packet #2 size */
-  ul3store(end-inb-4,psz);
-  /*
-   * #5 eof packet
-   */
-  end += mysqls_gen_eof(end,sn++,0,sql_stat);
-#endif
-  return end-begin;
-}
-
-size_t mysqls_calc_single_col_def(void *pvFields)
-{
-  size_t total = 0;
-  MYSQL_FIELD *field = pvFields ;
-
-  /* mysql header + column definition */
-  total += 4;
-  /* catalog */
-  total += 4;
-  /* db */
-  total += strlen(field->schema)+1;
-  /* table  */
-  total += strlen(field->tbl)+1;
-  /* origin table  */
-  total += strlen(field->tbl_alias)+1;
-  /* column */
-  total += strlen(field->name)+1;
-  /* original column */
-  total += strlen(field->alias)+1;
-  /* 0xc + charset + column-length + type + flags + decimals + filter */
-  total += 1+ 2 + 4 + 1 + 2 + 1 + 2;
-  return total ;
-}
-
-size_t mysqls_calc_common_ok_res(void)
-{
-  /* packet size + sn: 4 bytes */
-  return 4 + 
-    /* affected rows, max size */
-    10 +
-    /* last inserted id, max size */
-    10 +
-    /* server status + warnings: 4 bytes */
-    4 ;
-}
-
-size_t mysqls_calc_col_def(void *pvField, size_t num_cols)
-{
-  uint16_t n=0;
-  size_t total = 0;
-  MYSQL_FIELD *field = pvField;
-
-  /* mysql header + column count */
-  total += 4+1;
-  for (n=0;n<num_cols;n++) {
-    /* mysql header + column definition */
-    total += mysqls_calc_single_col_def(&(field[n]));
-  }
-  /* the eof frame */
-  total += 10;
-  return total ;
-}
-
-/* parse command code from request packet */
-int mysqls_get_command(char *inb, size_t sz)
-{
-  return sz<5?-1:(inb[4]&0xff);
-}
-
-/* calculates the size of sql-prepare response */
-size_t mysqls_calc_stmt_prep_res_size(void *pholders, 
-  size_t num_phs, void *columns, size_t num_cols)
-{
-  uint16_t n=0;
-  size_t total = 0;
-  MYSQL_FIELD *field = 0;
-
-  /* 1st frame: the summary */
-  total += 16 ;
-  /* next frame: place-holder detail if exists */
-  field = (MYSQL_FIELD*)pholders ;
-  for (n=0;n<num_phs;n++) {
-    total += mysqls_calc_single_col_def(&(field[n]));
-  }
-  /* next frame: eof */
-  total += 9 ;
-  /* next frame: result-set column detail if exists */
-  field = (MYSQL_FIELD*)columns ;
-  for (n=0;n<num_cols;n++) {
-    total += mysqls_calc_single_col_def(&(field[n]));
-  }
-  /* next frame: eof */
-  total += 9 ;
-  
-  return total ;
-}
-
-/* generates the sql-prepare response */
-size_t mysqls_gen_stmt_prep_res(char *inb, int stmt_id,
-  void *pholders, size_t num_phs, void *columns, 
-  size_t num_cols, int num_warns, int stat)
-{
-  MYSQL_FIELD *fields = 0;
-  char *end = inb, *psz = 0 ;
-  uint8_t my_sn = 1;
-  uint16_t n=0;
-
-  /* 
-   * 1st frame: the summary 
-   */
-  psz = end ;
-  end +=3;
-  /* sn */
-  *end++ = my_sn++ ;
-  /* the OK byte */
-  *end++ = 0;
-  /* statement id */
-  ul4store(stmt_id,end);
-  end += 4;
-  /* result-set column count */
-  ul2store(num_cols,end);
-  end +=2;
-  /* place-holder count */
-  ul2store(num_phs,end);
-  end +=2;
-  /* reserve byte */
-  *end++ = 0;
-  /* warnings */
-  ul2store(num_warns,end);
-  end +=2;
-  /* fill back size */
-  ul3store(end-psz-4,psz);
-  /*
-   * next frame: the place-holders
-   */
-  for (n=0,fields=pholders;n<num_phs;n++) {
-    end += mysqls_gen_col_def(end,my_sn++,fields[n].schema,
-      fields[n].tbl,fields[n].tbl_alias,fields[n].alias,
-      fields[n].name,fields[n].charset,fields[n].len,
-      fields[n].type,fields[n].flags,0);
-  }
-  if (num_phs>0) {
-    end += mysqls_gen_eof(end,my_sn++,0,stat);
-  }
-  /*
-   * next frame: the result-set columns
-   */
-  for (n=0,fields=columns;n<num_cols;n++) {
-    end += mysqls_gen_col_def(end,my_sn++,fields[n].schema,
-      fields[n].tbl,fields[n].tbl_alias,fields[n].alias,
-      fields[n].name,fields[n].charset,fields[n].len,
-      fields[n].type,fields[n].flags,0);
-  }
-  if (num_cols>0) {
-    end += mysqls_gen_eof(end,my_sn++,0,stat);
-  }
-
-  return end-inb ;
-}
-
-int mysqls_update_stmt_newbound_flag(char *inb, size_t sz, uint8_t val)
-{
-  char *end = inb ;
-
-  if (sz<10) {
-    return -1;
-  }
-  /* get to offset of 'new bound flag' */
-  end += 4+1+4+1+4+1 ;
-  *end = val;
-  return 0;
-}
-
 int mysqls_update_stmt_prep_stmt_id(char *inb, size_t sz, int id)
 {
   char *end = inb ;
@@ -1340,17 +790,6 @@ int mysqls_get_stmt_prep_stmt_id(char *inb, size_t sz, int *id)
     return -1;
   }
   *id = byte4_2_ul(end+5);
-  return 0;
-}
-
-int mysqls_get_param_count(char *inb, size_t sz, uint16_t *cnt)
-{
-  char *end = inb ;
-
-  if (sz<10) {
-    return -1;
-  }
-  *cnt = byte2_2_ul(end+5+4+2);
   return 0;
 }
 
