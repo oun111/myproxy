@@ -11,7 +11,9 @@
     "DatanodeGroupCount" : "3",
 
     "BindAddr" : "127.0.0.1",
-    "ListenPort" : "2331"
+    "ListenPort" : "2331",
+
+    "IdleSeconds" : "3600"
   },
 
   "DataNodes": {
@@ -22,12 +24,12 @@
     },
     "dn2": {
       "Address": "127.0.0.1",
-      "Schema": "tsdb1",
+      "Schema": "tsdb2",
       "Auth": {"root":"123"}
     },
     "dn3": {
       "Address": "127.0.0.1",
-      "Schema": "tsdb0",
+      "Schema": "tsdb3",
       "Auth": {"root":"123"}
     }
   },
@@ -118,10 +120,10 @@
           }
         },
         "test_tbl": {
-          /* "Mappings": {
-            "dn1": { "IoType": "read"},
-            "dn2": { "IoType": "read"}
-          }, */
+           "Mappings": {
+            "dn2": { "IoType": "both"},
+            "dn3": { "IoType": "both"}
+          },
           "shardingKey": {
             "id": { "rule": "modN" }
           },

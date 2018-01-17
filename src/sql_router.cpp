@@ -149,7 +149,7 @@ int sql_router::get_full_route_by_conf(
   )
 {
   /* calculate routes of related tables in statement by configs */
-  if (get_related_table_route(sp,rlist)) {
+  if (get_related_table_route(sp,rlist) || rlist.size()==0) {
     log_print("get full table route fail\n");
     return -1;
   }
@@ -207,9 +207,10 @@ int
 sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, const unsigned long max)
 {
   TABLE_NAME *p_tn = 0;
+  unsafeTblKeyList::ITR_TYPE itr ;
 
   /* iterates each related table */
-  for (p_tn=sp->m_tblKeyLst.next(true);p_tn;p_tn=sp->m_tblKeyLst.next()) {
+  for (p_tn=sp->m_tblKeyLst.next(itr,true);p_tn;p_tn=sp->m_tblKeyLst.next(itr)) {
 
     /* get mapping info from table list */
     tTblDetails *td = m_tables.get(p_tn->sch.c_str(),p_tn->tbl.c_str());
@@ -227,7 +228,7 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, 
         log_print("fatal: datanode %d 's in-active!\n",pm->dn);
         continue ;
       }
-
+#if 1
       /*  for 'select' statements, route to 'read' or 'both' type datanodes */
       if (sp->stmt_type==mktype(m_stmt,s_select)) {
         if (pm->io_type==it_write) {
@@ -242,7 +243,7 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, 
           continue ;
         }
       }
-
+#endif
       log_print("fetch dn %d for `%s.%s` %s\n",pm->dn,
         p_tn->sch.c_str(),p_tn->tbl.c_str(),iot2str(pm->io_type));
 
@@ -294,6 +295,9 @@ sql_router::get_sharding_route(tSqlParseItem *sp, std::set<uint8_t> &rlist)
     (this->*ha)(psv,rlist);
 
   } /* end for(...) */
+
+  log_print("route list size: %zu\n",rlist.size());
+
   return 0;
 }
 
@@ -405,7 +409,6 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     for (auto i : rlist) {
       log_print(">>> %d \n",i);
     }
-    log_print("\n\n");
   }
 #endif
   return 0;

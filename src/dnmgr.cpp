@@ -119,7 +119,11 @@ int dnGroups::get_free_group(safeDataNodeList* &nodes, int &gid)
 int dnGroups::return_group(int gid)
 {
   if (gid>=0&&gid<m_nDnGroups) {
+
     m_freeGroupIds.push(gid);
+
+    /* reset the idle counter */
+    m_idleCount = 0;
 
     log_print("release datanode group %d\n",gid);
   }
@@ -262,7 +266,7 @@ int dnmgr::add_dn_tbl_relations(auto sch, auto tbl)
         log_print("warning: data node %d is in-active!\n",pd->no);
       }
 
-      m_tables.add((char*)sch->name.c_str(),
+      m_tables.add_map((char*)sch->name.c_str(),
         (char*)tbl->name.c_str(),pd->no,iot);
 
       log_print("added DEFAULT data node %d(%s) io type %d to "
@@ -290,7 +294,7 @@ int dnmgr::add_dn_tbl_relations(auto sch, auto tbl)
         log_print("warning: data node %d is in-active!\n",idn);
       }
 
-      m_tables.add((char*)sch->name.c_str(),
+      m_tables.add_map((char*)sch->name.c_str(),
         (char*)tbl->name.c_str(),idn,mi->io_type);
 
       log_print("added data node %d(%s) io type %d to "
@@ -339,6 +343,7 @@ int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt, bool check)
   uint8_t kt = 0;
   bool nullable = false;
   char buf[128], *dtype=0, *cname=0, *def=0, *extra=0;
+  char *pnull = 0, *pkt=0;
   uint16_t n=0;
   MYSQL_RES *mr = 0;
   char **results = 0;
@@ -365,7 +370,7 @@ int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt, bool check)
   /* initiates the iteration */
   mysql_store_result(pd->mysql);
 
-  while ((results=mysql_fetch_row(mr))) {
+  for (size_t nRow=0;(results=mysql_fetch_row(mr)) && nRow<mysql_num_rows(mr);nRow++) {
 
     for (n=0;n<mysql_num_fields(mr);n++) {
       switch (n) {
@@ -377,12 +382,14 @@ int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt, bool check)
           break ;
         /* null-able */
         case 2: nullable = strcasecmp(results[n],"no") ;
+          pnull = results[n];
           break ;
         /* key type */
         case 3:
           kt = !strncasecmp(results[n],"pri",3)?0:
             !strncasecmp(results[n],"mul",3)?1:
             !strncasecmp(results[n],"uni",3)?2:0xff;
+          pkt = results[n];
           break;
         /* default value */
         case 4: 
@@ -395,19 +402,18 @@ int dnmgr::update_tbl_extra_info(tDNInfo *pd, tTblDetails *pt, bool check)
             results[n][0]=='\0'?NULL:results[n];
           break ;
       }
-      log_print("column %d: %s\n", n,
-        results[n][0]=='\0'?"null":results[n]);
-
     }
 
+    log_print("column %zu: name: %s, type: %s, null-able: %s, key: %s, default: %s, extra: %s\n",
+      nRow,cname,dtype,pnull,pkt,def,extra);
+
     /* add extra infos to table list */
-    m_tables.add(const_cast<char*>(pt->schema.c_str()),
+    m_tables.add_col_extra(const_cast<char*>(pt->schema.c_str()),
       const_cast<char*>(pt->table.c_str()),cname,dtype,
       nullable,kt,def,extra);
   }
 
-  log_print("%zu columns in %s\n", 
-    pt->num_cols, pt->table.c_str());
+  log_print("%zu columns in %s\n", pt->columns.size(), pt->table.c_str());
 
   return 0;
 }
@@ -436,7 +442,7 @@ int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt, bool check)
   log_print("********struct of table %s.%s*********\n",
     pt->schema.c_str(),pt->table.c_str());
 
-  for (nCol=0,pt->num_cols=0;nCol<pd->mysql->columns.number;nCol++) {
+  for (nCol=0;nCol<pd->mysql->columns.number;nCol++) {
 
     /* extract column details */
     mf = ((MYSQL_FIELD*)pd->mysql->columns.c)+nCol ;
@@ -445,12 +451,12 @@ int dnmgr::update_tbl_struct(tDNInfo *pd, tTblDetails *pt, bool check)
       mf->charset,mf->type,mf->len,mf->flags);
 
     /* add column to table list */
-    m_tables.add(const_cast<char*>(pt->schema.c_str()),mf->tbl,
+    m_tables.add_col(const_cast<char*>(pt->schema.c_str()),mf->tbl,
       mf->name,mf->charset,mf->len,mf->type,mf->flags);
   }
 
   log_print("%zu columns in %s\n", 
-    pt->num_cols, pt->table.c_str());
+    pt->columns.size(), pt->table.c_str());
 
   return 0;
 }

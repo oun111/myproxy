@@ -42,7 +42,7 @@ protected:
   int new_xa(tSessionDetails*,sock_toolkit*,int,int,
     char*,size_t,int&,int=st_na);
 
-  int get_route(int xaid, int id, tSqlParseItem &sp,
+  int get_route(int xaid, int id, tSqlParseItem *sp,
     bool fullroute, bool needcache,
     std::set<uint8_t> &rlist);
 

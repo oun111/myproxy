@@ -138,8 +138,9 @@ int sql_parser::enum_sharding_configs(
 {
   TABLE_NAME *pt = 0;
   SHARDING_KEY *ps = 0;
+  unsafeTblKeyList::ITR_TYPE itr ;
 
-  for (pt=sp->m_tblKeyLst.next(true);pt;(pt=sp->m_tblKeyLst.next())) {
+  for (pt=sp->m_tblKeyLst.next(itr,true);pt;(pt=sp->m_tblKeyLst.next(itr))) {
     /* try to match the sharding list */
     ps = m_shds.get((char*)pt->sch.c_str(),
       (char*)pt->tbl.c_str(),strCol);
@@ -412,8 +413,10 @@ int sql_parser::collect_shd_cols_4_normal_insert(
      */
     /* iterates all table columns and test 
      *  for sharding columns */
-    for (pc=m_tables.get_col(db,tbl,(tColDetails*)NULL),i=0;pc;
-       pc=m_tables.get_col(db,tbl,pc),i++) 
+    safeTableDetailList::col_itr itr ;
+
+    for (pc=m_tables.next_col(db,tbl,itr,true),i=0;pc;
+       pc=m_tables.next_col(db,tbl,itr),i++) 
     {
       ps = m_shds.get(db,tbl,(char*)pc->col.name);
       if (ps)

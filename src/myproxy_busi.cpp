@@ -258,22 +258,26 @@ int myproxy_frontend::do_com_field_list(int connid,char *inb,
 
   /* send actual table column details */
   {
-    const size_t numRows = td->num_cols;
+    const size_t numRows = td->columns.size();
     char *rows[numRows];
     tColDetails *cd = 0;
     char *outb = 0;
     size_t total = 0;
+    safeTableDetailList::col_itr itr ;
+    bool bStart = true;
 
     /* calc the packet size and assign column names */
     for (uint16_t i=0;i<numRows;i++) {
       /* get each columns */
-      cd = m_tables.get_col((char*)pss->db.c_str(),(char*)tbl.c_str(),cd);
+      cd = m_tables.next_col((char*)pss->db.c_str(),(char*)tbl.c_str(),itr,bStart);
       if (!cd)
         break ;
 
       total += strlen(cd->col.name)+pss->db.length()+tbl.length()+100 ;
 
       rows[i] = cd->col.name ;
+
+      if (bStart) bStart=false;
     }
 
     outb = new char [total];

@@ -257,6 +257,19 @@ int unsafeTblKeyList::add(
   return 0;
 }
 
+/* move objects */
+unsafeTblKeyList* unsafeTblKeyList::operator =(unsafeTblKeyList &&lst)
+{
+  clear();
+
+  for (auto pa : lst.m_list) {
+    m_list.insert(pa);
+  }
+  lst.m_list.clear();
+
+  return this;
+}
+
 int unsafeTblKeyList::drop(uint32_t k, bool bRemove)
 {
   TABLE_NAME *pt = find(k);
@@ -279,14 +292,9 @@ int unsafeTblKeyList::drop(char *schema,char *tbl,bool bRemove)
 void unsafeTblKeyList::clear(void)
 {
   list_foreach_container_item {
-    drop(i.first,false);
+    delete i.second ;
   }
-}
-
-TABLE_NAME* unsafeTblKeyList::next(bool bStart)
-{
-  /* XXX: the 'next' call needs a lock initializing */
-  return safe_container_base<uint32_t,TABLE_NAME*>::next(m_itr,bStart);
+  m_list.clear();
 }
 
 /*
@@ -657,15 +665,6 @@ void unsafeAggInfoList::clear(void)
   m_list.clear();
 }
 
-agg_info* unsafeAggInfoList::next(bool bStart)
-{
-  if (safe_vector_base<agg_info*>::next(m_itr,bStart)) {
-    return NULL ;
-  }
-
-  return *m_itr;
-}
-
 #if 0
 /* copy current object */
 unsafeAggInfoList* unsafeAggInfoList::operator =(unsafeAggInfoList &lst)
@@ -712,15 +711,12 @@ void tSqlParseItem::reset(void)
 
 tSqlParseItem* tSqlParseItem::operator = (tSqlParseItem &ps)
 {
-#if 0
-  m_svs   = ps.m_svs ;
-  m_types = ps.m_types;
-  m_aggs  = ps.m_aggs;
-#else
-  m_svs   = std::move(ps.m_svs) ;
-  m_types = std::move(ps.m_types);
-  m_aggs  = std::move(ps.m_aggs);
-#endif
+  m_svs       = std::move(ps.m_svs) ;
+  m_types     = std::move(ps.m_types);
+  m_aggs      = std::move(ps.m_aggs);
+  m_tblKeyLst = std::move(ps.m_tblKeyLst);
+  stmt_type   = ps.stmt_type ;
+
   return this;
 }
 
@@ -1073,8 +1069,8 @@ int safeTableDetailList::add(char *schema,
   if (!td) {
     td = new tTblDetails ;
     td->key     = key ;
-    td->columns = 0;
     td->dn_maps.clear();
+    td->columns.clear();
     try_write_lock();
     insert(key,td);
   } else {
@@ -1086,7 +1082,6 @@ int safeTableDetailList::add(char *schema,
     try_write_lock();
     td->schema      = schema ;
     td->table       = table ;
-    td->num_cols    = 0;
     td->bValid      = 1;
     if (phy_schema)
       td->phy_schema= phy_schema ;
@@ -1095,47 +1090,36 @@ int safeTableDetailList::add(char *schema,
   return 0;
 }
 
-int safeTableDetailList::add(char *schema, 
+int safeTableDetailList::add_col(char *schema, 
   char *table, char *column, uint16_t charset, uint32_t maxlen, 
   uint8_t type, uint16_t flags)
 {
   uint64_t key = gen_key(schema,table);
   tTblDetails *td = get(key);
-  tColDetails *cd = 0, *prev = 0;
-  uint16_t nCol = 0;
+  tColDetails *cd = 0;
+  uint32_t ckey = str2id(column);
+  col_itr itr ;
 
   if (!td) {
-    td = new tTblDetails ;
-    td->key = key ;
-    td->dn_maps.clear();
-    try_write_lock();
-    insert(key,td);
+    log_print("fatal: no table entry `%s.%s` found\n",schema,table);
+    return -1;
   }
 
   {
+    try_read_lock();
+    itr = td->columns.find(ckey);
+  }
+
+  if (itr==td->columns.end()) {
+    cd = new tColDetails ;
     try_write_lock();
+    td->columns[ckey] = cd ;
+  } else {
+    cd = itr->second ;
+  }
 
-    /* iterate column list */
-    for (cd=td->columns;nCol<td->num_cols&&cd/*&&cd->next*/;
-       prev=cd,cd=cd->next,nCol++) {
-      if (!strcasecmp(column,cd->col.name))
-        break ;
-    }
-
-    if (nCol>=td->num_cols) {
-      /* table's empty, create the first one */
-      if (!td->columns) {
-        td->columns = new tColDetails ;
-        cd = td->columns ;
-        cd->next = NULL;
-      } else if (!cd/*->next*/) {
-        /* add to tail of column list */
-        cd = new tColDetails ;
-        cd->next  = NULL;
-        prev->next= cd ;
-      }
-      td->num_cols ++ ;
-    }
+  {
+    try_read_lock();
 
     /* update the column */
     strcpy(cd->col.schema,schema);
@@ -1154,7 +1138,7 @@ int safeTableDetailList::add(char *schema,
   return 0;
 }
 
-int safeTableDetailList::add(char *schema, 
+int safeTableDetailList::add_col_extra(char *schema, 
   char *table, char *col, char *dtype, 
   bool null_able, uint8_t key_type, char *def_val, 
   char *ext)
@@ -1162,28 +1146,29 @@ int safeTableDetailList::add(char *schema,
   uint64_t key = gen_key(schema,table);
   tTblDetails *td = get(key);
   tColDetails *cd = 0;
-  uint16_t nCol = 0;
+  col_itr itr ;
 
   if (!td) {
-    /* FATAL: no table entry found */
-    log_print("fatal: no entry for %lu found\n",key);
+    log_print("fatal: no table entry `%s.%s` found\n",schema,table);
+    return -1;
+  }
+
+  {
+    uint32_t ckey = str2id(col);
+
+    try_read_lock();
+    itr = td->columns.find(ckey);
+  }
+
+  if (itr==td->columns.end()) {
+    log_print("fatal: no column entry `%s` found\n",col);
     return -1;
   }
 
   {
     try_write_lock();
 
-    /* iterate column list */
-    for (cd=td->columns;nCol<td->num_cols&&cd&&cd->next;
-       cd=cd->next,nCol++) {
-      if (!strcmp(cd->col.name,col))
-        break ;
-    }
-
-    if (nCol>=td->num_cols) {
-      /* no specific column found */
-      return -1;
-    }
+    cd = itr->second ;
 
     /* update the column extra information */
     bzero(&cd->ext,sizeof(cd->ext));
@@ -1200,7 +1185,7 @@ int safeTableDetailList::add(char *schema,
   return 0;
 }
 
-int safeTableDetailList::add(char *schema, 
+int safeTableDetailList::add_map(char *schema, 
   char *table, uint8_t dn, uint8_t io_type)
 {
   uint64_t key = gen_key(schema,table);
@@ -1209,7 +1194,7 @@ int safeTableDetailList::add(char *schema,
 
   if (!td) {
     /* FATAL: no table entry found */
-    log_print("fatal: no entry for %lu found\n",key);
+    log_print("fatal: no table entry `%s.%s` found\n",schema,table);
     return -1;
   }
 
@@ -1235,44 +1220,38 @@ int safeTableDetailList::add(char *schema,
   return 0;
 }
 
-tColDetails* safeTableDetailList::get_col(char *sch, char *tbl, tColDetails *prev)
+tColDetails* safeTableDetailList::next_col(char *sch, char *tbl, col_itr &itr, bool bStart)
 {
   uint64_t key = gen_key(sch,tbl);
   tTblDetails *td = 0;
 
   td = get(key);
   if (!td) {
-    return 0;
+    return NULL;
   }
 
   try_read_lock();
-  return !prev?td->columns:prev->next;
+  itr = bStart?td->columns.begin():itr++ ;
+
+  return itr->second;
 }
 
 tColDetails* safeTableDetailList::get_col(char *sch, char *tbl, char *col)
 {
   uint64_t key = gen_key(sch,tbl);
   tTblDetails *td = 0;
-  tColDetails *pc = 0;
-  uint16_t ncol = 0;
 
   td = get(key);
   if (!td) {
-    return 0;
+    return NULL;
   }
 
-  {
-    try_read_lock();
+  uint32_t ckey = str2id(col);
 
-    /* iterates the column list */
-    for (pc=td->columns,ncol=0;pc&&ncol<td->num_cols;
-       pc=pc->next,ncol++) {
-      if (!strcasecmp(pc->col.name,col)) 
-        return pc ;
-    } /* end for(...) */
-  }
+  try_read_lock();
+  col_itr itr = td->columns.find(ckey);
 
-  return 0;
+  return itr==td->columns.end()?NULL:itr->second ;
 }
 
 tTblDetails* safeTableDetailList::get(uint64_t key)
@@ -1322,7 +1301,6 @@ void safeTableDetailList::set_valid(tTblDetails *td)
 int safeTableDetailList::drop(uint64_t key)
 {
   tTblDetails *td = get(key);
-  tColDetails *cd = 0, *pc = 0;
 
   if (!td)
     return -1;
@@ -1332,16 +1310,17 @@ int safeTableDetailList::drop(uint64_t key)
   }
 
   /* release columns */
-  for (pc=td->columns;pc;) {
-    cd = pc ;
-    pc=pc->next ;
-    delete cd ;
+  for (auto pc : td->columns) {
+    delete pc.second ;
   }
+  td->columns.clear();
+
   /* release data node mappings */
   for (auto dm : td->dn_maps) {
     delete dm.second ;
   }
   td->dn_maps.clear();
+
   delete td ;
 
   log_print("droping entry key %lu\n",key);
@@ -1351,18 +1330,15 @@ int safeTableDetailList::drop(uint64_t key)
 
 void safeTableDetailList::clear(void)
 {
-  tColDetails *cd = 0, *pc = 0;
-
   {
     try_write_lock();
 
     list_foreach_container_item {
       /* release columns */
-      for (pc=i.second->columns;pc;) {
-        cd = pc ;
-        pc=pc->next ;
-        delete cd ;
+      for (auto pc : i.second->columns) {
+        delete pc.second ;
       }
+      i.second->columns.clear();
 
       /* release data node mappings */
       for (auto dm : i.second->dn_maps) {
@@ -1376,6 +1352,8 @@ void safeTableDetailList::clear(void)
 
     m_list.clear();
   }
+
+  log_print("clearing all tables!!\n");
 }
 
 uint64_t safeTableDetailList::gen_key(char *schema, char *tbl)
@@ -1830,9 +1808,11 @@ safeClientStmtInfoList::add_stmt(int cid, char *prep_req, size_t sz,
 {
   tClientStmtInfo *ci = get(cid);
   int lstmtid = 0;
+  tStmtInfo *si = 0;
 
   /* test if statement is already added */
-  if (ci && ci->stmts.get(prep_req,sz)) {
+  if (ci && (si=ci->stmts.get(prep_req,sz))) {
+    __sync_lock_test_and_set(&ci->curr.lstmtid,si->lstmtid);
     return 0;
   }
   if (!ci) {
@@ -2128,7 +2108,7 @@ int safeRxStateList::set(int fd, uint8_t new_st)
   return 0;
 }
 
-uint8_t safeRxStateList::next(int fd)
+uint8_t safeRxStateList::next_state(int fd)
 {
   uint8_t st = get(fd);
   
@@ -2169,7 +2149,7 @@ tContainer* safeColDefGroup::get(int myfd)
 /* get 1st column def item in list */
 tContainer* safeColDefGroup::get_first(void) 
 {
-  try_read_lock();
+  //try_read_lock();
 
   ITR_TYPE i;
 

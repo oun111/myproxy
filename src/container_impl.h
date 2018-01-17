@@ -92,10 +92,10 @@ public:
   int add(char*,char*,char*) ;
   TABLE_NAME* get(char*,char*);
   TABLE_NAME* get(char*);
+  unsafeTblKeyList* operator =(unsafeTblKeyList&&);
   int drop(char*,char*,bool=true);
   int drop(uint32_t,bool=true);
   void clear(void);
-  TABLE_NAME* next(bool=false);
 };
 
 class sv_t {
@@ -187,7 +187,6 @@ public:
   //int add(agg_info *pa) ;
   /* clean up the list */
   void clear(void);
-  agg_info* next(bool bStart=false);
   /* copy current object */
   //unsafeAggInfoList* operator =(unsafeAggInfoList&);
   /* move objects */
@@ -516,7 +515,6 @@ public:
   MYSQL_COLUMN col ;
   /* extra column infomations */
   tColExtra ext;
-  tColDetails *next ;
 } ;
 
 class tDnMappings {
@@ -529,11 +527,6 @@ class tTblDetails {
 public:
   /* combined with: schema-id + table-id */
   uint64_t key ;
-#if 0
-  /* data node number to execute sql, only processor 
-   *  uses this bytes */
-  int dn ;
-#endif
   /* physical schema name */
   std::string phy_schema ;
   /* logical schema name */
@@ -541,14 +534,14 @@ public:
   /* table name */
   std::string table ;
   /* column list */
+#if 0
   tColDetails *columns ; 
   size_t num_cols ;
+#else
+  std::map<uint32_t,tColDetails*> columns ;
+#endif
   /* configured data node mappings */
-  //tDnMappings *conf_dn ;
   std::map<uint8_t,tDnMappings*> dn_maps ;
-  /* 
-   * TODO: add index definitions here 
-   */
 
   /* is table valid */
   int bValid ;
@@ -566,26 +559,27 @@ public:
   ~safeTableDetailList(void) { clear(); lock_release(); }
 
   using dnMap_itr = std::map<uint8_t,tDnMappings*>::iterator;
+  using col_itr = std::map<uint32_t,tColDetails*>::iterator ;
 public:
   uint64_t gen_key(char*,char*);
   tTblDetails* get(uint64_t);
   tTblDetails* get(const char*,const char*);
   tColDetails* get_col(char*,char*,char*);
-  tColDetails* get_col(char*,char*,tColDetails*);
+  tColDetails* next_col(char*,char*,col_itr&,bool=false);
   /* table mappings */
   tDnMappings* next_map(tTblDetails*,dnMap_itr&,bool=false);
   /* add empty table */
   int add(char *schema, char *table, 
     char *phy_schema=0, int dn=-1);
   /* add a column of a table of a schema */
-  int add(char *schema, char *table, 
+  int add_col(char *schema, char *table, 
     char *colum, uint16_t charset, uint32_t maxlen, 
     uint8_t type, uint16_t flags);
-  int add(char *schema, char *table, 
+  int add_col_extra(char *schema, char *table, 
     char *column, char* display_type,
     bool null_able, uint8_t key_type, 
     char *def_val, char *ext);
-  int add(char *schema, char *table, 
+  int add_map(char *schema, char *table, 
     uint8_t dn, uint8_t io_type);
   bool is_valid(tTblDetails*) const;
   void set_invalid(tTblDetails*);
@@ -724,7 +718,7 @@ public:
   /* clear all items */
   void clear(void);
   /* to next state */
-  uint8_t next(int);
+  uint8_t next_state(int);
 } ;
 
 /* 

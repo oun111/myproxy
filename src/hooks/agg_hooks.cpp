@@ -327,6 +327,7 @@ int agg_hooks::do_aggregates(tContainer &finalRes, agg_params *params)
   xa_item *xai = params->xai;
   int cfd = xai->get_client_fd();
   tSqlParseItem *sp = 0;
+  unsafeAggInfoList::ITR_TYPE itr ;
 
   /* get 'parse item' */
   if (stmts.get_curr_sp(cfd,sp)) {
@@ -335,7 +336,9 @@ int agg_hooks::do_aggregates(tContainer &finalRes, agg_params *params)
   }
 
   /* deal with each aggregation columns */
-  for (auto pai=sp->m_aggs.next(true);pai;pai=sp->m_aggs.next()) {
+  for (int rc=sp->m_aggs.next(itr,true);!rc;rc=sp->m_aggs.next(itr)) {
+
+    agg_info *pai = *itr;
 
     if (xai->m_txBuff.tc_length()==0) 
       continue ;

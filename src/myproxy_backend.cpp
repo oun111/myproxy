@@ -112,7 +112,7 @@ int myproxy_backend::end_xa(int cid)
 int 
 myproxy_backend::get_route(int xaid, 
   int cid,
-  tSqlParseItem &sp,
+  tSqlParseItem *sp,
   bool fullroute, /* route to all datanodes or not */ 
   bool needcache,
   std::set<uint8_t> &rlist)
@@ -127,8 +127,8 @@ myproxy_backend::get_route(int xaid,
   }
 
   sql_router router(*nodes) ;
-  if (fullroute?router.get_full_route_by_conf(&sp,rlist):
-     router.get_route(cid,&sp,rlist)) {
+  if (fullroute?router.get_full_route_by_conf(sp,rlist):
+     router.get_route(cid,sp,rlist)) {
 
     log_print("error calculating routes\n");
 
@@ -236,7 +236,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   }
 
   /* calcualte routing infomations */
-  if ((rc=get_route(xaid,cid,sp,false,true,rlist))) {
+  if ((rc=get_route(xaid,cid,&sp,false,true,rlist))) {
 
     if (rc==-1) {
       m_pendingQ.push(st,cid,com_query,req,sz,st_na);
@@ -281,7 +281,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   std::set<uint8_t> rlist ;
   tContainer err ;
   sql_parser parser ;
-  tSqlParseItem sp ;
+  tSqlParseItem *sp = 0, tsp ;
   hook_framework hooks ;
   auto inner_del_tree = [&](auto &bNew,auto &t) 
   {
@@ -331,18 +331,27 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   szSql= sz -5;
 
   /* dig informations from tree into 'sp' */
-  if (cmd_state==st_prep_trans && 
-     parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
+  if (cmd_state==st_prep_trans) {
 
-    log_print("error parse statement %s\n",pSql);
+    if (parser.scan(pSql,szSql,&tsp,pDb,err,pTree)) {
 
-    inner_del_tree(bNewTree,pTree);
-    /* 
-     * TODO: send the error message to client 
-     */
-    return -1;
+      log_print("error parse statement %s\n",pSql);
+
+      inner_del_tree(bNewTree,pTree);
+      /* 
+       * TODO: send the error message to client 
+       */
+      return -1;
+    }
+
+    sp = &tsp;
+  } 
+  /* this's a 're-prepare' request, get parser info directly */
+  else {
+    m_stmts.get_curr_sp(cid,sp);
   }
 
+  /* route to all available datanodes */
   if (get_route(xaid,cid,sp,true,false,rlist)) {
     log_print("fail getting route\n");
 
@@ -354,7 +363,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   /* this prepare command should send response to client */
   if (cmd_state==st_prep_trans) {
     /* save prepare info */
-    m_stmts.add_stmt(cid,(char*)pOldReq,(size_t)szOldReq,0,pTree,sp);
+    m_stmts.add_stmt(cid,(char*)pOldReq,(size_t)szOldReq,0,pTree,*sp);
   } 
   else {
     /* the tree is newly created and is no used any more */
@@ -461,6 +470,8 @@ int myproxy_backend::deal_parser_item(int cid, char *req, size_t sz,
 
   mysqls_get_stmt_prep_stmt_id(req,sz,&lstmtid);
   if (m_stmts.get_parser_item(cid,lstmtid,sp)) {
+    log_print("fatal: cant get parser item, cid %d, lstmtid %d\n",
+      cid,lstmtid);
     return -1;
   }
 
@@ -513,6 +524,9 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     return 1;
   }
 
+  /* prepare for calculating routes... */
+  deal_parser_item(cid,req,sz,sp);
+
   /* test whether this statement was prepared at 
    *  the datanode group before */
   if (test_prepared(cid,req,sz,xaid)) {
@@ -528,13 +542,11 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     return 1;
   }
 
-  /* prepare for calculating routes... */
-  deal_parser_item(cid,req,sz,sp);
   /* fill in sharding values if it's place holder */
   save_sv_by_placeholders(sp,nphs,req,sz);
 
   /* calcualte routing infomations */
-  if ((ret=get_route(xaid,cid,*sp,false,true,rlist))) {
+  if ((ret=get_route(xaid,cid,sp,false,true,rlist))) {
 
     if (ret==-1) {
       m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
@@ -764,7 +776,7 @@ myproxy_backend::deal_query_res(
 
     /* end of column defs */
     if (mysqls_is_eof(res,sz)) {
-      xai->m_states.next(myfd);
+      xai->m_states.next_state(myfd);
       /* save last sn */
       xai->set_last_sn(sn);
     } 
@@ -784,7 +796,7 @@ myproxy_backend::deal_query_res(
 
     /* end of row sets */
     if (mysqls_is_eof(res,sz)) {
-      xai->m_states.next(myfd);
+      xai->m_states.next_state(myfd);
       /* not the last eof recv, just go back */
       if (xai->inc_ok_count()<xai->get_desire_dn()) 
         return 0;
