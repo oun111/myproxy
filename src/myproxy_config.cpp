@@ -64,6 +64,9 @@ const char *tWrite[] = {
 const char *ruleSec[] = {
   "rule"
 };
+const char *rangeSec[] = {
+  "ranges"
+};
 const char *rRgnMap[] = {
   "rangeMap"
 };
@@ -119,15 +122,20 @@ void myproxy_config::reset(void)
   SCHEMA_BLOCK *ps = 0;
 
   /* clear data node list */
-  for (i=0;i<m_dataNodes.size();i++) 
+  for (i=0;i<m_dataNodes.size();i++) {
     delete m_dataNodes[i] ;
+  }
+  m_dataNodes.clear();
+
   /* clear schema list */
   for (i=0;i<m_schemas.size();i++) {
     ps = m_schemas[i] ;
     for (m=0;m<ps->table_list.size();m++) {
       pt = ps->table_list[m] ;
-      for (n=0;n<pt->map_list.size();n++) 
+      for (n=0;n<pt->map_list.size();n++) {
         delete pt->map_list[n] ;
+      }
+      pt->map_list.clear();
 #if 0
       for (n=0;n<pt->priKeys.size();n++) 
         delete []pt->priKeys[n];
@@ -135,7 +143,11 @@ void myproxy_config::reset(void)
       /* delete the table info itself */
       delete pt ;
     }
+    ps->table_list.clear();
+    delete ps ;
   }
+
+  m_schemas.clear();
 }
 
 int myproxy_config::parse_global_settings(void)
@@ -271,7 +283,7 @@ int myproxy_config::parse_data_nodes(void)
     return -1;
   }
   /* create datanode list */
-  for (num_dataNodes=0,i=0;i<pj->list.size();i++) {
+  for (i=0;i<pj->list.size();i++) {
 
     /* search duplicated tables */
     if (check_duplicate(__func__,pj->list,i)) {
@@ -285,9 +297,8 @@ int myproxy_config::parse_data_nodes(void)
       m_dataNodes.push_back(node);
     }
 
-    int &pos = num_dataNodes;
+    node = m_dataNodes.back();
 
-    node = m_dataNodes[pos];
     node->name = pi->key ;
     /* parse address:port */
     if (!(tmp=find(pi,(char*)dbAddr[0]))) {
@@ -316,43 +327,40 @@ int myproxy_config::parse_data_nodes(void)
     node->auth.usr = tmp->list[0]->key ;
     node->auth.pwd = tmp->list[0]->value ;
 
-    pos++;
   }
   return 0;
 }
 
 SCHEMA_BLOCK* myproxy_config::get_schema(const char *sch)
 {
-  uint16_t i=0;
-
-  for (;i<num_schemas;i++) {
-    if (m_schemas[i]->name==sch)
-      return m_schemas[i];
+  for (auto ps : m_schemas) {
+    if (ps->name==sch)
+      return ps;
   }
   return 0;
 }
 
 SCHEMA_BLOCK* myproxy_config::get_schema(uint16_t idx)
 {
-  if (idx>=m_schemas.size() || idx>=num_schemas)
+  if (idx>=m_schemas.size() || idx>=m_schemas.size())
     return NULL;
   return m_schemas[idx];
 }
 
 size_t myproxy_config::get_num_schemas(void)
 {
-  return num_schemas ;
+  return m_schemas.size() ;
 }
 
 size_t myproxy_config::get_num_tables(SCHEMA_BLOCK *sch)
 {
-  return sch->num_tbls;
+  return sch->table_list.size();
 }
 
 TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
   uint16_t idx)
 {
-  if (idx>=sch->num_tbls)
+  if (idx>=sch->table_list.size())
     return NULL;
   return sch->table_list[idx];
 }
@@ -401,7 +409,7 @@ int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
     return 0;
   }
 
-  for (m=0,pt->num_maps=0;m<p1->list.size();m++) {
+  for (m=0;m<p1->list.size();m++) {
 
     /* search duplicated mappings */
     if (check_duplicate(__func__,p1->list,m)) {
@@ -414,9 +422,7 @@ int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
       pt->map_list.push_back(pm);
     }
 
-    int &pos = pt->num_maps; 
-
-    pm = pt->map_list[pos];
+    auto pm = pt->map_list.back();
     /* data node name */
     pm->dataNode = p1->list[m]->key ;
     /* data node io type */
@@ -427,7 +433,52 @@ int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
       pm->io_type = it_both ;
     }
 
-    pos++ ;
+  }
+
+  return 0;
+}
+
+int
+myproxy_config::save_range_maps(jsonKV_t *s_map, SHARDING_EXTRA &se)
+{
+  int rStart = 0, rEnd = 0, dn = 0;
+
+  for (auto pm : s_map->list) {
+    dn = atoi(pm->key.c_str());
+
+    sscanf(pm->value.c_str(),"%d,%d",&rStart,&rEnd);
+    printf("mv: %d: %d - %d\n", dn, rStart, rEnd);
+
+    se.map[dn] = std::pair<int,int>(rStart,rEnd);
+  }
+
+  /* check for ranges */
+  for (auto pm : se.map) {
+    auto cmp = pm ;
+    int dn = cmp.first ;
+    int rstart = cmp.second.first ;
+    int rend = cmp.second.second ;
+
+    if (rstart>rend) {
+      log_print("invalid range for dn %d: %d - %d\n",
+        dn,rstart,rend);
+      return -1;
+    }
+
+    for (auto pm2 : se.map) {
+      if (cmp==pm2) continue ;
+
+      int rstart1 = pm2.second.first ;
+      int rend1 = pm2.second.second ;
+
+      /* overlapped ranges */
+      if (!(rend<rstart1 || rend1<rstart)) {
+        log_print("invalid ranges for dn %d: %d - %d\n",
+          pm2.first,rstart1,rend1);
+        return -1;
+      }
+    }
+
   }
 
   return 0;
@@ -447,6 +498,7 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
   }
 
   for (m=0;m<p1->list.size();m++) {
+
     SHARDING_EXTRA se ;
 
     /* search duplicated sharding keys */
@@ -466,10 +518,18 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
       p2->value==rModN[0]?t_modN:
       t_dummy;
 
+    /* save the 'range map' rules */
+    if (rule==t_rangeMap) {
+      jsonKV_t *tmp = find(p1->list[m],(char*)rangeSec[0]);
+
+      if (!tmp || save_range_maps(tmp,se)) {
+        return -1;
+      }
+    }
+
     /* add to sharding key list */
-    m_shds.add(strSchema,strTbl,
-      (char*)p1->list[m]->key.c_str(),
-      rule, &se);
+    m_shds.add(strSchema,strTbl, (char*)p1->list[m]->key.c_str(),
+      rule, se);
 
   } /* end for(...) */
 
@@ -484,8 +544,8 @@ myproxy_config::parse_globalid_list(jsonKV_t *jsonTbl, char *strTbl, char *strSc
   uint8_t intv = 0;
 
   if (!(p1=find(jsonTbl,(char*)globalIdSec[0]))) {
-    log_print("found NO global id columns for table %s\n", 
-      strTbl);
+    log_print("found NO global id columns for table %s.%s\n", 
+      strSchema,strTbl);
     return 0;
   }
 
@@ -530,7 +590,7 @@ int myproxy_config::parse_schemas(void)
     log_print("schema entry not found\n");
     return -1;
   }
-  for (i=0,num_schemas=0;i<pj->list.size();i++) {
+  for (i=0;i<pj->list.size();i++) {
 
     /* search duplicated tables */
     if (check_duplicate(__func__,pj->list,i)) {
@@ -542,9 +602,7 @@ int myproxy_config::parse_schemas(void)
       m_schemas.push_back(ps);
     }
 
-    int &pos0 = num_schemas ;
-
-    ps = m_schemas[pos0];
+    ps = m_schemas.back();
     /* schema name */
     pi = pj->list[i] ;
     ps->name = pi->key;
@@ -554,8 +612,7 @@ int myproxy_config::parse_schemas(void)
         ps->name.c_str());
       return -1;
     }
-    for (n=0,ps->num_auths=0;n<tmp->list.size();
-       n++,ps->num_auths++) {
+    for (n=0;n<tmp->list.size();n++) {
       if (n>=ps->auth_list.size()) {
         pa = new AUTH_BLOCK ;
         ps->auth_list.push_back(pa);
@@ -572,7 +629,7 @@ int myproxy_config::parse_schemas(void)
         ps->name.c_str());
       continue;
     }
-    for (n=0,ps->num_tbls=0;n<tmp->list.size();n++) {
+    for (n=0;n<tmp->list.size();n++) {
 
       /* search duplicated tables */
       if (check_duplicate(__func__,tmp->list,n)) {
@@ -584,9 +641,7 @@ int myproxy_config::parse_schemas(void)
         ps->table_list.push_back(pt);
       }
 
-      int &pos = ps->num_tbls;
-
-      pt = ps->table_list[pos] ;
+      pt = ps->table_list.back();
       /* table name */
       pt->name = tmp->list[n]->key ;
       /* 
@@ -614,10 +669,8 @@ int myproxy_config::parse_schemas(void)
       }
       /* TODO: more attributes here */
 
-      pos++;
     }
 
-    pos0++;
   }
   return 0;
 }
@@ -683,6 +736,8 @@ int myproxy_config::read_conf(const char *infile)
 
 int myproxy_config::reload(void)
 {
+  reset();
+
   return read_conf(m_confFile.c_str());
 }
 
@@ -723,16 +778,9 @@ bool myproxy_config::is_db_exists(char *db)
 
 void myproxy_config::dump(void)
 {
-  uint16_t i=0,m=0,n=0;
-  DATA_NODE *pd = 0;
-  SCHEMA_BLOCK *ps = 0;
-  AUTH_BLOCK *pa = 0;
-  TABLE_INFO *pt = 0;
-  MAPPING_INFO *pm = 0;
-
   log_print("dumping data nodes*****: \n");
-  for (i=0;i<num_dataNodes;i++) {
-    pd = m_dataNodes[i] ;
+
+  for (auto pd : m_dataNodes) {
     log_print("name: %s\n", pd->name.c_str());
     log_print("addr: 0x%x:%d\n", pd->address,pd->port);
     log_print("schema: %s\n", pd->schema.c_str());
@@ -740,22 +788,18 @@ void myproxy_config::dump(void)
       pd->auth.pwd.c_str());
   }
   log_print("dumping schemas*****: \n");
-  for (i=0;i<num_schemas;i++) {
-    ps = m_schemas[i];
+  for (auto ps : m_schemas) {
     log_print("name: %s\n",ps->name.c_str());
     log_print("dumping auth list*****: \n");
-    for (m=0;m<ps->num_auths;m++) {
-      pa = ps->auth_list[m] ;
+    for (auto pa : ps->auth_list) {
       log_print("usr: %s, pwd: %s\n",pa->usr.c_str(),
         pa->pwd.c_str());
     }
     log_print("dumping table list*****: \n");
-    for (m=0;m<ps->num_tbls;m++) {
-      pt = ps->table_list[m];
+    for (auto pt : ps->table_list) {
       log_print("name: %s\n",pt->name.c_str());
       log_print("dumping mapping list*****: \n");
-      for (n=0;n<pt->num_maps;n++) {
-        pm = pt->map_list[n] ;
+      for (auto pm : pt->map_list) {
         log_print("node: %s\n",pm->dataNode.c_str());
         log_print("io: %d\n",pm->io_type);
       }
@@ -771,9 +815,7 @@ void myproxy_config::dump(void)
 
 int myproxy_config::get_dataNode(char *name)
 {
-  uint16_t i=0;
-
-  for (i=0;i<num_dataNodes;i++) {
+  for (size_t i=0;i<m_dataNodes.size();i++) {
     if (m_dataNodes[i]->name==name)
       return i;
   }
@@ -782,13 +824,13 @@ int myproxy_config::get_dataNode(char *name)
 
 DATA_NODE* myproxy_config::get_dataNode(uint16_t idx)
 {
-  if (idx>=m_dataNodes.size() || idx>=num_dataNodes)
+  if (idx>=m_dataNodes.size() || idx>=m_dataNodes.size())
     return NULL;
   return m_dataNodes[idx] ;
 }
 
 size_t myproxy_config::get_num_dataNodes(void)
 {
-  return num_dataNodes;
+  return m_dataNodes.size();
 }
 

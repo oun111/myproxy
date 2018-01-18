@@ -63,6 +63,9 @@
           },
           "shardingKey": {
             "USERID": { "rule": "dummy" }
+          },
+          "globalIdColumn": {
+            "userid" : { "interval":"1" }
           }
         },
 
@@ -170,6 +173,9 @@
           },
           "shardingKey": {
             "userid": { "rule": "dummy" }
+          },
+          "globalIdColumn": {
+            "userid" : { "interval":"1" }
           }
         },
 

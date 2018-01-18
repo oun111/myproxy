@@ -10,7 +10,7 @@ if ($ARGV[$#ARGV]==0 || $ARGV[$#ARGV]==1) {
   #system "rm -f core";
   system "killall myproxy_app" ;
   if ($ARGV[$#ARGV]==1) {
-     system "./src/myproxy_app -c ./conf/configure_dummy.json &  " ;
+     system "./src/myproxy_app -c ./conf/configure_pressure_test.json &  " ;
 #    system "./src/myproxy_app -c ./conf/configure.json &  " ;
   }
 }

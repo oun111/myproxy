@@ -7,10 +7,10 @@
 #include "resizable_container.h"
 #include "mysqlc.h"
 
-/* extra info of sharding key, such as value-range  */
 class SHARDING_EXTRA {
 public:
-  char hole[1];
+  /* for 'range map' sharding */
+  std::map<uint8_t,std::pair<int,int>> map;
 } ;
 
 class SHARDING_KEY {
@@ -19,7 +19,7 @@ public:
   std::string tbl ; /* name of related table */
   std::string col ; /* name of sharding column */
   uint8_t rule ; /* sharding rule on the column */
-  SHARDING_EXTRA extra ; 
+  SHARDING_EXTRA extra ;
 } ;
 
 class safeShardingColumnList : public safe_container_base<uint32_t,SHARDING_KEY*>
@@ -34,7 +34,7 @@ public:
   uint32_t get_key(char*,char*,char*);
   SHARDING_KEY* get(char*,char*,char*);
   SHARDING_KEY* get(uint32_t);
-  int add(char*,char*,char*,uint8_t,SHARDING_EXTRA*);
+  int add(char*,char*,char*,uint8_t,SHARDING_EXTRA&);
   int drop(uint32_t);
   int drop(char*,char*,char*);
   void clear(void);

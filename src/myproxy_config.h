@@ -10,7 +10,8 @@
 /* 
  * proxy config structures 
  */
-using AUTH_BLOCK = struct auth_block_t {
+class AUTH_BLOCK  {
+public:
   std::string usr;
   std::string pwd;
 } ;
@@ -29,7 +30,8 @@ auto iot2str = [&](auto &iot) {
     "ioType error";
 } ;
 
-using MAPPING_INFO = struct mapping_info_t {
+class MAPPING_INFO  {
+public:
   std::string dataNode; /* target data node name */
   uint8_t io_type ; /* 0 read, 1 write, 2 both */
 } ;
@@ -42,10 +44,11 @@ enum tRules {
   t_maxRules,
 } ;
 
-using TABLE_INFO = struct table_info_t {
+class TABLE_INFO {
+public:
   std::string name ; /* target table name */
   std::vector<MAPPING_INFO*> map_list ;
-  int num_maps;
+  //int num_maps;
 #if 0
   std::vector<char*> priKeys ; /* primary key list */
   int num_priKeys;
@@ -55,17 +58,19 @@ using TABLE_INFO = struct table_info_t {
 /*
  * schema block definition
  */
-using SCHEMA_BLOCK = struct schema_block_t {
+class SCHEMA_BLOCK {
+public:
   std::string name; /* the schema name */
   std::vector<AUTH_BLOCK*> auth_list ;
-  int num_auths;
+  //int num_auths;
   std::vector<TABLE_INFO*> table_list ;
-  int num_tbls ;
+  //int num_tbls ;
 } ;
 /* 
  * data node definition 
  */
-using DATA_NODE = struct data_node_t {
+class DATA_NODE {
+public:
   std::string name;
   uint32_t address;
   uint16_t port ;
@@ -75,7 +80,8 @@ using DATA_NODE = struct data_node_t {
 /*
  * global settings
  */
-using GLOBAL_SETTINGS = struct global_settings_t {
+class GLOBAL_SETTINGS {
+public:
   size_t szCachePool ;
   size_t numDnGrp ;
   size_t szThreadPool ;
@@ -102,12 +108,12 @@ public:
    * the data node list 
    */
   std::vector<DATA_NODE*> m_dataNodes ;
-  int num_dataNodes;
+  //int num_dataNodes;
   /* 
    * the schema list 
    */
   std::vector<SCHEMA_BLOCK*> m_schemas;
-  int num_schemas;
+  //int num_schemas;
   /*
    * the sharding column list
    */
@@ -178,6 +184,8 @@ protected:
   void reset(void);
 
   int check_duplicate(const char*,std::vector<struct tJsonParserKeyVal*>&,size_t);
+
+  int save_range_maps(jsonKV_t*,SHARDING_EXTRA&);
 } ;
 
 #endif /* __MYPROXY_CONFIG_H__*/

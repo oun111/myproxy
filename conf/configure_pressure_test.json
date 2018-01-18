@@ -1,0 +1,83 @@
+{
+  "Globals": {
+
+    "__comment" : "*** total worker threads ***",
+    "ThreadPoolSize" : "10",
+
+    "__comment" : "*** total caches in pool ***",
+    "CachePoolSize" : "5",
+
+    "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
+    "DatanodeGroupCount" : "3",
+
+    "BindAddr" : "127.0.0.1",
+    "ListenPort" : "2331",
+
+    "IdleSeconds" : "3600"
+  },
+
+  "DataNodes": {
+    "dn1": {
+      "Address": "127.0.0.1:3306",
+      "Schema": "orcl",
+      "Auth": {"root":"123"}
+    },
+    "dn2": {
+      "Address": "127.0.0.1",
+      "Schema": "tsdb2",
+      "Auth": {"root":"123"}
+    },
+    "dn3": {
+      "Address": "127.0.0.1",
+      "Schema": "tsdb3",
+      "Auth": {"root":"123"}
+    },
+    "dn_huge_0": {
+      "Address": "127.0.0.1",
+      "Schema": "tsdb0",
+      "Auth": {"root":"123"}
+    },
+    "dn_huge_1": {
+      "Address": "127.0.0.1",
+      "Schema": "tsdb1",
+      "Auth": {"root":"123"}
+    }
+  },
+
+  "Schemas": {
+
+    "db2": {
+      "Auth": {"root": "123"},
+      "Tables": {
+        "test_tbl_1": {
+          "Mappings": {
+            "dn2": { "IoType": "read"}
+          },
+          "shardingKey": {
+            "id": { "rule": "dummy" }
+          }
+        },
+        "test_tbl": {
+           "Mappings": {
+            "dn2": { "IoType": "both"},
+            "dn3": { "IoType": "both"}
+          },
+          "shardingKey": {
+            "id": { 
+              "rule": "rangeMap", 
+              "ranges" : {
+                "0" : "10,14",
+                "1" : "11,100"
+              }
+            }
+          },
+          "globalIdColumn": {
+            "id" : { "interval":"1" }
+          }
+        }
+
+      }
+    }
+  }
+}
+

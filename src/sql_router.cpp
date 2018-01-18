@@ -269,7 +269,7 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, 
 #if 0
   {
     log_print("content of table route list: \n");
-    for (auto i : tr) {
+    for (auto i : rlst) {
       log_print(">>> %d \n",i);
     }
     log_print("\n\n");

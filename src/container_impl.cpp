@@ -12,6 +12,7 @@
 #include "sql_tree.h"
 #include "dbug.h"
 #include "dnmgr.h"
+#include "myproxy_config.h"
 
 
 /*
@@ -53,7 +54,7 @@ SHARDING_KEY* safeShardingColumnList::get(uint32_t k)
 }
 
 int safeShardingColumnList::add(char *schema, char *tbl, 
-  char *col, uint8_t rule, SHARDING_EXTRA *pse)
+  char *col, uint8_t rule, SHARDING_EXTRA &se)
 {
   uint32_t k = get_key(schema,tbl,col);
   SHARDING_KEY *sk = get(k);
@@ -69,9 +70,7 @@ int safeShardingColumnList::add(char *schema, char *tbl,
     sk->tbl = tbl ;
     sk->col = col ;
     sk->rule= rule ;
-    if (pse) {
-      memcpy(&sk->extra,pse,sizeof(SHARDING_EXTRA));
-    }
+    if (rule==t_rangeMap) sk->extra.map = std::move(se.map) ;
   }
   return 0;
 }
