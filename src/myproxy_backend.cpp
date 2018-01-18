@@ -139,7 +139,7 @@ myproxy_backend::get_route(int xaid,
         ER_INTERNAL_GET_ROUTE);
       m_trx.tx(cid,outb,sz_out);
     }
-    /* return back the datanodes */
+
     return -2;
   }
 
@@ -729,11 +729,11 @@ myproxy_backend::deal_query_res(
 {
   int cfd = xai->get_client_fd(), nCols = 0;
   int sn = mysqls_extract_sn(res);
+  int xaid = xai->get_xid();
 
   /* check validation of xaid */
-  if (!m_xa.get_xa(xai->get_xid())) {
-    log_print("invalid xaid %d %p from %d\n", 
-      xai->get_xid(),xai,myfd);
+  if (!m_xa.get_xa(xaid)) {
+    log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
     return -1;
   }
 
@@ -924,11 +924,12 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
   int nCols = 0, nPhs = 0;
   const int cfd = xai->get_client_fd();
   const int sn = mysqls_extract_sn(res);
+  int xaid = xai->get_xid();
 
   /* check validation of xaid */
-  if (!m_xa.get_xa(xai->get_xid())) {
+  if (!m_xa.get_xa(xaid)) {
     log_print("invalid xaid %d %p from %d\n", 
-      xai->get_xid(),xai,myfd);
+      xaid,xai,myfd);
     return -1;
   }
 
@@ -1015,7 +1016,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
     }
 
     sock_toolkit *sock = xai->get_sock();
-    int xaid = xai->get_xid();
+    //int xaid = xai->get_xid();
 
     /* should release xa as soon as possible */
     prep_done(xai,cfd);

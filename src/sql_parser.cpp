@@ -549,7 +549,8 @@ int sql_parser::collect_target_tbls(
   int ret = 0;
 
   /* deal table names from the 'from' list or 'update' list*/
-  if (node->type==mktype(m_list,s_from) || node->type==mktype(m_list,s_upd)) {
+  if (node->type==mktype(m_list,s_from) || node->type==mktype(m_list,s_upd) ||
+      node->type==mktype(m_stmt,s_insert)) {
     for (i=0;i<node->op_lst.size();i++) {
       nd = node->op_lst[i];
       /* check for table alias name */
@@ -567,6 +568,12 @@ int sql_parser::collect_target_tbls(
       else if (nd->type==mktype(m_endp,s_col)) {
         pdb = def_db;
         tbl = nd->name ;
+      }
+      /* un-support type */
+      else {
+        /*log_print("un-support node type: %s - %s\n",
+          main_type_str(nd->type),sub_type_str(nd->type));*/
+        continue;
       }
       /* check for existence of table */
       td = m_tables.get(m_tables.gen_key(pdb,tbl));

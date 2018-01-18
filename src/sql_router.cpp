@@ -266,6 +266,16 @@ sql_router::get_related_table_route(tSqlParseItem *sp, std::set<uint8_t> &rlst, 
 
   log_print("limit : %ld, size: %zu\n",max,rlst.size());
 
+#if 0
+  {
+    log_print("content of table route list: \n");
+    for (auto i : tr) {
+      log_print(">>> %d \n",i);
+    }
+    log_print("\n\n");
+  }
+#endif
+
   return 0;
 }
 
@@ -297,6 +307,16 @@ sql_router::get_sharding_route(tSqlParseItem *sp, std::set<uint8_t> &rlist)
   } /* end for(...) */
 
   log_print("route list size: %zu\n",rlist.size());
+
+#if 0
+  {
+    log_print("content of sharding route list: \n");
+    for (auto i : rlist) {
+      log_print(">>> %d \n",i);
+    }
+    log_print("\n\n");
+  }
+#endif
 
   return 0;
 }
@@ -358,33 +378,11 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return -1;
   }
 
-#if 0
-  /* XXX: test */
-  {
-    log_print("content of route list000: \n");
-    for (auto i : rlist) {
-      log_print(">>> %d \n",i);
-    }
-    log_print("\n\n");
-  }
-#endif
-
   /* calculate routes of related tables in statement by configs */
   if (get_related_table_route(sp,tr)) {
     log_print("get table route fail\n");
     return -1;
   }
-
-#if 0
-  /* XXX: test */
-  {
-    log_print("content of route list111: \n");
-    for (auto i : tr) {
-      log_print(">>> %d \n",i);
-    }
-    log_print("\n\n");
-  }
-#endif
 
   /* get intersection with sharding datanodes and configured datanodes */
   calc_intersection(rlist,tr);
@@ -405,12 +403,13 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
 #if 1
   /* XXX: test */
   {
-    log_print("content of route list: \n");
+    log_print("content of final route list: \n");
     for (auto i : rlist) {
       log_print(">>> %d \n",i);
     }
   }
 #endif
+
   return 0;
 }
 

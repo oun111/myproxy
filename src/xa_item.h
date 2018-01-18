@@ -109,7 +109,7 @@ public:
 
   int set_xa_info(int,int,void*);
   int get_gid(void) const;
-  int get_xid(void) const;
+  int get_xid(void) ;
   void reset_xid(void) ;
   int get_client_fd(void) const;
 

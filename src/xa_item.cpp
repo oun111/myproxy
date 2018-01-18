@@ -171,14 +171,15 @@ sock_toolkit* xa_item::get_sock(void) const
   return m_st;
 }
 
-int xa_item::get_xid(void) const
+int xa_item::get_xid(void) 
 {
-  return xaid ;
+  return __sync_fetch_and_add(&xaid,0) ;
 }
 
 void xa_item::reset_xid(void) 
 {
-  xaid =-1 ;
+  //xaid =-1 ;
+  __sync_lock_test_and_set(&xaid,-1) ;
 }
 
 int xa_item::get_cmd(void) const
