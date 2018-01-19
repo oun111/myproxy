@@ -109,7 +109,8 @@ namespace global_parser_items {
        !strncasecmp(stmt,"delete",6) ||
        !strncasecmp(stmt,"create",6) || 
        !strncasecmp(stmt,"drop",4) ||
-       !strncasecmp(stmt,"desc",4)) {
+       !strncasecmp(stmt,"desc",4) ||
+       !strncasecmp(stmt,"show",4)) {
       cmd = s_sharding ;
       return 0;
     }

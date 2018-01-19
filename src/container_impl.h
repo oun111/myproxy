@@ -11,6 +11,8 @@ class SHARDING_EXTRA {
 public:
   /* for 'range map' sharding */
   std::map<uint8_t,std::pair<int,int>> map;
+  /* the default datanode */
+  int def_dn ;
 } ;
 
 class SHARDING_KEY {

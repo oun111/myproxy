@@ -58,16 +58,18 @@
           }
         },
         "test_tbl": {
-           "Mappings": {
+           /*"Mappings": {
             "dn2": { "IoType": "both"},
             "dn3": { "IoType": "both"}
-          },
+          },*/
           "shardingKey": {
             "id": { 
               "rule": "rangeMap", 
+              "defDn" : "3",
               "ranges" : {
-                "0" : "10,14",
-                "1" : "11,100"
+                "0" : "6,10",
+                "1" : "11,100",
+                "2" : "107,109"
               }
             }
           },

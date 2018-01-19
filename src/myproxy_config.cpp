@@ -73,6 +73,9 @@ const char *rRgnMap[] = {
 const char *rModN[] = {
   "modN"
 };
+const char *rDefDn[] = {
+  "defDn"
+};
 
 const char *intervSec[] = {
   "interval"
@@ -445,36 +448,35 @@ myproxy_config::save_range_maps(jsonKV_t *s_map, SHARDING_EXTRA &se)
 
   for (auto pm : s_map->list) {
     dn = atoi(pm->key.c_str());
-
     sscanf(pm->value.c_str(),"%d,%d",&rStart,&rEnd);
-    printf("mv: %d: %d - %d\n", dn, rStart, rEnd);
 
-    se.map[dn] = std::pair<int,int>(rStart,rEnd);
-  }
-
-  /* check for ranges */
-  for (auto pm : se.map) {
-    auto cmp = pm ;
-    int dn = cmp.first ;
-    int rstart = cmp.second.first ;
-    int rend = cmp.second.second ;
-
-    if (rstart>rend) {
+    /* the range beginning should less than ending */
+    if (rStart>rEnd) {
       log_print("invalid range for dn %d: %d - %d\n",
-        dn,rstart,rend);
+        dn,rStart,rEnd);
       return -1;
     }
 
-    for (auto pm2 : se.map) {
-      if (cmp==pm2) continue ;
+    se.map[dn] = std::pair<int,int>(rStart,rEnd);
 
-      int rstart1 = pm2.second.first ;
-      int rend1 = pm2.second.second ;
+    log_print("dn %d, range %d - %d\n", dn, rStart, rEnd);
+  }
+
+  /* check for overlapped ranges */
+  for (auto pm= se.map.begin(); pm!=se.map.end(); pm++) {
+    auto cmp = pm ;
+    rStart = pm->second.first ;
+    rEnd = pm->second.second ;
+
+    for (auto pm2=++cmp;pm2!=se.map.end();pm2++) {
+
+      int rstart1 = pm2->second.first ;
+      int rend1 = pm2->second.second ;
 
       /* overlapped ranges */
-      if (!(rend<rstart1 || rend1<rstart)) {
+      if (!(rEnd<rstart1 || rend1<rStart)) {
         log_print("invalid ranges for dn %d: %d - %d\n",
-          pm2.first,rstart1,rend1);
+          pm2->first,rstart1,rend1);
         return -1;
       }
     }
@@ -523,8 +525,21 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
       jsonKV_t *tmp = find(p1->list[m],(char*)rangeSec[0]);
 
       if (!tmp || save_range_maps(tmp,se)) {
-        return -1;
+        log_print("no range maps, use rule=modN by default\n");
+        rule = t_modN ;
       }
+    }
+
+    /* find default datanode */
+    {
+      jsonKV_t *tmp = find(p1->list[m],(char*)rDefDn[0]);
+
+      if (!tmp) {
+        se.def_dn = 0;
+      } else {
+        se.def_dn = atoi(tmp->value.c_str());
+      }
+      log_print("default datanode %d used\n", se.def_dn);
     }
 
     /* add to sharding key list */

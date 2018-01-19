@@ -43,8 +43,84 @@ void sql_router::unregister_rule_handlers(void)
   }
 }
 
+int sql_router::get_route_by_range_maps(int type,sv_t *psv, SHARDING_EXTRA &extra, int &dn)
+{
+  auto get_rgn = [&](auto &map,auto v) -> int {
+    for (auto n : map) {
+      auto start = n.second.first ;
+      auto end = n.second.second ;
+
+      if (v>=start && v<=end)
+        return n.first ;
+    }
+    return -1;
+  };
+
+  switch (type) {
+    case MYSQL_TYPE_TINY:  
+      dn = get_rgn(extra.map,psv->u.v8);
+      //log_print("val8: %d\n",psv->u.v8);
+      break;
+
+    case MYSQL_TYPE_SHORT: 
+      dn = get_rgn(extra.map,psv->u.v16);
+      //log_print("val16: %d\n",psv->u.v16);
+      break ;
+
+    case MYSQL_TYPE_LONG:
+      dn = get_rgn(extra.map,psv->u.v32);
+      //log_print("val32: %ld\n",psv->u.v32);
+      break ;
+
+    case MYSQL_TYPE_LONGLONG:
+      dn = get_rgn(extra.map,psv->u.v64);
+      //log_print("val64: %lld\n",psv->u.v64);
+      break ;
+
+    case MYSQL_TYPE_NEWDECIMAL:
+    case MYSQL_TYPE_FLOAT:
+      dn = get_rgn(extra.map,(int)psv->u.vf);
+      //log_print("valf: %f\n",psv->u.vf);
+      break ;
+
+    case MYSQL_TYPE_DOUBLE:
+      dn = get_rgn(extra.map,(int)psv->u.vd);
+      //log_print("vald: %f\n",psv->u.vd);
+      break ;
+
+    default:
+      /* XXX: unsupported column type */
+      log_print("unknown type %d\n",type);
+      return -1;
+  }
+
+  if (dn<0) {
+    dn = extra.def_dn;
+    log_print("no matching ranges, use dn %d\n",dn);
+  }
+
+  return 0;
+}
+
 int sql_router::ha_rule_rangeMap(SHARDING_VALUE *psv, std::set<uint8_t> &slst)
 {
+  int dn = 0;
+  size_t total_dns = m_nodes.size();
+
+  /* no data nodes */
+  if (total_dns<=0) {
+    return -1;
+  }
+
+  for (auto i=0;i<MAX_SV_ITEMS&&i<psv->num_vals;i++) {
+    if (get_route_by_range_maps(psv->type,&psv->sv[i],psv->sk->extra,dn)) {
+      continue ;
+    }
+
+    log_print("route to datanode %d\n", dn);
+    slst.insert(dn);
+  }
+
   return 0;
 }
 
@@ -57,12 +133,7 @@ int sql_router::ha_rule_modN(SHARDING_VALUE *psv, std::set<uint8_t> &slst)
   if (total_dns<=0) {
     return -1;
   }
-  /* only use data node 0 and 1 with mod(2) method: 
-   *
-   *   if the sharding value is even, use data node 0
-   *
-   *   if the sharding value is odd, use data node 1
-   */
+
   for (i=0;i<MAX_SV_ITEMS&&i<psv->num_vals;i++) {
     /* assign sharding values by mod(dn-count) */
     if (get_route_by_modN(psv->type,&psv->sv[i],dn,total_dns)) {
@@ -331,11 +402,9 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
   /* 
    * for statements:
    *
-   *  'show xxx'
    *  'desc xxx' 
    */
-  if (sp->stmt_type==mktype(m_stmt,s_show) || 
-     sp->stmt_type==mktype(m_stmt,s_desc)) {
+  if (sp->stmt_type==mktype(m_stmt,s_desc)) {
 
     log_print("try to get a single route\n");
 
@@ -347,6 +416,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return 0;
   }
 
+
   /* 
    * for statements:
    *
@@ -355,11 +425,13 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
    *  'commit'
    *  'rollback'
    *  'set xxx'
+   *  'show xxx'
    */
   if (sp->stmt_type==mktype(m_stmt,s_cTbl) || 
      sp->stmt_type==mktype(m_stmt,s_cTbl_cond) ||
      sp->stmt_type==mktype(m_stmt,s_commit) ||
      sp->stmt_type==mktype(m_stmt,s_rollback) ||
+     sp->stmt_type==mktype(m_stmt,s_show) || 
      sp->stmt_type==mktype(m_stmt,s_setparam)) {
 
     log_print("try to get full routes\n");

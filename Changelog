@@ -1,4 +1,8 @@
 Changelog:
+  Jan 19, 2018:
+    1. add support for new sharding rule: range mappings
+
+
   Jan 16, 2018:
     1. add support for 'read-write-seperation' mode on backends
 

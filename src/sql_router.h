@@ -38,6 +38,8 @@ protected:
   /* get route by sharding column values */
   int get_sharding_route(tSqlParseItem*,std::set<uint8_t>&);
 
+  int get_route_by_range_maps(int type,sv_t *psv, SHARDING_EXTRA &extra, int &dn);
+
 public:
   sql_router(safeDataNodeList&) ;
   ~sql_router(void) ;

@@ -70,7 +70,10 @@ int safeShardingColumnList::add(char *schema, char *tbl,
     sk->tbl = tbl ;
     sk->col = col ;
     sk->rule= rule ;
-    if (rule==t_rangeMap) sk->extra.map = std::move(se.map) ;
+    if (rule==t_rangeMap) {
+      sk->extra.map = std::move(se.map) ;
+      sk->extra.def_dn = se.def_dn ;
+    }
   }
   return 0;
 }
