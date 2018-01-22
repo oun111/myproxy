@@ -126,6 +126,7 @@ public:
   void set_sock(sock_toolkit*);
   sock_toolkit* get_sock(void) const;
 
+  void dump(void);
 } ;
 
 #endif /* __XA_ITEM_H__*/

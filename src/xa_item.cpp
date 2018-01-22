@@ -234,3 +234,12 @@ int xa_item::inc_sn_count(void)
   return __sync_add_and_fetch(&sn_count,1);
 }
 
+void xa_item::dump(void)
+{
+  log_print("xaid: %d, cfd: %d, cmd: %d, parent: %p,"
+    "gid: %d, st: %d, desire dn: %d, total ok: %d, res dn: %d,"
+    "last dn fd: %d, last sn: %d, num cols: %d, phs: %d, sn count: %d\n",
+    xaid, m_cfd, m_cmd, m_parent, m_dnGid, m_st->m_efd,
+    m_desireResDn,m_totalOk,m_resDn,m_lastDnFd,m_lastSn,
+    m_numCols,m_phs,sn_count);
+}

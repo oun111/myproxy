@@ -48,7 +48,6 @@ class TABLE_INFO {
 public:
   std::string name ; /* target table name */
   std::vector<MAPPING_INFO*> map_list ;
-  //int num_maps;
 #if 0
   std::vector<char*> priKeys ; /* primary key list */
   int num_priKeys;
@@ -62,9 +61,7 @@ class SCHEMA_BLOCK {
 public:
   std::string name; /* the schema name */
   std::vector<AUTH_BLOCK*> auth_list ;
-  //int num_auths;
   std::vector<TABLE_INFO*> table_list ;
-  //int num_tbls ;
 } ;
 /* 
  * data node definition 
@@ -108,12 +105,10 @@ public:
    * the data node list 
    */
   std::vector<DATA_NODE*> m_dataNodes ;
-  //int num_dataNodes;
   /* 
    * the schema list 
    */
   std::vector<SCHEMA_BLOCK*> m_schemas;
-  //int num_schemas;
   /*
    * the sharding column list
    */

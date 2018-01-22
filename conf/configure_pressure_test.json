@@ -58,19 +58,19 @@
           }
         },
         "test_tbl": {
-           /*"Mappings": {
+           "Mappings": {
             "dn2": { "IoType": "both"},
             "dn3": { "IoType": "both"}
-          },*/
+          },
           "shardingKey": {
             "id": { 
-              "rule": "rangeMap", 
-              "defDn" : "3",
+              "rule": "modN", 
+              /*"defDn" : "3",
               "ranges" : {
                 "1" : "6,10",
                 "2" : "11,100",
                 "0" : "107,1090"
-              }
+              }*/
             }
           },
           "globalIdColumn": {

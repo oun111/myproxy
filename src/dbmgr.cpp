@@ -66,6 +66,7 @@ tDbPoolObj* dbmgr::get_db(void)
 /* return back the database object */
 void dbmgr::return_db(tDbPoolObj *po)
 {
-  __sync_lock_test_and_set(&po->ref,0);
+  if (po) 
+    __sync_lock_test_and_set(&po->ref,0);
 }
 

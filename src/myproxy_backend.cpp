@@ -9,6 +9,7 @@
 #include "porting.h"
 #include "env.h"
 #include "dnmgr.h"
+#include "dbug.h"
 
 using namespace GLOBAL_ENV;
 using namespace global_parser_items;
@@ -70,12 +71,13 @@ int myproxy_backend::end_xa(xa_item *xa)
   }
   xaid = xa->get_xid() ;
   /* release transaction */
-  log_print("xaid %d(%p) cid %d released\n",xaid,xa,xa->get_client_fd());
+  log_print("try to release xaid %d(%p) cid %d\n",xaid,xa,xa->get_client_fd());
   m_xa.end_exec(xa);
   /* return back the cache */
   m_caches.return_cache(xa);
   /* release the xa itself */
   m_xa.release(xaid);
+  log_print("xaid %d released\n",xaid);
   //m_lss.reset_xaid(cid);
   /* redo jobs */
   try_do_pending();
@@ -338,9 +340,10 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
       log_print("error parse statement %s\n",pSql);
 
       inner_del_tree(bNewTree,pTree);
-      /* 
-       * TODO: send the error message to client 
-       */
+
+      /*  send the error message to client */
+      do_send(cid,err.tc_data(),err.tc_length());
+
       return -1;
     }
 
@@ -734,6 +737,7 @@ myproxy_backend::deal_query_res(
   /* check validation of xaid */
   if (!m_xa.get_xa(xaid)) {
     log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
+    xai->dump();
     return -1;
   }
 
@@ -745,12 +749,14 @@ myproxy_backend::deal_query_res(
 
     /* get total columns */
     nCols = mysqls_extract_column_count(res,sz);
+    if (nCols<255) {
+      xai->set_col_count(nCols);
+    }
 
     /* reset stuffs that needed by the column defs */
-    xai->set_col_count(nCols);
     if (xai->get_last_sn()==0) {
       xai->m_cols.reset(myfd);
-      /* beginning serial number of column defs */
+      /* beginning with the 'sn' of column defs packets */
       xai->set_last_sn(2);
     }
 
@@ -930,6 +936,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
   if (!m_xa.get_xa(xaid)) {
     log_print("invalid xaid %d %p from %d\n", 
       xaid,xai,myfd);
+    xai->dump();
     return -1;
   }
 
@@ -970,6 +977,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
     /*
      * save column & placeholder count
      */
+    log_print("col %d xaid %d\n",nCols,xaid);
     xai->set_col_count(nCols);
     xai->set_phs_count(nPhs);
     /* save total placeholder */

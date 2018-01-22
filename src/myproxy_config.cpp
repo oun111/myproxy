@@ -120,23 +120,17 @@ myproxy_config::~myproxy_config(void)
 
 void myproxy_config::reset(void)
 {
-  uint16_t i=0, m=0, n=0;
-  TABLE_INFO *pt=0;
-  SCHEMA_BLOCK *ps = 0;
-
   /* clear data node list */
-  for (i=0;i<m_dataNodes.size();i++) {
-    delete m_dataNodes[i] ;
+  for (auto pd : m_dataNodes) {
+    delete pd ;
   }
   m_dataNodes.clear();
 
   /* clear schema list */
-  for (i=0;i<m_schemas.size();i++) {
-    ps = m_schemas[i] ;
-    for (m=0;m<ps->table_list.size();m++) {
-      pt = ps->table_list[m] ;
-      for (n=0;n<pt->map_list.size();n++) {
-        delete pt->map_list[n] ;
+  for (auto ps : m_schemas) {
+    for (auto pt : ps->table_list) {
+      for (auto pm : pt->map_list) {
+        delete pm ;
       }
       pt->map_list.clear();
 #if 0
@@ -155,17 +149,14 @@ void myproxy_config::reset(void)
 
 int myproxy_config::parse_global_settings(void)
 {
-  uint16_t i = 0;
-  jsonKV_t *pj = find(m_root,(char*)gsSec[0]), 
-    *pi = 0, *tmp = 0 ;
+  jsonKV_t *pj = find(m_root,(char*)gsSec[0]), *tmp = 0 ;
 
   if (!pj) {
     log_print("global settings entry not found\n");
     return -1;
   }
 
-  for (i=0;i<pj->list.size();i++) {
-    pi = pj->list[i] ;
+  for (auto pi : pj->list) {
 
     /* parse cache pool configs */
     if ((tmp=find(pi,(char*)cachePoolSec[0]))) {
@@ -297,7 +288,8 @@ int myproxy_config::parse_data_nodes(void)
     /* get suitable data node */
     if (i>=m_dataNodes.size()) {
       node = new DATA_NODE ;
-      m_dataNodes.push_back(node);
+      //m_dataNodes.push_back(node);
+      m_dataNodes.emplace_back(node);
     }
 
     node = m_dataNodes.back();
@@ -422,7 +414,8 @@ int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
     /* save mapping to m_conf */
     if (m>=pt->map_list.size()) {
       pm = new MAPPING_INFO ;
-      pt->map_list.push_back(pm);
+      //pt->map_list.push_back(pm);
+      pt->map_list.emplace_back(pm);
     }
 
     auto pm = pt->map_list.back();
@@ -494,8 +487,8 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
   uint8_t rule = 0;
 
   if (!(p1=find(jsonTbl,(char*)shardingSec[0]))) {
-    log_print("found NO sharding keys for table %s\n", 
-      strTbl);
+    log_print("found NO sharding keys for table %s.%s\n", 
+      strSchema,strTbl);
     return -1;
   }
 
@@ -539,7 +532,8 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
       } else {
         se.def_dn = atoi(tmp->value.c_str());
       }
-      log_print("default datanode %d used\n", se.def_dn);
+      log_print("default datanode %d used for %s.%s\n", 
+        se.def_dn,strSchema,strTbl);
     }
 
     /* add to sharding key list */
@@ -614,7 +608,8 @@ int myproxy_config::parse_schemas(void)
 
     if (i>=m_schemas.size()) {
       ps = new SCHEMA_BLOCK ;
-      m_schemas.push_back(ps);
+      //m_schemas.push_back(ps);
+      m_schemas.emplace_back(ps);
     }
 
     ps = m_schemas.back();
@@ -630,7 +625,8 @@ int myproxy_config::parse_schemas(void)
     for (n=0;n<tmp->list.size();n++) {
       if (n>=ps->auth_list.size()) {
         pa = new AUTH_BLOCK ;
-        ps->auth_list.push_back(pa);
+        //ps->auth_list.push_back(pa);
+        ps->auth_list.emplace_back(pa);
       }
       pa = ps->auth_list[n] ;
       pa->usr = tmp->list[n]->key ;
@@ -653,7 +649,8 @@ int myproxy_config::parse_schemas(void)
 
       if (n>=ps->table_list.size()) {
         pt = new TABLE_INFO ;
-        ps->table_list.push_back(pt);
+        //ps->table_list.push_back(pt);
+        ps->table_list.emplace_back(pt);
       }
 
       pt = ps->table_list.back();
@@ -781,11 +778,9 @@ char* myproxy_config::get_pwd(char *db, char *usr)
 
 bool myproxy_config::is_db_exists(char *db)
 {
-  uint16_t i=0;
-
   /* find suitable schema */
-  for (;i<m_schemas.size();i++) {
-    if (m_schemas[i]->name==db) 
+  for (auto ps : m_schemas) {
+    if (ps->name==db) 
       return true; ;
   }
   return false ;

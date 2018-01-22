@@ -252,7 +252,8 @@ int SimpleJsonParser::parse(std::string &s)
           /* it's a key */
           tmp = new_node((char*)tkn.c_str());
           p = stk.top();
-          p->list.push_back(tmp);
+          //p->list.push_back(tmp);
+          p->list.emplace_back(tmp);
           stk.push(tmp);
           bKey = true;
         }
