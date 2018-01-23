@@ -61,10 +61,11 @@ typedef struct tHostAddr {
     fcntl((fd),F_GETFL,0)| O_NONBLOCK);
 #define set_block(fd) \
   fcntl((fd),F_SETFL,fcntl((fd),F_GETFL,0)&~O_NONBLOCK)
+
 /* iterates each epoll events */
-#define list_foreach_events(i,so,fd,ev,po)      \
-  for (i=0,get_svr_events(&so);i<num_events(&so) &&  \
-    !get_event(&so,i,fd,ev,(void**)po);i++) 
+#define list_foreach_events(so,ev,po)      \
+  for (int i=0,__rc=get_svr_events(&(so));!__rc&&i<num_events(&(so)) &&  \
+    !get_event(&(so),i,&(ev),(void**)&(po));i++) 
 
 typedef struct tEPollPrivData
 {
@@ -107,19 +108,17 @@ extern int add_tcp_svr_2_epoll(sock_toolkit*,int);
 extern int new_tcp_client(sock_toolkit*,uint32_t,int);
 extern int do_add2epoll(sock_toolkit*,int,void*,void*,int*);
 extern int do_del_from_ep(sock_toolkit*,int);
-extern int do_modepoll(sock_toolkit*,int,void*);
+//extern int do_modepoll(sock_toolkit*,int,void*);
 /*static*/ extern epoll_priv_data** get_epp(int fd);
 extern int accept_tcp_conn(sock_toolkit*,int,bool,void*);
 extern bool is_ep_available(sock_toolkit*);
 extern int do_send(int, char*, size_t);
 extern int do_recv(sock_toolkit*,int,char*,int);
-extern int do_recv1(sock_toolkit*,int,char*,int,
-  struct sockaddr*, socklen_t*);
 extern int get_svr_events(sock_toolkit*);
-extern int get_event(sock_toolkit*,int,int*,int*,void**);
+extern int get_event(sock_toolkit*,int,int*,void**);
 extern int disable_send(sock_toolkit*,int);
 extern int enable_send(sock_toolkit*,int);
-extern int close1(sock_toolkit*,int,int);
+extern int close1(sock_toolkit*,int);
 extern int init_st(sock_toolkit*,bool,bool);
 extern int close_st(sock_toolkit*);
 extern int brocast_tx(int,int,char*,size_t);

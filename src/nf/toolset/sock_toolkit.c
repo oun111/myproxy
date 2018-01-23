@@ -200,6 +200,7 @@ int new_tcp_client(sock_toolkit *st, uint32_t addr, int port)
   return &g_epollPrivs[fd];
 }
 
+#if 0
 int do_modepoll(sock_toolkit *st, int fd, void *priv)
 {
   epoll_priv_data **ep = get_epp(fd);
@@ -214,6 +215,7 @@ int do_modepoll(sock_toolkit *st, int fd, void *priv)
 
   return 0;
 }
+#endif
 
 int 
 do_add2epoll(sock_toolkit *st, int fd, void *parent, void *param, int *dup)
@@ -240,13 +242,14 @@ do_add2epoll(sock_toolkit *st, int fd, void *parent, void *param, int *dup)
   /* make socket async */
   if (!st->bBlock)
     set_nonblock(fd);
-  (*ep)->valid = 1 ;
+  (*ep)->valid = 0 ;
   (*ep)->fd = fd ;
   (*ep)->parent = parent ;
   (*ep)->param  = param ;
   (*ep)->cache.buf   = NULL ;
   (*ep)->cache.valid = false;
   (*ep)->tid = pthread_self();
+  (*ep)->valid = 1 ;
   /* add this socket to epoll */
   if (is_ep_available(st) && add_to_epoll(st->m_efd,fd,*ep)) {
     /* XXX: error message here */
@@ -261,17 +264,21 @@ int
 do_del_from_ep(sock_toolkit *st, int fd)
 {
   epoll_priv_data **ep = get_epp(fd) ;
+  int ret = 0;
 
   if (!ep || !*ep) {
     printf("%s: no ep found for %d\n",__func__,fd);
     return -1;
   }
 
+  ret = del_from_epoll(st->m_efd,fd);
+
   (*ep)->valid = 0;
   (*ep)->parent= 0;
   (*ep)->param = 0;
   (*ep)->cache.valid = false;
-  return del_from_epoll(st->m_efd,fd);
+
+  return ret ;
 }
 
 int 
@@ -313,15 +320,11 @@ accept_tcp_conn(sock_toolkit *st,int sfd,
   return 0;
 }
 
-int close1(sock_toolkit *st, int fd, int nEvent)
+int close1(sock_toolkit *st, int fd)
 {
   if (!is_ep_available(st)) {
     close(fd);
     return 0;
-  }
-  if (nEvent<0&& nEvent>=MAXEVENTS) {
-    printf("event index %d error\n",nEvent);
-    return -1;
   }
   if (do_del_from_ep(st,fd)) {
     printf("error del %d from ep %d: %s\n",fd,st->m_efd,strerror(errno));
@@ -351,22 +354,6 @@ int do_send(int fd, char *buf, size_t len)
     }
   }
   return 0;
-}
-
-int do_recv1(sock_toolkit *st, int fd, char *buf, int len,
-  struct sockaddr *sa, socklen_t *slen)
-{
-  int ret = 0;
-  int ln=len, total = 0;
-  int flag = st->bBlock?0:MSG_DONTWAIT;
-
-  do {
-    if ((ret=recvfrom(fd,buf+total,ln,flag,sa,slen))>0) {
-      ln -=ret ;
-      total += ret ;
-    }
-  } while (ln>0 && ret>0);
-  return total>0?total:ret;
 }
 
 int do_recv(sock_toolkit *st, int fd, char *buf, int len)
@@ -421,13 +408,13 @@ int get_svr_events(sock_toolkit *st)
 }
 
 int 
-get_event(sock_toolkit *st, int idx, int *fd, int *event, void **po)
+get_event(sock_toolkit *st, int idx, int *event, void **po)
 {
   if (idx<0 || idx>=st->nEvents || idx>=MAXEVENTS)
     return -1;
   *po    = st->elist[idx].data.ptr;
-  *fd    = st->elist[idx].data.fd ;
   *event = st->elist[idx].events;
+  //*fd    = st->elist[idx].data.fd ;
   return 0;
 }
 

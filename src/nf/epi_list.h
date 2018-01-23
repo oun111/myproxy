@@ -5,8 +5,7 @@
 #include <map>
 #include <vector>
 #include "lock.h"
-
-using sock_toolkit = struct tSockToolkit;
+#include "sock_toolkit.h"
 
 using VP_TYPE = std::pair<sock_toolkit*,int> ;
 

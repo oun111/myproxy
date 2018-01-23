@@ -116,18 +116,12 @@ void epoll_impl::stop(void)
  */
 void epoll_impl::event_task(int)
 {
-  int i=0,fd=0,event=0;
-  business_base *pb = 0;
-  epoll_priv_data *pd = 0;
-  int cfd = 0;
   sock_toolkit stk ;
-
-  log_print("thread %lu entered\n",pthread_self());
 
   /* init the socket item */
   init_st(&stk,true,false);
 
-  log_print("thread %lx st %d\n",pthread_self(),stk.m_efd);
+  log_print("thread %lx st %d entered\n",pthread_self(),stk.m_efd);
 
   /* add listen fd to local epoll */
   int dup=0;
@@ -140,29 +134,43 @@ void epoll_impl::event_task(int)
 
   /* process events */
   for (;m_run;) {
-    /* poll event list */
-    list_foreach_events(i,stk,&fd,&event,&pd) {
 
-      /* get epoll private data */
-      if (!pd || (pd->valid!=1) || ((cfd=pd->fd)<=0)) {
+    if (get_svr_events(&stk)) {
+      usleep(10);
+      continue ;
+    }
+
+    //list_foreach_events(stk,event,pd) {
+    for (int i=0;i<num_events(&stk);i++)  {
+
+      epoll_priv_data *pd = (epoll_priv_data*)stk.elist[i].data.ptr;
+      int event = stk.elist[i].events;
+
+      if (!pd || pd->valid!=1) {
         continue ;
       } 
-      pb = reinterpret_cast<business_base*>(pd->parent) ;
+
+      business_base *pb = (business_base*)(pd->parent) ;
       if (!pb) {
         continue ;
       }
+
+      int cfd = pd->fd;
+
       if ((event & EPOLLERR) || 
          (event & EPOLLHUP) || 
          (event & EPOLLRDHUP)) {
         log_print("close err fd %d: %s\n",cfd,strerror(errno));
         pb->on_error(&stk,cfd);
-        close1(&stk,cfd,i);
-      } else { 
+        close1(&stk,cfd);
+      } 
+      
+      else { 
         /* request in */
         if (event & EPOLLIN) {
           if (pb->rx(&stk,pd,cfd)<0) {
             log_print("close fd %d\n",cfd);
-            close1(&stk,cfd,i);
+            close1(&stk,cfd);
           }
         }
         /* ready to send */
@@ -171,7 +179,9 @@ void epoll_impl::event_task(int)
           pb->tx(&stk,pd,cfd);
         }
       }
-    } /* end list_foreach... */
+
+    } /* end each events */
+
   } /* end for(;;) */
 
   /* clean up sockets */

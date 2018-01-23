@@ -72,15 +72,19 @@ int myproxy_backend::end_xa(xa_item *xa)
   xaid = xa->get_xid() ;
   /* release transaction */
   log_print("try to release xaid %d(%p) cid %d\n",xaid,xa,xa->get_client_fd());
+
   m_xa.end_exec(xa);
+
   /* return back the cache */
   m_caches.return_cache(xa);
+
   /* release the xa itself */
   m_xa.release(xaid);
   log_print("xaid %d released\n",xaid);
-  //m_lss.reset_xaid(cid);
+
   /* redo jobs */
   try_do_pending();
+
   return 0;
 }
 
@@ -88,7 +92,6 @@ int myproxy_backend::end_xa(int cid)
 {
   tSessionDetails *pss = 0;
   int xaid = 0;
-  xa_item *xai = 0;
 
   /* get current connection region */
   pss  = m_lss.get_session(cid);
@@ -100,10 +103,11 @@ int myproxy_backend::end_xa(int cid)
 
   /* try redo pending jobs */
   if ((xaid=pss->get_xaid())>0) {
-    xai = m_xa.get_xa(xaid);
+    xa_item *xai = m_xa.get_xa(xaid);
+
     end_xa(xai);
+
     m_lss.reset_xaid(cid);
-    try_do_pending();
 
   } else {
     log_print("warning: cid %d has no xa\n",cid);
@@ -733,9 +737,10 @@ myproxy_backend::deal_query_res(
   int cfd = xai->get_client_fd(), nCols = 0;
   int sn = mysqls_extract_sn(res);
   int xaid = xai->get_xid();
+  int ret = 0;
 
   /* check validation of xaid */
-  if (!m_xa.get_xa(xaid)) {
+  if (xaid<0 || !m_xa.get_xa(xaid)) {
     log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
     xai->dump();
     return -1;
@@ -774,7 +779,7 @@ myproxy_backend::deal_query_res(
       m_caches.return_cache(xai);
 
       /*return*/ m_trx.tx(cfd,res,sz);
-      return 0;
+      return /*0*/1;
     }
   }
   /* the column def are not yet recv */
@@ -824,7 +829,8 @@ myproxy_backend::deal_query_res(
       /* update sn of last eof frame */
       mysqls_update_sn(res,xai->inc_last_sn());
     }
-    /* finishing command execution */
+    /* XXX: command exec ends!!! NO data should be received
+     *  from this fd !!! */
     m_xa.end_exec(xai);
 
     /* reset if it's under statement prepare mode */
@@ -832,6 +838,9 @@ myproxy_backend::deal_query_res(
 
     /* reset session command states */
     m_lss.set_cmd(cfd,st_idle);
+
+    /* exit current myfd receiving as soon as possible!! */
+    ret = 1;
   }
 
   /* send the delayed responses */
@@ -850,7 +859,7 @@ myproxy_backend::deal_query_res(
     m_trx.tx(cfd,res,sz);
   }
 
-  return 0;
+  return /*0*/ret;
 }
 
 int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
@@ -880,18 +889,6 @@ int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
     /* execute it  */
     do_stmt_execute(st,cfd,req,sz);
   }
-
-  return 0;
-}
-
-int myproxy_backend::prep_done(xa_item *xai, int cfd)
-{
-  /* get db fds out of epoll */ 
-  //m_xa.end_exec(xai); 
-
-  /* release the xa */ 
-  //end_xa(cfd); 
-  end_xa(xai); 
 
   return 0;
 }
@@ -933,9 +930,8 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
   int xaid = xai->get_xid();
 
   /* check validation of xaid */
-  if (!m_xa.get_xa(xaid)) {
-    log_print("invalid xaid %d %p from %d\n", 
-      xaid,xai,myfd);
+  if (xaid<0 || !m_xa.get_xa(xaid)) {
+    log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
     xai->dump();
     return -1;
   }
@@ -966,6 +962,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
     mysqls_extract_prepared_info(res,sz,&stmtid,&nCols,&nPhs);
     /* get currently operated logical statement id */
     if (m_stmts.get_lstmtid(cfd,lstmtid)) {
+      log_print("error get logical statement id from %d\n",cfd);
       return -1;
     }
 
@@ -977,7 +974,6 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
     /*
      * save column & placeholder count
      */
-    log_print("col %d xaid %d\n",nCols,xaid);
     xai->set_col_count(nCols);
     xai->set_phs_count(nPhs);
     /* save total placeholder */
@@ -1027,7 +1023,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
     //int xaid = xai->get_xid();
 
     /* should release xa as soon as possible */
-    prep_done(xai,cfd);
+    end_xa(xai); 
 
     try_pending_exec(cfd,xaid,sock);
 

@@ -53,8 +53,6 @@ protected:
 
   int try_pending_exec(int cfd, int xaid, sock_toolkit *st);
 
-  int prep_done(xa_item *xai, int cfd);
-
   int get_ordering_col(char *cols, int num_cols, char **name);
 
   int do_cache_row(xa_item *xai, int myfd, char *res, size_t sz);

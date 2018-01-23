@@ -3,6 +3,15 @@
 #include <algorithm>
 #include "epi_list.h"
 
+/*
+ *
+ * This 'epi_list' is used to store all epoll handles by calling new_ep() 
+ *  and ordering them in ascending orders of their use counts.
+ *  The callee calls get_idle() when needs most idle epoll handle(s) and
+ *  calls return_back() when finishing using them.
+ *
+ */
+
 bool vcomp(VP_TYPE &lp, VP_TYPE &rp) 
 {
   return lp.second < rp.second; 
@@ -102,7 +111,7 @@ int epi_list::return_back(sock_toolkit* &k)
       return -1;
     }
 
-    auto &pv = (*itrm).second ;
+    int &pv = (*itrm).second ;
 
     v  = pv ;
     pv = pv>0?(pv-1):0 ;
