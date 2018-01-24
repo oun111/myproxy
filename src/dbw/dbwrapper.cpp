@@ -1,5 +1,6 @@
 
 #include <string.h>
+#include <typeinfo>
 #include "dbwrapper.h"
 
 
@@ -662,7 +663,7 @@ int sqlite_db::init(
   if (csr_init())
     return -1;
   
-  printf("init db ok\n");
+  printf("init db %s ok\n",typeid(*this).name());
 
   return 0;
 }
@@ -961,7 +962,7 @@ int leveldb_db::init(
     printf("init db %s failed\n", m_tbl);
     return -1;
   }
-  printf("init db ok\n");
+  printf("init db %s ok\n",typeid(*this).name());
   return 0;
 }
 
@@ -1142,7 +1143,7 @@ int multimap_db::init(
   if (sort!=__INVALID_VALUE__) 
     m_sort = sort ;
 
-  printf("init db ok\n");
+  printf("init db %s ok\n",typeid(*this).name());
   return 0;
 }
 
