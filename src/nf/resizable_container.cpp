@@ -23,8 +23,7 @@ void tContainer::tc_init(void)
 void tContainer::tc_close(void) 
 {
   if (b) {
-    //free(b);
-    delete []b;
+    free(b);
   }
   b = 0;
   capacity = 0L;
@@ -33,7 +32,7 @@ void tContainer::tc_close(void)
 
 char* tContainer::tc_data(void) 
 {
-  return b ;
+  return static_cast<char*>(b) ;
 }
 
 size_t tContainer::tc_capacity(void) 
@@ -69,12 +68,7 @@ int tContainer::tc_concat(char *in, size_t sz)
 void tContainer::tc_resize(size_t new_sz) 
 {
   if (new_sz>capacity) {
-#if 0
-    b = static_cast<char*>(realloc(b,new_sz));
-#else
-    if (b) delete []b;
-    b = new char [new_sz];
-#endif
+    b = realloc(b,new_sz);
     capacity = new_sz ;
   }
   tc_update(0);

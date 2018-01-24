@@ -25,7 +25,7 @@
 
 class tContainer {
 protected:
-  char *b ;
+  /*char*/void *b ;
   size_t capacity ;
   size_t size ;
 

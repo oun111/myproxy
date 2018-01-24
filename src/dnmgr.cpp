@@ -666,8 +666,8 @@ int dnmgr::update_dn_conn(void)
 
       m_nodes->set_alive(pd);
 
-      log_print("login to '%s' of '%s'@'0x%x:%d' dn %d ok\n",
-        pd->schema,pd->usr, pd->addr,pd->port,pd->no);
+      log_print("login to '%s' of '%s'@'0x%x:%d' dn %d fd %d ok\n",
+        pd->schema,pd->usr, pd->addr,pd->port,pd->no,pd->mysql->sock);
     } /* for (pd) */ 
 
   } /* for (n) */
