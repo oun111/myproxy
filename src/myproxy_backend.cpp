@@ -101,7 +101,6 @@ int myproxy_backend::end_xa(int cid)
     return -1 ;
   }
 
-  /* try redo pending jobs */
   if ((xaid=pss->get_xaid())>0) {
     xa_item *xai = m_xa.get_xa(xaid);
 
@@ -311,6 +310,8 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
     return 1;
   }
 
+  /* XXX: test */
+#if 1
   char *pDb = const_cast<char*>(pss->db.c_str());
   /* try to fetch the sql tree related to current statement */
   stxNode *pTree = m_stmts.get_stree(cid,req,sz);
@@ -366,6 +367,15 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
 
     return -1;
   }
+#else
+  stxNode *pTree = 0;
+  bool bNewTree = 0;
+  sp = &tsp ;
+
+  rlist.emplace(0);
+  rlist.emplace(1);
+  rlist.emplace(2);
+#endif
 
   /* this prepare command should send response to client */
   if (cmd_state==st_prep_trans) {
@@ -549,6 +559,8 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     return 1;
   }
 
+  /* XXX: test */
+#if 1
   /* fill in sharding values if it's place holder */
   save_sv_by_placeholders(sp,nphs,req,sz);
 
@@ -562,6 +574,15 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
 
     return -1;
   }
+#else
+  rlist.emplace(1);
+  rlist.emplace(2);
+
+  xa_item *xai = m_xa.get_xa(xaid);
+  if (m_caches.acquire_cache(xai)) {
+    return -1;
+  }
+#endif
 
   /* update command state */
   m_stmts.set_cmd_state(cid,st_stmt_exec);
@@ -773,6 +794,7 @@ myproxy_backend::deal_query_res(
 
     /* no columns found in res set or ERROR OCCORS */
     if (!nCols || mysqls_is_error(res,sz)) {
+
       m_xa.end_exec(xai);
 
       /* return back cache if it has */
@@ -781,6 +803,7 @@ myproxy_backend::deal_query_res(
       /*return*/ m_trx.tx(cfd,res,sz);
       return /*0*/1;
     }
+
   }
   /* the column def are not yet recv */
   else if (xai->m_states.get(myfd)==rs_none) {
@@ -921,6 +944,7 @@ myproxy_backend::do_add_mapping(int myfd, int cfd,
 
 int 
 myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t sz)
+#if 0
 {
   int ret = 0;
   int lstmtid = 0, stmtid=0, st=st_na; 
@@ -986,7 +1010,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
 
   /* cache response packets, only 1 cpu thread can 
    *  run them */
-  if (sn==xai->get_sn_count() && !xai->lock_sn_count()) {
+  if (sn==xai->get_sn_count() && !xai->lock_xa()) {
 
     /*
      * for state st_prep_trans, the prepared results should be sent to client
@@ -999,7 +1023,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
 
     /* switch to next serial number */
     xai->set_sn_count(sn+1);
-    xai->unlock_sn_count();
+    xai->unlock_xa();
   }
 
   /* 
@@ -1032,6 +1056,105 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
 
   return ret;
 }
+#else
+{
+  int ret = 0;
+  int lstmtid = 0, stmtid=0, st=st_na; 
+  int nCols = 0, nPhs = 0;
+  const int cfd = xai->get_client_fd();
+  const int sn = mysqls_extract_sn(res);
+  int xaid = xai->get_xid();
+  bool isErr = (sn==1 && mysqls_is_error(res,sz)) ;
+
+  /* check validation of xaid */
+  if (xaid<0 || !m_xa.get_xa(xaid)) {
+    log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
+    xai->dump();
+    return -1;
+  }
+
+  m_stmts.get_cmd_state(cfd,st) ;
+
+  if (isErr) {
+    /* save the error message */
+    xai->m_err.tc_resize(sz+2);
+    xai->m_err.tc_write(res,sz);
+  }
+  else {
+
+    /* the 1st normal response packet */
+    if (sn==1&& xai->m_states.get(myfd)==0) {
+
+      /* update backend fd states */
+      xai->m_states.add(myfd);
+
+      /* get currently operated logical statement id */
+      mysqls_extract_prepared_info(res,sz,&stmtid,&nCols,&nPhs);
+      if (m_stmts.get_lstmtid(cfd,lstmtid)) {
+        log_print("error get logical statement id from %d\n",cfd);
+        return -1;
+      }
+
+      /*  add lstmtid -> stmtid mapping here */
+      do_add_mapping(myfd,cfd,stmtid,lstmtid,xai);
+
+      /* save column & placeholder count */
+      xai->set_col_count(nCols);
+      xai->set_phs_count(nPhs);
+      m_stmts.set_total_phs(cfd,nPhs);
+
+      /* replace the out-sending statement id with 
+       *  logical statement id */
+      mysqls_update_stmt_prep_stmt_id(res,sz,lstmtid);
+
+      if (xai->inc_res_dn()<xai->get_desire_dn()) {
+        return 0;
+      }
+
+      xai->set_last_dn(myfd);
+    }
+
+    /* cache response packets from lastest datanode */
+    if (st==st_prep_trans && myfd==xai->get_last_dn()) {
+      m_caches.do_cache_res(xai,res,sz);
+    }
+
+  }
+
+  /* 
+   * last response packet reached 
+   */
+  if ((isErr || sn==get_last_sn(xai)) && xai->inc_ok_count()==xai->get_desire_dn()) {
+
+    log_print("reach last eof of %d\n", cfd);
+    /* XXX: test */
+    log_print("err: %d, st: %d\n",isErr,st);
+
+    /* XXX: should reset session related xaid before sending
+     *  last prepare response to client under multi-thread envirogments */
+    m_lss.reset_xaid(cfd);
+
+    /* sent to client */
+    if (isErr) {
+      m_trx.tx(cfd,xai->m_err.tc_data(),xai->m_err.tc_length());
+    } 
+    else if (st==st_prep_trans) {
+      m_caches.tx_pending_res(xai,cfd); 
+    }
+
+    sock_toolkit *p_stk = xai->get_sock();
+
+    /* should release xa as soon as possible */
+    end_xa(xai); 
+
+    try_pending_exec(cfd,xaid,p_stk);
+
+    ret = 1;
+  }
+
+  return ret;
+}
+#endif
 
 int myproxy_backend::deal_stmt_execute_res(xa_item *xai, int cid, char *res, size_t sz)
 {

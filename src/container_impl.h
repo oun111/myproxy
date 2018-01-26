@@ -752,7 +752,7 @@ using ITR_FUNC = int(*)(STM_PAIR&);
 
 class safeStMapList : public safe_vector_base<STM_PAIR> {
 protected:
-  ITR_TYPE m_itr ;
+  //ITR_TYPE m_itr ;
 
 public:
   safeStMapList (void) { lock_init(); }

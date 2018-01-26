@@ -172,12 +172,15 @@ xamgr::release(int xid)
     log_print("error: xa %d not found\n",xid);
     return -1;
   }
+
   /* release the transaction realated
    *  data node group */
   gid = xai->get_gid();
   m_dnMgr.return_group(gid);
+
   /* release the transaction */
   m_xaList.drop(xid);
+
   return 0;
 }
 

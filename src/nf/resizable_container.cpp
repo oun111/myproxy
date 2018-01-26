@@ -68,7 +68,9 @@ int tContainer::tc_concat(char *in, size_t sz)
 void tContainer::tc_resize(size_t new_sz) 
 {
   if (new_sz>capacity) {
-    b = realloc(b,new_sz);
+    size_t align_sz = new_sz<<2;
+
+    b = realloc(b,align_sz);
     capacity = new_sz ;
   }
   tc_update(0);

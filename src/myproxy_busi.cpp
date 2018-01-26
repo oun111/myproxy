@@ -474,6 +474,18 @@ int myproxy_frontend::do_com_query(int connid,
   char *pStmt = inb+5;
   int cmd = s_na ;
 
+  /* XXX: test */
+  {
+    if (strcasestr(pStmt,"autocommit")) {
+      char outb[256];
+      size_t sz_out = do_ok_response(sn,m_svrStat,outb);
+
+      /* send directly to client */
+      m_trx.tx(connid,outb,sz_out);
+      return 0;
+    }
+  }
+
   /* do a simple parse on incoming statement */
   ret = do_simple_explain(pStmt,sz-5,cmd);
 

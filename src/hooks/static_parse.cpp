@@ -64,8 +64,8 @@ int static_parse::run_hook(sql_tree &st,stxNode *root,void *params)
   return 1;
 }
 
-HMODULE_IMPL (
-  static_parse,
-  s_parse
-);
+//HMODULE_IMPL (
+//  static_parse,
+//  s_parse
+//);
 

@@ -1477,8 +1477,8 @@ safeStmtInfoList::add_prep(int lstmtid, char *prep, size_t sz,
   if (!ps) {
     ps = new_mapping(lstmtid) ;
   }
-  ps->prep_req.tc_resize(sz+1) ;
-  ps->prep_req.tc_write(prep,sz+1) ;
+  ps->prep_req.tc_resize(sz+2) ;
+  ps->prep_req.tc_write(prep,sz/*+1*/) ;
   ps->m_root = stree ;
   ps->sp = sp ;
   /* add statement key mapping */
@@ -1627,6 +1627,7 @@ bool safeClientStmtInfoList::is_blobs_ready(int cid)
     return false;
   }
   try_read_lock();
+  log_print("cid %d total blob %d, rx %d\n", cid, ci->curr.total_blob, ci->curr.rx_blob);
   return ci->curr.total_blob==ci->curr.rx_blob ;
 }
 
@@ -2061,9 +2062,12 @@ int safeXAList::drop(int xid)
     try_write_lock();
     safe_container_base<int,xa_item*>::drop(xid);
   }
+
   px->reset_xid();
   px->m_cols.clear();
+
   delete px ;
+
   return 0;
 }
 
@@ -2090,13 +2094,9 @@ uint8_t safeRxStateList::get(int fd)
 /* add new state */
 int safeRxStateList::add(int fd)
 {
-  if (get(fd)>0) {
-    try_write_lock();
-    m_list[fd] = rs_none;
-    return 0;
-  }
   try_write_lock();
   insert(fd,rs_none);
+
   return 0;
 }
 

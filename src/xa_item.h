@@ -49,11 +49,14 @@ protected:
   /* placeholder count */
   int m_phs ;
 
+#if 1
   /* the packet serial number counter */
   int sn_count ;
-  int sn_count_lock ;
+  int xa_lock ;
+#endif
 
 public:
+
   /* the cache object */
   tDbPoolObj *m_cache ;
 
@@ -64,6 +67,8 @@ public:
   using STM_PAIR = std::pair<sock_toolkit*,int> ;
   //std::vector<STM_PAIR> m_stVec ;
   safeStMapList m_stVec ;
+
+  tContainer m_err ;
 
 public:
 
@@ -81,14 +86,16 @@ public:
 public:
   void reset(sock_toolkit*,int,int);
 
-  int lock_sn_count(void);
-  void unlock_sn_count(void);
+#if 0
+  int lock_xa(void);
+  void unlock_xa(void);
 
   void reset_sn_count(void);
   void set_sn_count(int sn);
   int get_sn_count(void);
   int get_sn_count1(void);
   int inc_sn_count(void);
+#endif
 
   int set_cmd(int);
   int get_cmd(void) const;

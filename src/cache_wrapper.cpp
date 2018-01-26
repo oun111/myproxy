@@ -138,7 +138,8 @@ cache_wrapper::tx_pending_res(xa_item *xai, int cfd)
 int 
 cache_wrapper::do_cache_res(xa_item *xai, char *res, size_t sz)
 {
-  xai->m_txBuff.tc_write(res,sz);
+  //xai->m_txBuff.tc_write(res,sz);
+  xai->m_txBuff.tc_concat(res,sz);
   return 0;
 }
 
