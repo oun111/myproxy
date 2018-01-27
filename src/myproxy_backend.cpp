@@ -187,21 +187,41 @@ int myproxy_backend::try_do_pending(void)
   return 0;
 }
 
+int 
+myproxy_backend::do_get_stree(int cid, char *req, size_t sz,
+  stxNode* &pTree, bool &bNewTree)
+{
+  char *pSql = req + 5;
+  size_t szSql = sz - 5;
+
+  /* try to fetch the sql tree related to current statement */
+  pTree = m_stmts.get_stree(cid,req,sz);
+  bNewTree = !pTree;
+
+  /* if no tree found, then parse the statement statically 
+   *  and build a new tree */
+  if (!pTree) {
+    pTree = parse_tree(pSql,szSql);
+    log_print("build new tree for %d\n",cid);
+  }
+  return 0;
+}
+
+#define RETURN(rc) do {\
+  if (bNewTree) del_tree(pTree);\
+  return rc;\
+} while(0)
+
 /* do request in query mode */
 int 
 myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 {
-  int xaid = -1, ret=0, rc=0 ;
+  int xaid = -1, rc=0 ;
   char *pSql = req + 5;
   size_t szSql = sz - 5;
   tSessionDetails *pss = 0;
   std::set<uint8_t> rlist ;
-  std::string newStmt ;
-  tContainer err ;
-  tContainer buff ;
   tSqlParseItem sp ;
-  sql_parser parser ;
-  hook_framework hooks ;
 
   /* get current connection region */
   pss  = m_lss.get_session(cid);
@@ -217,27 +237,41 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
     return 1;
   }
 
-  stxNode* pTree = parse_tree(pSql,szSql);
   char *pDb = const_cast<char*>(pss->db.c_str());
+  /* try to fetch the sql tree related to current statement */
+  stxNode *pTree = 0;
+  bool bNewTree = false;
 
-  /* dynamic request hooking */
-  if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
-    log_print("error filtering sql %s\n",pSql);
-    ret = -1;
-    goto __end_do_query ;
+  if (do_get_stree(cid,req,sz,pTree,bNewTree)) {
+    return -1;
   }
 
-  /* update the statement pointer */
-  pSql = req+5 ;
-  szSql= sz -5;
+  {
+    hook_framework hooks ;
+
+    /* dynamic request hooking */
+    if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
+      log_print("error filtering sql %s\n",pSql);
+      RETURN(-1) ;
+    }
+
+    /* update the statement pointer */
+    pSql = req+5 ;
+    szSql= sz -5;
+  }
 
   /* dig informations from statement */
-  if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
-    log_print("error scan statement %s\n",pSql);
-    /*  send the error message to client */
-    do_send(cid,err.tc_data(),err.tc_length());
-    ret = -1;
-    goto __end_do_query ;
+  {
+    tContainer err ;
+    sql_parser parser ;
+
+    if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
+      log_print("error scan statement %s\n",pSql);
+
+      do_send(cid,err.tc_data(),err.tc_length());
+
+      RETURN(-1) ;
+    }
   }
 
   /* calcualte routing infomations */
@@ -248,8 +282,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
       log_print("adding redo for client %d\n", cid);
     }
 
-    ret = -1;
-    goto __end_do_query ;
+    RETURN(-1) ;
   }
 
   /* save the query info */
@@ -261,15 +294,11 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   /* send and execute the request */
   if (m_xa.execute(st,xaid,com_query,rlist,req,sz,0,this)) {
     log_print("fatal: sending xa %d for client %d\n",xaid,cid);
-    //return -1;
-    ret = -1;
-    goto __end_do_query ;
+
+    RETURN(-1) ;
   }
 
-__end_do_query:
-  del_tree(pTree);
-
-  return ret;
+  RETURN(0);
 }
 
 /* do the stmt_prepare request */
@@ -284,17 +313,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   const size_t szOldReq = sz ;
   tSessionDetails *pss = 0;
   std::set<uint8_t> rlist ;
-  tContainer err ;
-  sql_parser parser ;
   tSqlParseItem *sp = 0, tsp ;
-  hook_framework hooks ;
-  auto inner_del_tree = [&](auto &bNew,auto &t) 
-  {
-    if (bNew){
-      /* the tree is newly created and is no used any more */
-      del_tree(t);
-    }
-  } ;
 
   /* get current connection region */
   pss  = m_lss.get_session(cid);
@@ -314,42 +333,42 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
 #if 1
   char *pDb = const_cast<char*>(pss->db.c_str());
   /* try to fetch the sql tree related to current statement */
-  stxNode *pTree = m_stmts.get_stree(cid,req,sz);
-  bool bNewTree = !pTree;
+  stxNode *pTree = 0;
+  bool bNewTree = false;
 
-  /* if no tree found, then parse the statement statically 
-   *  and build a new tree */
-  if (!pTree) {
-    pTree = parse_tree(pSql,szSql);
-    log_print("build new tree for %d\n",cid);
-  }
-
-  /* dynamically modify the tree by hook modules */
-  if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
-    log_print("error filtering sql %s\n",pSql);
-
-    inner_del_tree(bNewTree,pTree);
-
+  if (do_get_stree(cid,req,sz,pTree,bNewTree)) {
     return -1;
   }
 
-  /* update the statement pointer */
-  pSql = req+5 ;
-  szSql= sz -5;
+  {
+    hook_framework hooks ;
+
+    /* dynamically modify the tree by hook modules */
+    if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
+      log_print("error filtering sql %s\n",pSql);
+
+      RETURN(-1);
+    }
+
+    /* update the statement pointer */
+    pSql = req+5 ;
+    szSql= sz -5;
+  }
 
   /* dig informations from tree into 'sp' */
   if (cmd_state==st_prep_trans) {
+
+    tContainer err ;
+    sql_parser parser ;
 
     if (parser.scan(pSql,szSql,&tsp,pDb,err,pTree)) {
 
       log_print("error parse statement %s\n",pSql);
 
-      inner_del_tree(bNewTree,pTree);
-
       /*  send the error message to client */
       do_send(cid,err.tc_data(),err.tc_length());
 
-      return -1;
+      RETURN(-1);
     }
 
     sp = &tsp;
@@ -363,9 +382,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   if (get_route(xaid,cid,sp,true,false,rlist)) {
     log_print("fail getting route\n");
 
-    inner_del_tree(bNewTree,pTree);
-
-    return -1;
+    RETURN(-1);
   }
 #else
   stxNode *pTree = 0;
@@ -383,8 +400,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
     m_stmts.add_stmt(cid,(char*)pOldReq,(size_t)szOldReq,0,pTree,*sp);
   } 
   else {
-    /* the tree is newly created and is no used any more */
-    inner_del_tree(bNewTree,pTree);
+    if (bNewTree) del_tree(pTree);
   }
 
   m_stmts.set_cmd_state(cid,cmd_state);
@@ -511,7 +527,6 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   std::set<uint8_t> rlist ;
   tSqlParseItem *sp = 0 ;
   safeDnStmtMapList *maps = 0 ;
-  int ret = 0;
 
   /* parse total blob-type place-holders */
   m_stmts.get_total_phs(cid,nphs);
@@ -535,6 +550,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
       "found for client %d\n", cid);
     return -1 ;
   }
+
   /* try to acquire a new transaction */
   if (new_xa(pss,st,cid,com_stmt_execute,req,sz,xaid)) {
     /* no xa available currently */
@@ -564,15 +580,19 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   /* fill in sharding values if it's place holder */
   save_sv_by_placeholders(sp,nphs,req,sz);
 
-  /* calcualte routing infomations */
-  if ((ret=get_route(xaid,cid,sp,false,true,rlist))) {
+  {
+    int ret = 0;
 
-    if (ret==-1) {
-      m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
-      log_print("adding redo for client %d\n", cid);
+    /* calcualte routing infomations */
+    if ((ret=get_route(xaid,cid,sp,false,true,rlist))) {
+
+      if (ret==-1) {
+        m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
+        log_print("adding redo for client %d\n", cid);
+      }
+
+      return -1;
     }
-
-    return -1;
   }
 #else
   rlist.emplace(1);
@@ -616,6 +636,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     log_print("fatal: sending xa %d for client %d\n",xaid,cid);
     return -1;
   }
+
   return 0;
 }
 

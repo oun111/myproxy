@@ -69,6 +69,8 @@ protected:
   int do_add_mapping(int myfd, int cfd, int stmtid, 
     int lstmtid, xa_item *xai);
 
+  int do_get_stree(int,char*,size_t,stxNode*&,bool&);
+
 protected:
   /* implemented from interface 'business_base' */
   int rx(sock_toolkit*,epoll_priv_data*,int) ;
