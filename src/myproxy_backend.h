@@ -48,7 +48,7 @@ protected:
 
   int test_prepared(int cid, const char *req, size_t sz, int xaid);
 
-  int save_sv_by_placeholders(tSqlParseItem *sp, 
+  int save_sharding_values(tSqlParseItem *sp, 
     int total_phs, char *pReq,size_t sz);
 
   int try_pending_exec(int cfd, int xaid, sock_toolkit *st);
@@ -62,7 +62,7 @@ protected:
 
   safeDnStmtMapList* get_stmt_id_map(int cid, char* req, size_t sz) ;
 
-  int deal_parser_item(int cid, char *req, size_t sz, tSqlParseItem* &sp);
+  int get_parser_item(int cid, char *req, size_t sz, tSqlParseItem* &sp);
 
   int get_last_sn(xa_item *xai);
 
@@ -70,6 +70,9 @@ protected:
     int lstmtid, xa_item *xai);
 
   int do_get_stree(int,char*,size_t,stxNode*&,bool&);
+
+  int do_execute_blobs(int,int,sock_toolkit*,std::set<uint8_t>&,
+    safeDnStmtMapList*);
 
 protected:
   /* implemented from interface 'business_base' */
@@ -95,8 +98,9 @@ public:
   /* do the stmt_execute request */
   int do_stmt_execute(sock_toolkit*, int cid, char *req, size_t sz);
 
-  /* do the send_long_data request */
   int do_send_blob(int cid, char *req, size_t sz);
+
+  int do_stmt_close(sock_toolkit *st, int cid, char *req, size_t sz);
 
   int xa_rx(xa_item*,int,char*,size_t);
 

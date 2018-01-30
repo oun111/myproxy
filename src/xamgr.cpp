@@ -116,8 +116,6 @@ xamgr::execute(sock_toolkit *st,
 
       log_print("execute on myfd %d -> %d, dn %d%s\n",myfd, 
         p->m_efd, i, dup?" is dup!":"");
-
-      //do_modepoll(st,myfd,(void*)xai);
     }
 
     /* do necessary update the out-sending packet */
@@ -134,6 +132,7 @@ xamgr::execute(sock_toolkit *st,
     /* send the request */
     do_send(myfd,req,szReq);
   }
+
   return 0;
 }
 

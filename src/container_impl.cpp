@@ -1698,6 +1698,22 @@ safeClientStmtInfoList::get_exec_req(int cid, int &xaid, char* &req, size_t &sz)
   return 0;
 }
 
+int safeClientStmtInfoList::release_exec_req(int cid)
+{
+  tClientStmtInfo *ci = get(cid);
+
+  if (!ci) {
+    return -1;
+  }
+
+  /* release the pending stmt_exec request */
+  ci->curr.exec_buf.tc_update(0);
+
+  __sync_lock_test_and_set(&ci->curr.exec_xaid,-1);
+
+  return 0;
+}
+
 int safeClientStmtInfoList::get_parser_item(int cid, int lstmtid, 
   tSqlParseItem* &sp)
 {
@@ -1804,6 +1820,30 @@ int safeClientStmtInfoList::reset(int cid)
   }
   return 0;
 }
+
+#if 0
+int 
+safeClientStmtInfoList::get_prep_stmt_id(int cid, char *prep_req, 
+  size_t sz, int &lstmtid)
+{
+  tClientStmtInfo *ci = get(cid);
+  tStmtInfo *si = 0;
+
+  /* test if statement is already added */
+  if (!ci || !(si=ci->stmts.get(prep_req,sz))) {
+    return -1;
+  }
+
+  if (si->lstmtid<=0 || si->maps.size()==0) {
+    return -1;
+  }
+
+  lstmtid = __sync_fetch_and_add(&si->lstmtid,0) ;
+  log_print("fetched lstmtid %d by cid %d\n",lstmtid,cid);
+
+  return 0;
+}
+#endif
 
 int 
 safeClientStmtInfoList::add_stmt(int cid, char *prep_req, size_t sz, 
@@ -1919,7 +1959,7 @@ stxNode* safeClientStmtInfoList::get_stree(int cid, char *req, size_t sz)
 
   /* get client statements info by cid */
   if (!ci) {
-    log_print("found no client info %d\n",cid);
+    //log_print("found no client info %d\n",cid);
     return NULL;
   }
   si = ci->stmts.get(req,sz);

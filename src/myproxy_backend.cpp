@@ -221,6 +221,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   size_t szSql = sz - 5;
   tSessionDetails *pss = 0;
   std::set<uint8_t> rlist ;
+  hook_framework hooks ;
   tSqlParseItem sp ;
 
   /* get current connection region */
@@ -242,23 +243,20 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   stxNode *pTree = 0;
   bool bNewTree = false;
 
+  /* get syntax tree */
   if (do_get_stree(cid,req,sz,pTree,bNewTree)) {
     return -1;
   }
 
-  {
-    hook_framework hooks ;
-
-    /* dynamic request hooking */
-    if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
-      log_print("error filtering sql %s\n",pSql);
-      RETURN(-1) ;
-    }
-
-    /* update the statement pointer */
-    pSql = req+5 ;
-    szSql= sz -5;
+  /* dynamic request hooking */
+  if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
+    log_print("error filtering sql %s\n",pSql);
+    RETURN(-1) ;
   }
+
+  /* update the statement pointer */
+  pSql = req+5 ;
+  szSql= sz -5;
 
   /* dig informations from statement */
   {
@@ -314,6 +312,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   tSessionDetails *pss = 0;
   std::set<uint8_t> rlist ;
   tSqlParseItem *sp = 0, tsp ;
+  hook_framework hooks ;
 
   /* get current connection region */
   pss  = m_lss.get_session(cid);
@@ -329,31 +328,26 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
     return 1;
   }
 
-  /* XXX: test */
-#if 1
   char *pDb = const_cast<char*>(pss->db.c_str());
   /* try to fetch the sql tree related to current statement */
   stxNode *pTree = 0;
   bool bNewTree = false;
 
+  /* get syntax tree */
   if (do_get_stree(cid,req,sz,pTree,bNewTree)) {
     return -1;
   }
 
-  {
-    hook_framework hooks ;
+  /* dynamically modify the tree by hook modules */
+  if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
+    log_print("error filtering sql %s\n",pSql);
 
-    /* dynamically modify the tree by hook modules */
-    if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
-      log_print("error filtering sql %s\n",pSql);
-
-      RETURN(-1);
-    }
-
-    /* update the statement pointer */
-    pSql = req+5 ;
-    szSql= sz -5;
+    RETURN(-1);
   }
+
+  /* update the statement pointer */
+  pSql = req+5 ;
+  szSql= sz -5;
 
   /* dig informations from tree into 'sp' */
   if (cmd_state==st_prep_trans) {
@@ -378,21 +372,12 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
     m_stmts.get_curr_sp(cid,sp);
   }
 
-  /* route to all available datanodes */
+  /* calculate sql routes */
   if (get_route(xaid,cid,sp,true,false,rlist)) {
     log_print("fail getting route\n");
 
     RETURN(-1);
   }
-#else
-  stxNode *pTree = 0;
-  bool bNewTree = 0;
-  sp = &tsp ;
-
-  rlist.emplace(0);
-  rlist.emplace(1);
-  rlist.emplace(2);
-#endif
 
   /* this prepare command should send response to client */
   if (cmd_state==st_prep_trans) {
@@ -443,7 +428,7 @@ myproxy_backend::test_prepared(int cid, const char *req, size_t sz, int xaid)
   return -1;
 }
 
-int myproxy_backend::save_sv_by_placeholders(tSqlParseItem *sp, 
+int myproxy_backend::save_sharding_values(tSqlParseItem *sp, 
   int total_phs, char *pReq,size_t sz)
 {
   int i=0, ret = 0;
@@ -496,12 +481,13 @@ myproxy_backend::get_stmt_id_map(int cid, char* req, size_t sz)
   return &si->maps ;
 }
 
-int myproxy_backend::deal_parser_item(int cid, char *req, size_t sz, 
+int myproxy_backend::get_parser_item(int cid, char *req, size_t sz, 
   tSqlParseItem* &sp)
 {
   int lstmtid = 0;
 
   mysqls_get_stmt_prep_stmt_id(req,sz,&lstmtid);
+
   if (m_stmts.get_parser_item(cid,lstmtid,sp)) {
     log_print("fatal: cant get parser item, cid %d, lstmtid %d\n",
       cid,lstmtid);
@@ -514,6 +500,51 @@ int myproxy_backend::deal_parser_item(int cid, char *req, size_t sz,
   return 0;
 }
 
+int myproxy_backend::do_execute_blobs(int cid, int xaid, sock_toolkit *st, 
+  std::set<uint8_t> &rlist, safeDnStmtMapList *maps)
+{
+  char *breq = 0;
+  size_t len = 0;
+
+  /* try to get the blob request */
+  if (m_stmts.get_blob(cid,breq,len)) {
+    return 0;
+  }
+
+  log_print("try sending blob list\n");
+
+  /* iterates each blob requests in list */
+  for (size_t sublen=0;len>0;len-=sublen,breq+=sublen) {
+
+    sublen = mysqls_get_req_size(breq);
+
+    /* send and execute the blob list */
+    if (m_xa.execute(st,xaid,com_stmt_send_long_data,
+        rlist,breq,sublen,(void*)maps,this)) {
+      log_print("fatal: sending xa %d for client %d\n",xaid,cid);
+      return -1;
+    }
+
+  } /* end for() */
+
+  /* because the 'com_stmt_send_long_data' command has no response,
+   *  so we free the myfd(s) now */
+  xa_item *xai = m_xa.get_xa(xaid);
+
+  if (xai) {
+    m_xa.end_exec(xai);
+  }
+
+  return 0;
+}
+
+/* do the stmt_close request */
+int 
+myproxy_backend::do_stmt_close(sock_toolkit *st, int cid, char *req, size_t sz)
+{
+  return 0;
+}
+
 /* do the stmt_execute request */
 int 
 myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz)
@@ -521,8 +552,6 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   int xaid = -1 ;
   int nphs = 0; /* total placeholders */
   int nblob = 0; /* total blob requests */
-  char *breq = 0;
-  size_t len = 0;
   tSessionDetails *pss = 0;
   std::set<uint8_t> rlist ;
   tSqlParseItem *sp = 0 ;
@@ -530,11 +559,13 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
 
   /* parse total blob-type place-holders */
   m_stmts.get_total_phs(cid,nphs);
-  mysql_calc_blob_count(req,nphs,&nblob);
+
   /* save total blob count */
+  mysql_calc_blob_count(req,nphs,&nblob);
   m_stmts.set_total_blob(cid,nblob);
 
-  /* the blob request are enough */
+  /* the blob request are ready, so send the whole 
+   *  execution requests */
   if (!m_stmts.is_blobs_ready(cid)) {
     /* buffer the exec request for the 
      *  send_blob req may use it*/
@@ -558,7 +589,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   }
 
   /* prepare for calculating routes... */
-  deal_parser_item(cid,req,sz,sp);
+  get_parser_item(cid,req,sz,sp);
 
   /* test whether this statement was prepared at 
    *  the datanode group before */
@@ -575,10 +606,8 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     return 1;
   }
 
-  /* XXX: test */
-#if 1
-  /* fill in sharding values if it's place holder */
-  save_sv_by_placeholders(sp,nphs,req,sz);
+  /* fill in sharding values if there're place holder(s) */
+  save_sharding_values(sp,nphs,req,sz);
 
   {
     int ret = 0;
@@ -594,15 +623,6 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
       return -1;
     }
   }
-#else
-  rlist.emplace(1);
-  rlist.emplace(2);
-
-  xa_item *xai = m_xa.get_xa(xaid);
-  if (m_caches.acquire_cache(xai)) {
-    return -1;
-  }
-#endif
 
   /* update command state */
   m_stmts.set_cmd_state(cid,st_stmt_exec);
@@ -611,24 +631,8 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   /* 
    * do execute request: 1. send blob list 2. send exec request 
    */
-  /* try to get the blob request */
-  if (!m_stmts.get_blob(cid,breq,len)) {
-    size_t sublen=0;
-
-    log_print("try sending blob list\n");
-    /* iterates each blob requests in list */
-    for (sublen=0;len>0;len-=sublen,breq+=sublen) {
-
-      sublen = mysqls_get_req_size(breq);
-
-      /* send and execute the blob list */
-      if (m_xa.execute(st,xaid,com_stmt_send_long_data,
-          rlist,breq,sublen,(void*)maps,this)) {
-        log_print("fatal: sending xa %d for client %d\n",xaid,cid);
-        return -1;
-      }
-    } /* end for() */
-  }
+  /* send the blob requests */
+  do_execute_blobs(cid,xaid,st,rlist,maps);
 
   /* try the request itself */
   log_print("try sending execution req\n");
@@ -822,6 +826,7 @@ myproxy_backend::deal_query_res(
       m_caches.return_cache(xai);
 
       /*return*/ m_trx.tx(cfd,res,sz);
+
       return /*0*/1;
     }
 
@@ -852,10 +857,10 @@ myproxy_backend::deal_query_res(
     /* end of row sets */
     if (mysqls_is_eof(res,sz)) {
       xai->m_states.next_state(myfd);
-      /* not the last eof recv, just go back */
+      /* not the last eof recv, just go back and don't 
+       *  receive on this myfd */
       if (xai->inc_ok_count()<xai->get_desire_dn()) 
-        return 0;
-      log_print("recv last eof on %d, cid %d\n",myfd, cfd);
+        return /*0*/1;
     }
     /* cache row set if it's not from last datanode */
     else if (m_caches.is_needed(xai)) {
@@ -883,6 +888,8 @@ myproxy_backend::deal_query_res(
     /* reset session command states */
     m_lss.set_cmd(cfd,st_idle);
 
+    log_print("recv last eof on %d, cid %d\n",myfd, cfd);
+
     /* exit current myfd receiving as soon as possible!! */
     ret = 1;
   }
@@ -899,7 +906,6 @@ myproxy_backend::deal_query_res(
     m_caches.do_cache_res(xai,res,sz);
   /* send the data */
   } else {
-    //sn = mysqls_extract_sn(res);
     m_trx.tx(cfd,res,sz);
   }
 
@@ -965,119 +971,6 @@ myproxy_backend::do_add_mapping(int myfd, int cfd,
 
 int 
 myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t sz)
-#if 0
-{
-  int ret = 0;
-  int lstmtid = 0, stmtid=0, st=st_na; 
-  int nCols = 0, nPhs = 0;
-  const int cfd = xai->get_client_fd();
-  const int sn = mysqls_extract_sn(res);
-  int xaid = xai->get_xid();
-
-  /* check validation of xaid */
-  if (xaid<0 || !m_xa.get_xa(xaid)) {
-    log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
-    xai->dump();
-    return -1;
-  }
-
-  m_stmts.get_cmd_state(cfd,st) ;
-
-  /* 
-   * add statement id mapping according to 
-   *  first response packet
-   */
-  if (sn==1&& xai->m_states.get(myfd)==0) {
-    /* 
-     * check return code for errors 
-     */
-    if (mysqls_is_error(res,sz)) {
-      /* send error messages to client */
-      return m_trx.tx(cfd,res,sz);
-    }
-
-    /*
-     * add new state of db fd 
-     */
-    xai->m_states.add(myfd);
-
-    /* 
-     * get total columns, total placeholders, and physical statement id
-     */
-    mysqls_extract_prepared_info(res,sz,&stmtid,&nCols,&nPhs);
-    /* get currently operated logical statement id */
-    if (m_stmts.get_lstmtid(cfd,lstmtid)) {
-      log_print("error get logical statement id from %d\n",cfd);
-      return -1;
-    }
-
-    /* 
-     * add lstmtid -> stmtid mapping here 
-     */
-    do_add_mapping(myfd,cfd,stmtid,lstmtid,xai);
-
-    /*
-     * save column & placeholder count
-     */
-    xai->set_col_count(nCols);
-    xai->set_phs_count(nPhs);
-    /* save total placeholder */
-    m_stmts.set_total_phs(cfd,nPhs);
-
-    /* replace the out-sending statement id with 
-     *  client-based statement id */
-    mysqls_update_stmt_prep_stmt_id(res,sz,lstmtid);
-  }
-
-  /* cache response packets, only 1 cpu thread can 
-   *  run them */
-  if (sn==xai->get_sn_count() && !xai->lock_xa()) {
-
-    /*
-     * for state st_prep_trans, the prepared results should be sent to client
-     * for st_prep_execute, it should not
-     */
-    /* this prepare response should be sent to client */
-    if (st==st_prep_trans) {
-      m_caches.do_cache_res(xai,res,sz);
-    }
-
-    /* switch to next serial number */
-    xai->set_sn_count(sn+1);
-    xai->unlock_xa();
-  }
-
-  /* 
-   * last response packet reached 
-   */
-  //log_print("sn %d, col %d\n",sn,xai->get_col_count());
-  if (sn==get_last_sn(xai) && xai->inc_ok_count()==xai->get_desire_dn()) {
-
-    log_print("reach last eof of %d\n", cfd);
-
-    /* XXX: should reset session related xaid before sending
-     *  last prepare response to client under multi-thread envirogments */
-    m_lss.reset_xaid(cfd);
-
-    /* this prepare response should be sent to client */
-    if (st==st_prep_trans) {
-      m_caches.tx_pending_res(xai,cfd); 
-    }
-
-    sock_toolkit *sock = xai->get_sock();
-    //int xaid = xai->get_xid();
-
-    /* should release xa as soon as possible */
-    end_xa(xai); 
-
-    try_pending_exec(cfd,xaid,sock);
-
-    ret = 1;
-  }
-
-  return ret;
-}
-#else
 {
   int ret = 0;
   int lstmtid = 0, stmtid=0, st=st_na; 
@@ -1145,37 +1038,47 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
   /* 
    * last response packet reached 
    */
-  if ((isErr || sn==get_last_sn(xai)) && xai->inc_ok_count()==xai->get_desire_dn()) {
+  if (isErr || sn==get_last_sn(xai))  {
 
-    log_print("reach last eof of %d\n", cfd);
-    /* XXX: test */
-    log_print("err: %d, st: %d\n",isErr,st);
+    /* all response packets are received finished */
+    if (xai->inc_ok_count()==xai->get_desire_dn()) {
 
-    /* XXX: should reset session related xaid before sending
-     *  last prepare response to client under multi-thread envirogments */
-    m_lss.reset_xaid(cfd);
+      log_print("reach last eof of %d\n", cfd);
 
-    /* sent to client */
-    if (isErr) {
-      m_trx.tx(cfd,xai->m_err.tc_data(),xai->m_err.tc_length());
-    } 
-    else if (st==st_prep_trans) {
-      m_caches.tx_pending_res(xai,cfd); 
+      /* XXX: should reset session related xaid before sending
+       *  last prepare response to client under multi-thread envirogments */
+      m_lss.reset_xaid(cfd);
+
+      /* sent to client */
+      if (isErr) {
+        m_trx.tx(cfd,xai->m_err.tc_data(),xai->m_err.tc_length());
+        /* XXX: test */
+        log_print("err sz: %zu\n",xai->m_err.tc_length());
+      } 
+      else if (st==st_prep_trans) {
+        /* XXX: test */
+        log_print("prep trans sz: %zu\n",xai->m_txBuff.tc_length());
+        m_caches.tx_pending_res(xai,cfd); 
+      }
+
+      sock_toolkit *p_stk = xai->get_sock();
+
+      /* should release xa as soon as possible */
+      end_xa(xai); 
+
+      /* run any pending stmt_exec request only if no errors */
+      if (!isErr) {
+        try_pending_exec(cfd,xaid,p_stk);
+      }
+
     }
 
-    sock_toolkit *p_stk = xai->get_sock();
-
-    /* should release xa as soon as possible */
-    end_xa(xai); 
-
-    try_pending_exec(cfd,xaid,p_stk);
-
+    /* end current myfd receiving as soon as possible */
     ret = 1;
   }
 
   return ret;
 }
-#endif
 
 int myproxy_backend::deal_stmt_execute_res(xa_item *xai, int cid, char *res, size_t sz)
 {

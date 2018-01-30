@@ -786,7 +786,7 @@ int mysqls_get_stmt_prep_stmt_id(char *inb, size_t sz, int *id)
 {
   char *end = inb ;
 
-  if (sz<10) {
+  if (sz</*10*/9) {
     return -1;
   }
   *id = byte4_2_ul(end+5);

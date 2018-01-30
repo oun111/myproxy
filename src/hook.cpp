@@ -65,8 +65,8 @@ hook_framework::do_sql_hooks(char **req, size_t &szReq, void *param,
 #if 0
     ts.print_tree(root,0);
     printf("\n");
+    log_print("the inputed statement is changing\n");
 #endif
-    //log_print("the inputed statement is changing\n");
     /* do serialize tree here */
     ts.do_serialize(root,outStmt);
 

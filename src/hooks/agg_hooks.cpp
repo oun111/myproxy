@@ -405,8 +405,8 @@ namespace AGG_HOOK_ENV {
 
 } ;
 
-//HMODULE_IMPL (
-//  agg_hooks,
-//  agg_items
-//);
+HMODULE_IMPL (
+  agg_hooks,
+  agg_items
+);
 

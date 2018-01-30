@@ -652,24 +652,13 @@ int myproxy_frontend::do_com_stmt_close(int connid,
   char *inb,size_t sz)
 {
   int stmtid = 0;
+  sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
 
-#if 0
-  tSqlSplitPkt *ps = 0;
-  /* FIXME: put a valid 'sn' value here */
-  int sn = 0;
-
-  ps = m_reqs.find_by_sn(connid,sn);
-  if (!ps) {
-    log_print("invalid cid %d or sn %d\n",
-      connid,sn);
-    return 0;
-  }
-#endif
   mysqls_get_stmt_prep_stmt_id(inb,sz,&stmtid);
-  /* FIXME: this droping will lead to a crash after
-   *  inserting a new statement id */
-  //m_stmts.drop(connid,stmtid);
   log_print("closing logical statement by id %d\n", stmtid);
+
+  m_exec.get()->do_stmt_close(st,connid,inb,sz);
+
   return MP_OK;
 }
 
@@ -681,7 +670,9 @@ int myproxy_frontend::do_com_stmt_execute(int connid,
 
   mysqls_get_stmt_prep_stmt_id(inb,sz,&stmtid);
   log_print("trying execute stmt by logical id %d\n", stmtid);
+
   m_exec.get()->do_stmt_execute(st,connid,inb,sz);
+
   return MP_OK;
 }
 
@@ -692,7 +683,9 @@ int myproxy_frontend::do_com_stmt_send_long_data(int connid,
 
   mysqls_get_stmt_prep_stmt_id(inb,sz,&stmtid);
   log_print("trying send blob by logical id %d\n", stmtid);
+
   m_exec.get()->do_send_blob(connid,inb,sz);
+
   return MP_OK;
 }
 

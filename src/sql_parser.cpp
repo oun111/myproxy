@@ -119,6 +119,14 @@ namespace global_parser_items {
     return -1;
   }
 
+  /* test if this statement is an 'end xa' statement,
+   *  like commit, rollback, etc */
+  bool is_xa_end_stmt(int stmt_type) {
+    return stmt_type==mktype(m_stmt,s_commit) ||
+      stmt_type==mktype(m_stmt,s_rollback)
+      ;
+  }
+
 } ;
 
 sql_parser::sql_parser(): 

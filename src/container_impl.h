@@ -381,6 +381,11 @@ public:
   int add_stmt(int cid, char *prep_req, size_t sz, uint16_t nPhs, 
     stxNode*, tSqlParseItem &sp) ;
 
+#if 0
+  int get_prep_stmt_id(int cid, char *prep_req, size_t sz, 
+    int &lstmtid);
+#endif
+
   int add_qry_info(int cid, tSqlParseItem &sp);
   int get_qry_info(int cid, tSqlParseItem &sp);
 
@@ -397,6 +402,7 @@ public:
   int save_exec_req(int cid, int xaid, char *req, size_t sz);
   int get_exec_req(int cid, int &xaid, char* &req, size_t &sz);
   int get_prep_req(int cid, char* &req, size_t &sz);
+  int release_exec_req(int cid);
   bool is_exec_ready(int cid);
 
   int get_parser_item(int cid, int lstmtid, tSqlParseItem*&);

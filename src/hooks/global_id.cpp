@@ -215,9 +215,9 @@ int global_id_hook::run_hook(sql_tree &st,stxNode *root,void *params)
   return ret;
 }
 
-//HMODULE_IMPL (
-//  global_id_hook,
-//  glob_id
-//);
+HMODULE_IMPL (
+  global_id_hook,
+  glob_id
+);
 
 

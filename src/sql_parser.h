@@ -53,6 +53,9 @@ namespace global_parser_items {
 
   /* do a simple parse on statment */
   extern int do_simple_explain(char*,size_t,int&);
+
+  /* test if current statement is to end current xa */
+  extern bool is_xa_end_stmt(int) ;
 } ;
 
 class sql_parser {
