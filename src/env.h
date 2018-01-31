@@ -17,6 +17,9 @@ namespace GLOBAL_ENV {
   /* the table list */
   extern safeTableDetailList m_tables;
 
+  /* the myfd -> physical statement id mappings */
+  extern safeMyFdMapList m_mfMaps ;
+
 #define likely(x) __builtin_expect(!!(x),1)
 #define unlikely(x) __builtin_expect(!!(x),0)
 } ;

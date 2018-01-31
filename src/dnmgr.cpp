@@ -158,6 +158,18 @@ namespace {
     //printf("updated configs\n");
   }
 
+  int do_send_stmt_close(int myfd, int stmtid)
+  {
+    char outb[32];
+    size_t sz = 0;
+
+    sz = mysqls_gen_stmt_close(outb,stmtid);
+
+    do_send(myfd,outb,sz);
+
+    return 0;
+  }
+
 }
 
 dnmgr::dnmgr()
@@ -193,7 +205,7 @@ void dnmgr::datanode_idle_task(int arg)
     if (m_nDnGroups==m_freeGroupIds.size()) {
       m_idleCount ++ ;
     } else {
-      /* reset 'idle seconds' if the group(s) 
+      /* reset 'idle seconds' if any group(s) 
        *  are found not idle*/
       m_idleCount = 0;
     }
@@ -204,10 +216,14 @@ void dnmgr::datanode_idle_task(int arg)
 
       log_print("refreshing...\n");
 
+      /* keep connections with backend mysql servers */
       keep_dn_conn();
 
       /* dont update table structures */
       refresh_tbl_info(true);
+
+      /* send stmt_close command by myfd -> stmtid map */
+      batch_stmt_close();
     }
 
     sleep(1);
@@ -721,6 +737,24 @@ int dnmgr::keep_dn_conn(void)
     } /* for (pd) */ 
 
   } /* for (n) */
+
+  release_all_groups();
+
+  return 0;
+}
+
+int dnmgr::batch_stmt_close(void)
+{
+  /* occupy all groups */
+  acquire_all_groups();
+
+  /* force to free all prepared statements 
+   *  at backend servers */
+  m_mfMaps.do_iterate(
+     do_send_stmt_close
+    );
+
+  m_mfMaps.clear();
 
   release_all_groups();
 

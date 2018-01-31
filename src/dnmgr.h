@@ -93,6 +93,8 @@ protected:
 
   int keep_dn_conn(void);
 
+  int batch_stmt_close(void);
+
   void datanode_idle_task(int);
 
 public:

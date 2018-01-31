@@ -793,4 +793,24 @@ int mysqls_get_stmt_prep_stmt_id(char *inb, size_t sz, int *id)
   return 0;
 }
 
+int mysqls_gen_stmt_close(char *inb, int stmtid)
+{
+  char *psz = inb, *end = inb;
+
+  /* skip size bytes */
+  end += 3;
+  /* serial number */
+  end[0] = 0 ;
+  end++;
+  /* command */
+  end[0] = com_stmt_close;
+  end++;
+  /* statement id */
+  ul4store(stmtid,end);
+  end+=4;
+  /* packet size */
+  ul3store(end-inb-4,psz);
+  return end-inb;
+}
+
 

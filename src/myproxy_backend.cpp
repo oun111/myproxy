@@ -540,8 +540,12 @@ int myproxy_backend::do_execute_blobs(int cid, int xaid, sock_toolkit *st,
 
 /* do the stmt_close request */
 int 
-myproxy_backend::do_stmt_close(sock_toolkit *st, int cid, char *req, size_t sz)
+myproxy_backend::do_stmt_close(int cid, int stmtid)
 {
+  /*
+   * the actual 'stmt_close' is implemented by 
+   *  the idle task
+   */
   return 0;
 }
 
@@ -811,24 +815,28 @@ myproxy_backend::deal_query_res(
       xai->set_last_sn(2);
     }
 
+    /* no columns found in res set or ERROR OCCORS */
+    if (!nCols || mysqls_is_error(res,sz)) {
+
+      /* if errors, save it */
+      if (mysqls_is_error(res,sz)) {
+        xai->m_err.tc_resize(sz+2);
+        xai->m_err.tc_write(res,sz);
+      }
+
+      /* this's the last packet from current myfd, 
+       *  jump to last state */
+      xai->m_states.set(myfd,rs_ok);
+
+      /* for error or single response packet, sn is 1 */
+      xai->set_last_sn(0);
+    }
+
     /* set number of last datanode */
     if (xai->inc_res_dn()<xai->get_desire_dn()) {
       return 0;
     }
     xai->set_last_dn(myfd);
-
-    /* no columns found in res set or ERROR OCCORS */
-    if (!nCols || mysqls_is_error(res,sz)) {
-
-      m_xa.end_exec(xai);
-
-      /* return back cache if it has */
-      m_caches.return_cache(xai);
-
-      /*return*/ m_trx.tx(cfd,res,sz);
-
-      return /*0*/1;
-    }
 
   }
   /* the column def are not yet recv */
@@ -904,9 +912,28 @@ myproxy_backend::deal_query_res(
   /* buffer data if not the eof */
   if (xai->m_states.get(myfd)!=rs_ok) {
     m_caches.do_cache_res(xai,res,sz);
-  /* send the data */
-  } else {
+  } 
+  else {
+
+    tSqlParseItem *sp = 0 ;
+    tContainer eb ;
+
+    if (xai->m_err.tc_length()>0) {
+      eb.tc_copy(&xai->m_err);
+      res = eb.tc_data();
+      sz  = eb.tc_length();
+    }
+
+    /* end current xa if commit/rollback */
+    m_stmts.get_curr_sp(cfd,sp);
+    if (sp && is_xa_end_stmt(sp->stmt_type)) {
+      log_print("force to end xa %d cid %d\n",xaid,cfd);
+      end_xa(cfd);
+    }
+
+    /* this's the LAST packet */
     m_trx.tx(cfd,res,sz);
+
   }
 
   return /*0*/ret;
@@ -965,6 +992,8 @@ myproxy_backend::do_add_mapping(int myfd, int cfd,
 
   log_print("try add_mapping for cid %d myfd %d\n",cfd,myfd);
   m_stmts.add_mapping(cfd,lstmtid,gid,pd->no,stmtid);
+
+  m_mfMaps.add(myfd,stmtid);
 
   return 0;
 }
@@ -1038,7 +1067,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
   /* 
    * last response packet reached 
    */
-  if (isErr || sn==get_last_sn(xai))  {
+  if (isErr || sn==get_last_sn(xai)) {
 
     /* all response packets are received finished */
     if (xai->inc_ok_count()==xai->get_desire_dn()) {

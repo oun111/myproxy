@@ -123,6 +123,8 @@ extern int mysqls_gen_normal_resp(char *inb, uint16_t sql_stat,
   int char_set, uint32_t sn, char *db, char *tbl, char **cols, 
   size_t num_cols, char **rows, size_t num_rows);
 
+extern int mysqls_gen_stmt_close(char *inb, int stmtid);
+
 #ifdef __cplusplus
 }
 #endif

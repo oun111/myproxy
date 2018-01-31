@@ -100,7 +100,7 @@ public:
 
   int do_send_blob(int cid, char *req, size_t sz);
 
-  int do_stmt_close(sock_toolkit *st, int cid, char *req, size_t sz);
+  int do_stmt_close(int cid, int stmtid);
 
   int xa_rx(xa_item*,int,char*,size_t);
 

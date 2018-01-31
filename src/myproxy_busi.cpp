@@ -652,12 +652,11 @@ int myproxy_frontend::do_com_stmt_close(int connid,
   char *inb,size_t sz)
 {
   int stmtid = 0;
-  sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
 
   mysqls_get_stmt_prep_stmt_id(inb,sz,&stmtid);
   log_print("closing logical statement by id %d\n", stmtid);
 
-  m_exec.get()->do_stmt_close(st,connid,inb,sz);
+  m_exec.get()->do_stmt_close(connid,stmtid);
 
   return MP_OK;
 }

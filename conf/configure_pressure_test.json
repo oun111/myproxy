@@ -13,7 +13,7 @@
     "BindAddr" : "127.0.0.1",
     "ListenPort" : "2331",
 
-    "IdleSeconds" : "3600"
+    "IdleSeconds" : "30"
   },
 
   "DataNodes": {

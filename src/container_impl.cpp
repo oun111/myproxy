@@ -2284,3 +2284,54 @@ void safeStMapList::clear(void)
 }
 
 
+/*
+ * safeMyFdMapList
+ */
+int safeMyFdMapList::add(int myfd, int stmtid)
+{
+  myfdMapKey k = gen_key(myfd,stmtid);
+
+  try_write_lock();
+
+  insert(k);
+
+  return 0;
+}
+
+int safeMyFdMapList::do_iterate(MYFD_MAP_ITR_FUNC f)
+{
+  int fd=0,sid=0;
+
+  try_read_lock();
+  for (auto k : m_list) {
+
+    extract_key(k,fd,sid);
+    log_print("dealing myfd %d, stmtid %d\n",fd,sid);
+
+    f(fd,sid);
+  }
+
+  return 0;
+}
+
+void safeMyFdMapList::clear(void)
+{
+  try_write_lock();
+  m_list.clear();
+}
+
+myfdMapKey safeMyFdMapList::gen_key(int myfd, int stmtid) const
+{
+  myfdMapKey __myfd   = static_cast<myfdMapKey>(myfd) ;
+  myfdMapKey __stmtid = static_cast<myfdMapKey>(stmtid);
+
+  return ((__myfd<<32)&0xffffffff00000000) | (__stmtid&0xffffffff) ;
+}
+
+int safeMyFdMapList::extract_key(myfdMapKey k, int &myfd, int &stmtid)
+{
+  stmtid = k&0xffffffff ;
+  myfd   = (k>>32)&0xffffffff ;
+  return 0;
+}
+

@@ -774,5 +774,25 @@ public:
 };
 
 
+using myfdMapKey = uint64_t ;
+using MYFD_MAP_ITR_FUNC = int(*)(int,int);
+
+class safeMyFdMapList : public safe_vector_base<myfdMapKey> {
+
+public:
+  safeMyFdMapList (void) { lock_init(); }
+  ~safeMyFdMapList (void) { clear(); lock_release(); }
+
+public:
+  int add(int myfd, int stmtid);
+
+  int do_iterate(MYFD_MAP_ITR_FUNC);
+
+  void clear(void);
+
+  myfdMapKey gen_key(int myfd, int stmtid) const;
+  int extract_key(myfdMapKey k, int &myfd, int &stmtid);
+};
+
 #endif /* __CONTAINER_IMPL_H__ */
 

@@ -11,5 +11,7 @@ namespace GLOBAL_ENV {
   /* the table list */
   safeTableDetailList m_tables;
 
+  /* the myfd -> physical statement id mappings */
+  safeMyFdMapList m_mfMaps ;
 } ;
 

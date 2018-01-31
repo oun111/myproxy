@@ -1,4 +1,12 @@
 Changelog:
+  Jan 31, 2018:
+    1. release current xa when processed the 'commit/rollback' commands
+
+    2. add idle task logic to release unused prepared statements at backend servers
+
+    3. optimize the error packet processing logic in deal_query_res()
+
+
   Jan 22, 2018:
     1. try to solve the 'bus error' problem in initializations of 'm_txBuff' 
         by c++ style 'new/delete', because the c-style 'malloc/free' always 
