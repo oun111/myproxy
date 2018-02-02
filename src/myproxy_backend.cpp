@@ -224,6 +224,11 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   hook_framework hooks ;
   tSqlParseItem sp ;
 
+  /* XXX: some query requests have '0' at the end, 
+   *  but some dosen't, so trim all '0' from the 
+   *  packet end */
+  trim(req,&sz);
+
   /* get current connection region */
   pss  = m_lss.get_session(cid);
   if (!pss) {
@@ -822,6 +827,7 @@ myproxy_backend::deal_query_res(
       if (mysqls_is_error(res,sz)) {
         xai->m_err.tc_resize(sz+2);
         xai->m_err.tc_write(res,sz);
+        log_print("err myfd %d cid %d\n",myfd,cfd);
       }
 
       /* this's the last packet from current myfd, 
@@ -1077,6 +1083,9 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
       /* XXX: should reset session related xaid before sending
        *  last prepare response to client under multi-thread envirogments */
       m_lss.reset_xaid(cfd);
+
+      /* test if error occours */
+      isErr = xai->m_err.tc_length()>0;
 
       /* sent to client */
       if (isErr) {

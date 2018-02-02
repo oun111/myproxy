@@ -12,6 +12,7 @@ extern uint32_t calc_auth_key(char*);
 
 extern int get_cpu_cores(void);
 
+extern int trim(char *in, size_t *sz);
 
 #ifdef __cplusplus
 }

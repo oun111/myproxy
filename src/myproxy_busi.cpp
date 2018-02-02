@@ -70,10 +70,9 @@ void myproxy_frontend::register_cmd_handlers(void)
   m_handlers[com_stmt_send_long_data].ha = &myproxy_frontend::do_com_stmt_send_long_data;
 }
 
-int myproxy_frontend::deal_command(int fd, char *req, size_t sz) 
+int myproxy_frontend::deal_command(int fd, char *req, size_t sz_in) 
 {
-  int cmd=0;
-  size_t sz_in = sz;
+  int cmd=0, rc = 0;
   char *pb = 0, *inb = req;
 
   if (!mysqls_is_packet_valid(inb,sz_in)) {
@@ -90,11 +89,12 @@ int myproxy_frontend::deal_command(int fd, char *req, size_t sz)
   /* 
    * try login first
    */
-  if (do_com_login(fd,inb,sz_in)==MP_OK) {
-    return /*0*/MP_OK;
-  } 
+  /* login OK */
+  if ((rc=do_com_login(fd,inb,sz_in))==MP_OK) return MP_OK;
+  /* login fail */
+  else if (rc==MP_ERR) return MP_ERR;
   /* 
-   * try commands in list 
+   * not login request, try other commands below... 
    */
   if (cmd>=com_sleep && cmd<com_end) {
     log_print("cmd: %s chan %d\n",mysql_cmd2str[cmd],fd);

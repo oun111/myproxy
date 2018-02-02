@@ -1479,6 +1479,7 @@ safeStmtInfoList::add_prep(int lstmtid, char *prep, size_t sz,
   }
   ps->prep_req.tc_resize(sz+2) ;
   ps->prep_req.tc_write(prep,sz/*+1*/) ;
+  ps->prep_req.tc_write(const_cast<char*>("\0"),1) ;
   ps->m_root = stree ;
   ps->sp = sp ;
   /* add statement key mapping */

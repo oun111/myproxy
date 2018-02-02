@@ -1,4 +1,13 @@
 Changelog:
+  Feb 2, 2018:
+    1. fix the 'Incorrect arguments' error sometimes in prepare mode 
+
+    2. add 'trim' operation on the incoming 'query mode' requests
+        to eliminate the tailing zeros
+
+    3. optimize the client login logic
+
+
   Jan 31, 2018:
     1. release current xa when processed the 'commit/rollback' commands
 

@@ -2,13 +2,13 @@
   "Globals": {
 
     "__comment" : "*** total worker threads ***",
-    "ThreadPoolSize" : "10",
+    "ThreadPoolSize" : /*"10"*/"20",
 
     "__comment" : "*** total caches in pool ***",
-    "CachePoolSize" : "5",
+    "CachePoolSize" : /*"5"*/ "10",
 
     "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
-    "DatanodeGroupCount" : "3",
+    "DatanodeGroupCount" : /*"3"*/ "6",
 
     "BindAddr" : "127.0.0.1",
     "ListenPort" : "2331",
@@ -18,36 +18,36 @@
 
   "DataNodes": {
     "dn1": {
-      "Address": "127.0.0.1:3306",
+      "Address": "10.200.1.46:14133",
       "Schema": "orcl",
-      "Auth": {"root":"123"}
+      "Auth": {"nmts":"abc123"}
     },
     "dn2": {
-      "Address": "127.0.0.1",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb2",
-      "Auth": {"root":"123"}
+      "Auth": {"nmts":"abc123"}
     },
     "dn3": {
-      "Address": "127.0.0.1",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb3",
-      "Auth": {"root":"123"}
+      "Auth": {"nmts":"abc123"}
     },
     "dn_huge_0": {
-      "Address": "127.0.0.1",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb0",
-      "Auth": {"root":"123"}
+      "Auth": {"nmts":"abc123"}
     },
     "dn_huge_1": {
-      "Address": "127.0.0.1",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb1",
-      "Auth": {"root":"123"}
+      "Auth": {"nmts":"abc123"}
     }
   },
 
   "Schemas": {
 
     "db2": {
-      "Auth": {"root": "123"},
+      "Auth": {"proxy-user1": "123456"},
       "Tables": {
         "test_tbl_1": {
           "Mappings": {
@@ -58,10 +58,10 @@
           }
         },
         "test_tbl": {
-           "Mappings": {
+           /*"Mappings": {
             "dn2": { "IoType": "both"},
             "dn3": { "IoType": "both"}
-          },
+          },*/
           "shardingKey": {
             "id": { 
               "rule": "modN", 
