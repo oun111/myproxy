@@ -1445,7 +1445,7 @@ void safeDnStmtMapList::do_iterate(DNSTMT_MAP_ITR_FUNC f)
     dnStmtMapInfo *psi = si.second ;
 
     if (psi)
-      f(psi->phy_stmt_id,psi->myfd);
+      f(psi->myfd,psi->phy_stmt_id);
   }
 }
 
