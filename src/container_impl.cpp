@@ -1367,38 +1367,86 @@ uint64_t safeTableDetailList::gen_key(char *schema, char *tbl)
 /*
  * class safeDnStmtMapList
  */
-int safeDnStmtMapList::gen_key(int grp, int dn) const
+dnStmtKey safeDnStmtMapList::gen_key(int grp, int dn) const
 {
-  return ((grp<<16)&0xffff0000) | (dn&0xffff) ;
+  return ((grp<<16)&0xffff0000) | (dn&0x0000ffff) ;
 }
 
-int safeDnStmtMapList::get(int grp, int dn)
+int safeDnStmtMapList::get(int grp, int dn, int &myfd, int &stmtid)
 {
-  const int key = gen_key(grp,dn);
-  int stmtid = 0;
+  dnStmtMapInfo *psi = get(grp,dn);
+
+  if (!psi) {
+    stmtid = -1;
+    myfd = -1;
+    /*log_print("found no datanode->stmtid map "
+      "for grp %d datanode %d\n",grp,dn);*/
+    return -1;
+  }
+
+  stmtid = psi->phy_stmt_id ;
+  myfd   = psi->myfd ;
+  return 0;
+}
+
+dnStmtMapInfo* safeDnStmtMapList::get(int grp, int dn)
+{
+  dnStmtKey key = gen_key(grp,dn);
+
+  try_read_lock();
+  return find(key) ;
+}
+
+int safeDnStmtMapList::add(int grp, int dn, int myfd, int stmtid)
+{
+  dnStmtMapInfo *psi = get(grp,dn);
+
+  if (!psi) {
+    const dnStmtKey key = gen_key(grp,dn);
+    psi = new dnStmtMapInfo ;
+    try_write_lock();
+    insert(key,psi);
+  }
 
   {
-    try_read_lock();
-    stmtid = find(key) ;
+    __sync_lock_test_and_set(&psi->phy_stmt_id, stmtid);
+    __sync_lock_test_and_set(&psi->myfd, myfd);
   }
-  return !stmtid?-1:(stmtid-1);
-}
-
-int safeDnStmtMapList::add(int grp, int dn, int stmtid)
-{
-  const int key = gen_key(grp,dn);
   
-  try_write_lock();
-  insert(key,stmtid+1);
   return 0;
 }
 
 void safeDnStmtMapList::drop(int grp, int dn)
 {
-  const int key = gen_key(grp,dn);
-  
+  dnStmtMapInfo *psi = get(grp,dn);
+
+  if (psi) {
+    try_write_lock();
+    delete psi ;
+  }
+}
+
+void safeDnStmtMapList::clear(void)
+{
   try_write_lock();
-  safe_container_base<int,int>::drop(key);
+
+  for (auto si : m_list) {
+    if (si.second) 
+      delete si.second ;
+  }
+  m_list.clear();
+}
+
+void safeDnStmtMapList::do_iterate(DNSTMT_MAP_ITR_FUNC f)
+{
+  try_read_lock();
+
+  for (auto si : m_list) {
+    dnStmtMapInfo *psi = si.second ;
+
+    if (psi)
+      f(psi->phy_stmt_id,psi->myfd);
+  }
 }
 
 /* 
@@ -1453,6 +1501,7 @@ tStmtInfo* safeStmtInfoList::new_mapping(int lstmtid)
 int safeStmtInfoList::add_mapping(
   int lstmtid, //logical statement id
   int grp, //datanode group id
+  int myfd,// backend fd
   int dn, //datanode id
   int stmtid //physical statement id
   )
@@ -1462,9 +1511,10 @@ int safeStmtInfoList::add_mapping(
   if (!ps) {
     ps = new_mapping(lstmtid);
   }
-  ps->maps.add(grp,dn,stmtid);
+  ps->maps.add(grp,dn,myfd,stmtid);
   log_print("added mapping: lstmtid %d -> grp %d "
-    "dn %d stmtid %d\n", lstmtid, grp, dn, stmtid);
+    "dn %d myfd %d stmtid %d\n", lstmtid, grp, dn, 
+    myfd, stmtid);
   return 0;
 }
 
@@ -1535,6 +1585,20 @@ tClientStmtInfo* safeClientStmtInfoList::get(int cid)
 {
   try_read_lock();
   return find(cid);
+}
+
+tStmtInfo* safeClientStmtInfoList::get(int cid, int lstmtid)
+{
+  /* get client related statement mappings */
+  tClientStmtInfo *ps = get(cid);
+
+  if (!ps) {
+    log_print("found no statement maps for "
+      "client %d\n", cid);
+    return NULL;
+  }
+
+  return ps->stmts.get(lstmtid);
 }
 
 int safeClientStmtInfoList::get_lstmtid(int cid, int &lstmtid) 
@@ -1920,14 +1984,15 @@ safeClientStmtInfoList::get_qry_info(int cid, tSqlParseItem &sp)
 }
 
 int
-safeClientStmtInfoList::add_mapping(int cid, int lstmtid, int grp, int dn, int stmtid)
+safeClientStmtInfoList::add_mapping(int cid, int lstmtid, int grp, 
+  int myfd, int dn, int stmtid)
 {
   tClientStmtInfo *ci = get(cid);
 
   if (!ci) {
     return -1;
   }
-  return ci->stmts.add_mapping(lstmtid,grp,dn,stmtid);
+  return ci->stmts.add_mapping(lstmtid,grp,myfd,dn,stmtid);
 }
 
 int 
@@ -1935,6 +2000,7 @@ safeClientStmtInfoList::get_mapping(int cid, int lstmtid, int grp, int dn, int &
 {
   tStmtInfo *si = 0;
   tClientStmtInfo *ci = get(cid);
+  int __unused = 0;
 
   stmtid = -1;
   /* get client statements info by cid */
@@ -1947,8 +2013,8 @@ safeClientStmtInfoList::get_mapping(int cid, int lstmtid, int grp, int dn, int &
   if (!si) {
     return -1;
   }
-  stmtid = si->maps.get(grp,dn);
-  if (stmtid<0)
+  
+  if (si->maps.get(grp,dn,__unused,stmtid))
     return -1;
   return 0;
 }
@@ -2294,7 +2360,7 @@ int safeMyFdMapList::add(int myfd, int stmtid)
 
   try_write_lock();
 
-  insert(k);
+  m_list[k] = 1;
 
   return 0;
 }
@@ -2306,7 +2372,7 @@ int safeMyFdMapList::do_iterate(MYFD_MAP_ITR_FUNC f)
   try_read_lock();
   for (auto k : m_list) {
 
-    extract_key(k,fd,sid);
+    extract_key(k.first,fd,sid);
     log_print("dealing myfd %d, stmtid %d\n",fd,sid);
 
     f(fd,sid);

@@ -15,6 +15,7 @@ int stmt_id_hook::run_hook(char *req, size_t sz, void *param)
 {
   stmtIdHookParam *ptr = (stmtIdHookParam*)param ;
   int pstmtid = 0, dn=0, grp = 0;
+  int __unused = 0;
   
   if (!ptr) {
     log_print("invalid params\n");
@@ -23,9 +24,8 @@ int stmt_id_hook::run_hook(char *req, size_t sz, void *param)
   
   dn = ptr->dn ;
   grp= ptr->grp ;
-  pstmtid = ptr->maps->get(grp,dn);
 
-  if (pstmtid<0) {
+  if (ptr->maps->get(grp,dn,__unused,pstmtid)) {
     log_print("found no mapping by grp %d dn %d\n",grp,dn);
     return -1;
   }

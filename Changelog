@@ -1,4 +1,8 @@
 Changelog:
+  Feb 5, 2018:
+    1. add 'to-be-closed' statement items in do_stmt_close(), don't close
+        all the statement items
+
   Feb 2, 2018:
     1. fix the 'Incorrect arguments' error sometimes in prepare mode 
 

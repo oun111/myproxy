@@ -234,17 +234,30 @@ public:
 /*
  * statement id and group/datanode mapping list
  */
-class safeDnStmtMapList : public safe_container_base<int,int> {
+
+class dnStmtMapInfo {
+public:
+  int phy_stmt_id ;
+  int myfd ;
+} ;
+
+using DNSTMT_MAP_ITR_FUNC = int(*)(int,int);
+using dnStmtKey = int ;
+
+class safeDnStmtMapList : public safe_container_base<dnStmtKey,dnStmtMapInfo*> {
 
 public:
   safeDnStmtMapList(void) { lock_init();  }
-  ~safeDnStmtMapList(void) { lock_release(); }
+  ~safeDnStmtMapList(void) { clear(); lock_release(); }
 
 public:
-  int gen_key(int,int) const;
-  int get(int grp, int dn);
-  int add(int grp, int dn, int stmtid);
+  dnStmtKey gen_key(int,int) const;
+  int get(int grp, int dn, int &myfd, int &stmtid);
+  dnStmtMapInfo* get(int grp, int dn);
+  int add(int grp, int dn, int myfd, int stmtid);
   void drop(int grp, int dn);
+  void clear(void);
+  void do_iterate(DNSTMT_MAP_ITR_FUNC);
 } ;
 
 /* client-based statement info */
@@ -286,7 +299,7 @@ public:
 
   tStmtInfo* get(char*req,size_t sz);
 
-  int add_mapping(int lstmtid,int grp,int dn,int stmtid);
+  int add_mapping(int lstmtid,int grp,int myfd,int dn,int stmtid);
 
   int add_prep(int lstmtid,char *prep,size_t sz,stxNode*,
     tSqlParseItem&);
@@ -377,6 +390,7 @@ public:
 
 public:
   tClientStmtInfo* get(int) ;
+  tStmtInfo* get(int cid, int lstmtid);
 
   int add_stmt(int cid, char *prep_req, size_t sz, uint16_t nPhs, 
     stxNode*, tSqlParseItem &sp) ;
@@ -389,7 +403,7 @@ public:
   int add_qry_info(int cid, tSqlParseItem &sp);
   int get_qry_info(int cid, tSqlParseItem &sp);
 
-  int add_mapping(int cid,int lstmtid,int grp,int dn,int stmtid);
+  int add_mapping(int cid,int lstmtid,int grp,int myfd,int dn,int stmtid);
 
   int get_lstmtid(int cid, int &lstmtid) ;
 
@@ -777,7 +791,7 @@ public:
 using myfdMapKey = uint64_t ;
 using MYFD_MAP_ITR_FUNC = int(*)(int,int);
 
-class safeMyFdMapList : public safe_vector_base<myfdMapKey> {
+class safeMyFdMapList : public safe_container_base<myfdMapKey,int> {
 
 public:
   safeMyFdMapList (void) { lock_init(); }

@@ -10,7 +10,7 @@
     "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
     "DatanodeGroupCount" : /*"3"*/ "6",
 
-    "BindAddr" : "127.0.0.1",
+    "BindAddr" : "10.200.1.46:14133",
     "ListenPort" : "2331",
 
     "IdleSeconds" : "30"

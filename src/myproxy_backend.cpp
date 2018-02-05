@@ -319,6 +319,11 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   tSqlParseItem *sp = 0, tsp ;
   hook_framework hooks ;
 
+  /* XXX: some prepare requests have '0' at the end, 
+   *  but some dosen't, so trim all '0' from the 
+   *  packet end */
+  trim(req,&sz);
+
   /* get current connection region */
   pss  = m_lss.get_session(cid);
   if (!pss) {
@@ -543,14 +548,36 @@ int myproxy_backend::do_execute_blobs(int cid, int xaid, sock_toolkit *st,
   return 0;
 }
 
+namespace {
+  int try_close_physical_stmt(int myfd, int stmtid)
+  {
+    /*
+     * the actual 'stmt_close' is implemented by 
+     *  the idle task
+     */
+    m_mfMaps.add(myfd,stmtid);
+    //log_print("add to close myfd %d stmtid %d\n",myfd,stmtid);
+
+    return 0;
+  }
+
+} ;
+
 /* do the stmt_close request */
 int 
 myproxy_backend::do_stmt_close(int cid, int stmtid)
 {
-  /*
-   * the actual 'stmt_close' is implemented by 
-   *  the idle task
-   */
+  /* get logical statement related backend fd & physical id */
+  tStmtInfo *pi = m_stmts.get(cid,stmtid);
+
+  if (!pi) {
+    log_print("found no statement maps for "
+      "logical id %d\n", stmtid);
+    return -1;
+  }
+
+  pi->maps.do_iterate(try_close_physical_stmt);
+
   return 0;
 }
 
@@ -997,9 +1024,7 @@ myproxy_backend::do_add_mapping(int myfd, int cfd,
   tDNInfo *pd = nodes->get_by_fd(myfd);
 
   log_print("try add_mapping for cid %d myfd %d\n",cfd,myfd);
-  m_stmts.add_mapping(cfd,lstmtid,gid,pd->no,stmtid);
-
-  m_mfMaps.add(myfd,stmtid);
+  m_stmts.add_mapping(cfd,lstmtid,gid,myfd,pd->no,stmtid);
 
   return 0;
 }
