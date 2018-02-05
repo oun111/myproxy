@@ -2373,7 +2373,6 @@ int safeMyFdMapList::do_iterate(MYFD_MAP_ITR_FUNC f)
   for (auto k : m_list) {
 
     extract_key(k.first,fd,sid);
-    log_print("dealing myfd %d, stmtid %d\n",fd,sid);
 
     f(fd,sid);
   }
