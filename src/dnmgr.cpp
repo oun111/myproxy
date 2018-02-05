@@ -167,7 +167,7 @@ namespace {
 
     do_send(myfd,outb,sz);
 
-    log_print("closing statement %d on myfd %d\n",
+    log_print("closing statement id %d by myfd %d\n",
       stmtid,myfd);
 
     return 0;
