@@ -10,7 +10,7 @@
     "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
     "DatanodeGroupCount" : /*"3"*/ "6",
 
-    "BindAddr" : "10.200.1.46:14133",
+    "BindAddr" : "127.0.0.1",
     "ListenPort" : "2331",
 
     "IdleSeconds" : "30"
@@ -18,29 +18,29 @@
 
   "DataNodes": {
     "dn1": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "orcl",
-      "Auth": {"nmts":"abc123"}
+      "Auth": {"root":"123"}
     },
     "dn2": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb2",
-      "Auth": {"nmts":"abc123"}
+      "Auth": {"root":"123"}
     },
     "dn3": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb3",
-      "Auth": {"nmts":"abc123"}
+      "Auth": {"root":"123"}
     },
     "dn_huge_0": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb0",
-      "Auth": {"nmts":"abc123"}
+      "Auth": {"root":"123"}
     },
     "dn_huge_1": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb1",
-      "Auth": {"nmts":"abc123"}
+      "Auth": {"root":"123"}
     }
   },
 

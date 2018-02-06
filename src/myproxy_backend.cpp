@@ -253,10 +253,14 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
     return -1;
   }
 
-  /* dynamic request hooking */
-  if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
-    log_print("error filtering sql %s\n",pSql);
-    RETURN(-1) ;
+  {
+    normal_hook_params params(pDb,sp);
+
+    /* dynamic request hooking */
+    if (hooks.run(&req,sz,/*pDb*/&params,h_sql,pTree)) {
+      log_print("error filtering sql %s\n",pSql);
+      RETURN(-1) ;
+    }
   }
 
   /* update the statement pointer */
@@ -293,7 +297,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   /* set current 'sp' item under query mode */
   m_stmts.set_curr_sp(cid);
 
-  log_print("try to execute sql %s\n",pSql);
+  log_print("try to execute sql: %s\n",pSql);
   /* send and execute the request */
   if (m_xa.execute(st,xaid,com_query,rlist,req,sz,0,this)) {
     log_print("fatal: sending xa %d for client %d\n",xaid,cid);
@@ -348,11 +352,15 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
     return -1;
   }
 
-  /* dynamically modify the tree by hook modules */
-  if (hooks.run(&req,sz,pDb,h_sql,pTree)) {
-    log_print("error filtering sql %s\n",pSql);
+  {
+    normal_hook_params params(pDb,tsp);
 
-    RETURN(-1);
+    /* dynamic request hooking */
+    if (hooks.run(&req,sz,/*pDb*/&params,h_sql,pTree)) {
+      log_print("error filtering sql %s\n",pSql);
+
+      RETURN(-1);
+    }
   }
 
   /* update the statement pointer */
@@ -1246,7 +1254,6 @@ myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
       memcpy(priv->cache.buf,req,szRest);
       priv->cache.valid = true ;
     }
-
   } while (!bStop && ret==MP_OK);
 
   return 0;

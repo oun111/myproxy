@@ -696,7 +696,7 @@ unsafeAggInfoList* unsafeAggInfoList::operator =(unsafeAggInfoList &&lst)
 /* 
  * class tSqlParseItem 
  */
-tSqlParseItem::tSqlParseItem(void) 
+tSqlParseItem::tSqlParseItem(void) : dest_dn(-1)
 {
 }
 
@@ -718,6 +718,7 @@ tSqlParseItem* tSqlParseItem::operator = (tSqlParseItem &ps)
   m_aggs      = std::move(ps.m_aggs);
   m_tblKeyLst = std::move(ps.m_tblKeyLst);
   stmt_type   = ps.stmt_type ;
+  dest_dn     = ps.dest_dn ;
 
   return this;
 }

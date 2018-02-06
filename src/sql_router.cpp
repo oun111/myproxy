@@ -416,6 +416,29 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
     return 0;
   }
 
+  /* for 'show xxx' */
+  if (sp->stmt_type==mktype(m_stmt,s_show)) {
+
+    if (sp->dest_dn<0) {
+      log_print("no datanode specified\n");
+      return -1;
+    }
+
+    /* client MUST specify a datanode to 
+     *  execute this command */
+    rlist.insert(sp->dest_dn);
+
+    get_full_route(tr);
+    calc_intersection(rlist,tr);
+
+    if (rlist.size()==0) {
+      log_print("invalid datanode number %d specified\n",sp->dest_dn);
+      return -1;
+    }
+
+    return 0;
+  }
+
 
   /* 
    * for statements:
@@ -431,7 +454,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
      sp->stmt_type==mktype(m_stmt,s_cTbl_cond) ||
      sp->stmt_type==mktype(m_stmt,s_commit) ||
      sp->stmt_type==mktype(m_stmt,s_rollback) ||
-     sp->stmt_type==mktype(m_stmt,s_show) || 
+     //sp->stmt_type==mktype(m_stmt,s_show) || 
      sp->stmt_type==mktype(m_stmt,s_setparam)) {
 
     log_print("try to get full routes\n");

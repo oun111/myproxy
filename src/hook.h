@@ -14,6 +14,7 @@
 #include "sql_tree.h"
 #include "container.h"
 #include "dbg_log.h"
+#include "container_impl.h"
 
 enum hook_type
 {
@@ -27,7 +28,18 @@ enum hook_type
   h_res,
 } ;
 
-class hook_object /*: public sql_tree*/ {
+class normal_hook_params {
+public:
+  const char *m_db;
+  tSqlParseItem &m_sp ;
+
+public:
+  normal_hook_params(const char *db, tSqlParseItem &item) :
+    m_db(db),m_sp(item) {}
+
+} ;
+
+class hook_object {
 
 public:
   const int hook_type ;

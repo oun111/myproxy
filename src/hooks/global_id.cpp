@@ -150,11 +150,12 @@ int global_id_hook::update(sql_tree &st, stxNode *pfmt, stxNode *pval,
 
 int global_id_hook::run_hook(sql_tree &st,stxNode *root,void *params) 
 {
-  char *db = static_cast<char*>(params) ;
   stxNode *ptr = 0, *pf = 0, *pv = 0;
   char *tbl = 0, *col = 0;
   GLOBALCOL *colInfo = 0;
   char key[PATH_MAX] = "";
+  normal_hook_params *para = static_cast<normal_hook_params*>(params);
+  char *db = const_cast<char*>(para->m_db) ;
 
   if (!(ptr=st.find_in_tree(root,mktype(m_stmt,s_insert)))) {
     //log_print("not an insert statement\n");

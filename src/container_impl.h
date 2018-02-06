@@ -208,6 +208,8 @@ public:
   unsafeTblKeyList m_tblKeyLst ;
   /* statement type */
   int stmt_type;
+  /* destination datanode number */
+  int dest_dn ;
 
 public:
   tSqlParseItem(void) ;

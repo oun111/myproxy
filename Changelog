@@ -1,4 +1,9 @@
 Changelog:
+  Feb 6, 2018:
+    1. add sql hook to make the 'show xxx' commands to be routed to
+        a client-specific datanode
+
+
   Feb 5, 2018:
     1. add 'to-be-closed' statement items in do_stmt_close(), don't close
         all the statement items
