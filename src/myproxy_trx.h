@@ -22,7 +22,7 @@ class myproxy_epoll_trx {
 public:
   int rx(int,epoll_priv_data*,char*&,size_t&);
 
-  int rx_blk(int,epoll_priv_data*,char*,ssize_t&,const size_t=nMaxRecvBlk);
+  int rx_blk(int,epoll_priv_data*,char*&,ssize_t&,const size_t=nMaxRecvBlk);
 
   void end_rx(char*&);
 

@@ -1,4 +1,9 @@
 Changelog:
+  Feb 7, 2018:
+    1. fix the bug that myproxy can not correctly retrive mysql packets larger
+        than 20000 bytes
+
+
   Feb 6, 2018:
     1. add sql hook to make the 'show xxx' commands to be routed to
         a client-specific datanode

@@ -1197,42 +1197,56 @@ int
 myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
 {
   constexpr size_t MAX_BLK = 20000;
-  //myproxy_backend *pexec = (myproxy_backend*)m_parent;
   int ret = 0;
   char *req =0;
   ssize_t szBlk = 0, szReq = 0;
-  char blk[MAX_BLK];
+  char blk[MAX_BLK], *pblk = 0;
   bool bStop = false ;
   xa_item *xa = static_cast<xa_item*>(priv->param);
 
   /* recv a single block of data */
   do {
-    ret = m_trx.rx_blk(fd,priv,blk,szBlk,MAX_BLK) ;
+    pblk= blk;
+    ret = m_trx.rx_blk(fd,priv,pblk,szBlk,MAX_BLK) ;
 
     if (ret==MP_ERR) {
       return -1;
     }
 
-    const char *pBlkEnd = blk + szBlk ;
+    /* if there're pending bytes in cache, means the 
+     *  packet in cache is incompleted, so go ahead 
+     *  to receive the rest */
+    if (is_epp_data_pending(priv)) {
+      return 0;
+    }
 
-    /* get requests out of blk one by one */
-    for (req=blk;!bStop && req<pBlkEnd;req+=szReq) {
+    const char *pBlkEnd = pblk + szBlk ;
 
-      if ((pBlkEnd-req)<4) {
-        //log_print("incompleted header %zu on %d\n",(pBlkEnd-req),fd);
+    /* get requests out of pblk one by one */
+    for (req=pblk;!bStop && req<pBlkEnd;req+=szReq) {
+
+      const ssize_t szPkt = pBlkEnd-req ;
+
+      if (szPkt<4) {
+        log_print("fatal: incompleted header %zu on %d\n",szPkt,fd);
         break ;
       }
 
       /* current req size pointed to by req */
       szReq = mysqls_get_req_size(req);
 
-      if ((pBlkEnd-req)<szReq) {
-        //log_print("incompleted body %zu on %d\n",(pBlkEnd-req),fd);
-        break ;
+      if (szPkt<szReq) {
+        log_print("incomplete body %zu on %d needs %zu\n",
+          szPkt,fd,szReq);
+
+        /* cache the partial packet and wait to 
+         *  receive the rest */
+        create_epp_cache(priv,req,szPkt,szReq);
+        return 0 ;
       }
 
       if (!mysqls_is_packet_valid(req,szReq)) {
-        log_print("datanode %d packet err\n",fd);
+        log_print("myfd %d packet err\n",fd);
         return -1;
       }
 
@@ -1244,16 +1258,10 @@ myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
       }
     } /* end for */
 
-    /* check if need to cache data */
-    if (pBlkEnd>req) {
-      ssize_t szRest = pBlkEnd - req ;
+    /* all received datas are completely processed, 
+     *  try to release cache if there is */
+    free_epp_cache(priv);
 
-      priv->cache.buf = (char*)malloc(szRest);
-      priv->cache.offs = 0;
-      priv->cache.pending = szRest ;
-      memcpy(priv->cache.buf,req,szRest);
-      priv->cache.valid = true ;
-    }
   } while (!bStop && ret==MP_OK);
 
   return 0;

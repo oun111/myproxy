@@ -428,6 +428,7 @@ int sql_router::get_route(int cid,tSqlParseItem *sp,
      *  execute this command */
     rlist.insert(sp->dest_dn);
 
+    /* test if this specified datanode is valid */
     get_full_route(tr);
     calc_intersection(rlist,tr);
 

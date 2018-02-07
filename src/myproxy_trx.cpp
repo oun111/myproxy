@@ -99,32 +99,18 @@ myproxy_epoll_trx::rx(int fd, epoll_priv_data *priv, char* &buf, size_t &sz)
 
 /* receive a big block of packet data */
 int 
-myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* blk, 
+myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* &blk, 
   ssize_t &sz, const size_t capacity)
 {
   ssize_t total = 0, offs = 0, ret = 0;
 
-  if (!priv->cache.valid) {
+  if (!is_epp_cache_valid(priv)) {
     total= capacity;
     offs = 0;
-
   } else {
-
-    if (priv->cache.pending>capacity) {
-      log_print("too much pending bytes: %zu\n",
-        priv->cache.pending);
-      return MP_ERR;
-    }
-    /* move cache data to front of 'blk' */
-    memcpy(blk,priv->cache.buf+priv->cache.offs,
-      priv->cache.pending);
-    offs = priv->cache.pending ;
-    total= capacity - offs ;
-    //log_print("get buff of myfd %d\n",fd);
-    /* close cache */
-    priv->cache.valid = false ;
-    free(priv->cache.buf);
-    priv->cache.buf = 0;
+    /* receive the cached partial data first */
+    get_epp_cache_data(priv,&blk,&offs,&total);
+    //log_print("fd %d rx %zu pending %zu\n",fd,offs,total);
   }
 
   /* read data block */
@@ -141,6 +127,9 @@ myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* blk,
       return MP_ERR;
     return MP_IDLE;
   }
+
+  /* update cache if it has */
+  update_epp_cache(priv,ret);
 
   sz += ret  ;
   /* more data should be read */

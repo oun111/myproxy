@@ -460,3 +460,71 @@ int brocast_tx(int fd, int bcast_port, char *data, size_t len)
   return 0;
 }
 
+int 
+create_epp_cache(epoll_priv_data *ep, char *data, size_t sz, 
+  const size_t capacity)
+{
+  if (!ep->cache.valid) {
+    ep->cache.valid= true;
+    ep->cache.buf  = malloc(capacity+10);
+    ep->cache.offs = 0;
+    ep->cache.pending = capacity;
+  }
+
+  memcpy(ep->cache.buf+ep->cache.offs,data,sz);
+  ep->cache.offs += sz ;
+  ep->cache.pending -= sz;
+
+  return 0;
+}
+
+int update_epp_cache(epoll_priv_data *ep, size_t sz_in)
+{
+  if (!ep->cache.valid)
+    return -1;
+
+  ep->cache.offs += sz_in ;
+  ep->cache.pending -= sz_in ;
+
+  return 0;
+}
+
+bool is_epp_cache_valid(epoll_priv_data *ep)
+{
+  return ep->cache.valid;
+}
+
+bool is_epp_data_pending(epoll_priv_data *ep)
+{
+  if (!ep->cache.valid)
+    return false;
+
+  return ep->cache.pending>0 ;
+}
+
+int 
+get_epp_cache_data(epoll_priv_data *ep, char **data, ssize_t *sz, ssize_t *szPending)
+{
+  if (!ep->cache.valid)
+    return -1;
+
+  *data = ep->cache.buf ;
+  *sz   = ep->cache.offs ;
+
+  if (szPending) *szPending = ep->cache.pending;
+
+  return 0;
+}
+
+int free_epp_cache(epoll_priv_data *ep)
+{
+  if (!ep->cache.valid)
+    return -1;
+
+  ep->cache.valid = false ;
+  free(ep->cache.buf);
+  ep->cache.offs = ep->cache.pending = 0;
+
+  return 0;
+}
+

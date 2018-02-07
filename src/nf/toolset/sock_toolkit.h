@@ -123,6 +123,13 @@ extern int init_st(sock_toolkit*,bool,bool);
 extern int close_st(sock_toolkit*);
 extern int brocast_tx(int,int,char*,size_t);
 
+extern int create_epp_cache(epoll_priv_data*,char*,size_t,const size_t);
+extern bool is_epp_cache_valid(epoll_priv_data *ep);
+extern int get_epp_cache_data(epoll_priv_data *ep, char**,ssize_t*,ssize_t*);
+extern int update_epp_cache(epoll_priv_data *ep, size_t sz_in);
+extern int free_epp_cache(epoll_priv_data *ep);
+extern bool is_epp_data_pending(epoll_priv_data *ep);
+
 #ifdef __cplusplus
 }
 #endif
