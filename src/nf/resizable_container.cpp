@@ -35,18 +35,18 @@ char* tContainer::tc_data(void)
   return static_cast<char*>(b) ;
 }
 
-size_t tContainer::tc_capacity(void) 
+size_t tContainer::tc_capacity(void) const
 { 
   return capacity; 
 }
 
-size_t tContainer::tc_free(void) 
+size_t tContainer::tc_free(void) const
 { 
   return tc_length()>=tc_capacity()?0:
     tc_capacity()-tc_length(); 
 }
 
-size_t tContainer::tc_length(void) 
+size_t tContainer::tc_length(void) const
 { 
   return size; 
 }

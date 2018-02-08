@@ -108,8 +108,17 @@ cache_wrapper::extract_cached_rows(safeClientStmtInfoList &stmts,
 
     /* update sn */
     mysqls_update_sn(buf,xai->inc_last_sn());
-    /* just buffer normal res */
-    xai->m_txBuff.tc_write(buf,dl);
+
+    /* if the tx buffer's too small for the res, then just
+     *  send it without buffering */
+    if (static_cast<ssize_t>(xai->m_txBuff.tc_capacity())<=dl) {
+      m_parent.get_trx().tx(cfd,buf,dl);
+    } 
+    else {
+      /* buffer normal res */
+      xai->m_txBuff.tc_write(buf,dl);
+    }
+
   }
 
   /* send rest row set */

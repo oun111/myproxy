@@ -40,11 +40,11 @@ public:
 
   char *tc_data(void) ;
 
-  size_t tc_capacity(void) ;
+  size_t tc_capacity(void) const ;
 
-  size_t tc_length(void) ;
+  size_t tc_length(void) const;
 
-  size_t tc_free(void) ;
+  size_t tc_free(void) const ;
 
   void tc_resize(size_t new_sz) ;
 
