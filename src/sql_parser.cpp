@@ -72,6 +72,9 @@ namespace global_parser_items {
   int do_simple_explain(char *stmt, 
     size_t len, int &cmd)
   {
+    auto has_tailing_str = [&](auto &&begin, auto &&end, size_t sz) -> bool {
+      return static_cast<size_t>(end-begin)<len ;
+    } ;
     cmd = s_na ;
 
     /*
@@ -89,8 +92,16 @@ namespace global_parser_items {
         cmd = s_show_dbs ;
       else if (strcasestr(stmt+4,"tables")) 
         cmd = s_show_tbls;
-      else if (strcasestr(stmt+4,"processlist")) 
-        cmd = s_show_proclst;
+      else {
+        char *pc = strcasestr(stmt+4,"processlist");
+
+        /* test if the command has an extra string at 
+         *  its tail, if so, I consider it the datanode number */
+        if (pc && !has_tailing_str(stmt,pc+11,len)) {
+          cmd = s_show_proclst;
+        }
+      }
+
     }
 
     if (cmd!=s_na) {

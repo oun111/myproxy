@@ -1199,7 +1199,8 @@ myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
   constexpr size_t MAX_BLK = 20000;
   int ret = 0;
   char *req =0;
-  ssize_t szBlk = 0, szReq = 0;
+  ssize_t szBlk = 0;
+  size_t szReq = 0;
   char blk[MAX_BLK], *pblk = 0;
   bool bStop = false ;
   xa_item *xa = static_cast<xa_item*>(priv->param);
@@ -1221,27 +1222,52 @@ myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
     }
 
     const char *pBlkEnd = pblk + szBlk ;
+    bool relCache = true ;
 
     /* get requests out of pblk one by one */
     for (req=pblk;!bStop && req<pBlkEnd;req+=szReq) {
 
-      const ssize_t szPkt = pBlkEnd-req ;
+      const size_t szRest = pBlkEnd-req ;
 
-      if (szPkt<4) {
-        log_print("fatal: incompleted header %zu on %d\n",szPkt,fd);
-        break ;
+      if (szRest<4) {
+        log_print("incomplete header %zu on %d\n",szRest,fd);
+
+        /* cache the partial header */
+        create_epp_cache(priv,req,szRest,4);
+
+        return 0 ;
       }
 
       /* current req size pointed to by req */
       szReq = mysqls_get_req_size(req);
 
-      if (szPkt<szReq) {
-        log_print("incomplete body %zu on %d needs %zu\n",
-          szPkt,fd,szReq);
+      if (szRest<szReq) {
 
-        /* cache the partial packet and wait to 
+        char tmp[10] ;
+
+        /* the header locates in cache */
+        relCache = !(szRest==4&&is_epp_cache_valid(priv));
+
+        log_print("incomplete body %zu on %d needs %zu\n",
+          szRest,fd,szReq);
+
+        /* there's a header in cache, back it up because the 
+         *  create_epp_cache() call will destory the cache */
+        if (!relCache) {
+          memcpy(tmp,req,4);
+          req = tmp ;
+        }
+
+        /* cache the partial header + body and wait to 
          *  receive the rest */
-        create_epp_cache(priv,req,szPkt,szReq);
+        create_epp_cache(priv,req,szRest,szReq);
+
+        /* only the header's received and be stored in cache, so 
+         *  continue to read from net and dont release cache */
+        if (!relCache) {
+          break ;
+        }
+
         return 0 ;
       }
 
@@ -1254,13 +1280,15 @@ myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
       if (xa_rx(xa,fd,req,szReq)) {
         /* TODO: no need to recv any data */
         bStop = true ;
-        //break ;
       }
+
     } /* end for */
 
     /* all received datas are completely processed, 
      *  try to release cache if there is */
-    free_epp_cache(priv);
+    if (relCache) {
+      free_epp_cache(priv);
+    }
 
   } while (!bStop && ret==MP_OK);
 

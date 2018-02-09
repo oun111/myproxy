@@ -2,13 +2,13 @@
   "Globals": {
 
     "__comment" : "*** total worker threads ***",
-    "ThreadPoolSize" : /*"10"*/"20",
+    "ThreadPoolSize" : /*"10"*/"30",
 
     "__comment" : "*** total caches in pool ***",
-    "CachePoolSize" : /*"5"*/ "10",
+    "CachePoolSize" : /*"5"*/ "20",
 
     "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
-    "DatanodeGroupCount" : /*"3"*/ "6",
+    "DatanodeGroupCount" : /*"3"*/ "10",
 
     "BindAddr" : "127.0.0.1",
     "ListenPort" : "2331",

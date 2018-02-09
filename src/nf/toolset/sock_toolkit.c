@@ -456,7 +456,7 @@ int brocast_tx(int fd, int bcast_port, char *data, size_t len)
     sendto(fd,(char*)data,len,MSG_DONTWAIT,
       (struct sockaddr*)&sa,sizeof(sa));
   }
-  //log_dbg("end\n");
+
   return 0;
 }
 
@@ -464,12 +464,10 @@ int
 create_epp_cache(epoll_priv_data *ep, char *data, size_t sz, 
   const size_t capacity)
 {
-  if (!ep->cache.valid) {
-    ep->cache.valid= true;
-    ep->cache.buf  = malloc(capacity+10);
-    ep->cache.offs = 0;
-    ep->cache.pending = capacity;
-  }
+  ep->cache.valid= true;
+  ep->cache.offs = 0;
+  ep->cache.buf  = realloc(ep->cache.buf,capacity+10);
+  ep->cache.pending = capacity;
 
   memcpy(ep->cache.buf+ep->cache.offs,data,sz);
   ep->cache.offs += sz ;
@@ -523,6 +521,7 @@ int free_epp_cache(epoll_priv_data *ep)
 
   ep->cache.valid = false ;
   free(ep->cache.buf);
+  ep->cache.buf = NULL ;
   ep->cache.offs = ep->cache.pending = 0;
 
   return 0;
