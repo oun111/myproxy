@@ -20,6 +20,8 @@ public:
   virtual int tx(sock_toolkit* st,epoll_priv_data* priv,int fd) = 0;
 
   virtual int on_error(sock_toolkit* st,int fd) = 0;
+
+  virtual int deal_pkt(int fd, char *pkt, size_t sz, void *arg) = 0;
 } ;
 
 #endif /* __BUSI_BASE_H__ */

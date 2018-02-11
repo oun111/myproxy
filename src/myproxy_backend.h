@@ -102,7 +102,8 @@ public:
 
   int do_stmt_close(int cid, int stmtid);
 
-  int xa_rx(xa_item*,int,char*,size_t);
+  //int xa_rx(xa_item*,int,char*,size_t);
+  int deal_pkt(int,char*,size_t,void*);
 
   myproxy_epoll_trx& get_trx(void);
 

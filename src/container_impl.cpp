@@ -38,7 +38,8 @@ uint32_t safeShardingColumnList::get_key(char *schema,
     *ptbl = bCaseSensitive?tbl:to_lower(tbl),
     *pcol = bCaseSensitive?col:to_lower(col);
 
-  return (str2id(psch)<<16) | (str2id(ptbl)<<8) | str2id(pcol);
+  return (str2id(psch,strlen(psch))<<16) | (str2id(ptbl,strlen(ptbl))<<8) 
+    | str2id(pcol,strlen(pcol));
 }
 
 SHARDING_KEY* safeShardingColumnList::get(char *schema, char *tbl, char *col)
@@ -129,7 +130,7 @@ safeGlobalIdColumnList::get_key(char *schema, char *tbl)
   char *psch = bCaseSensitive?schema:to_lower(schema),
     *ptbl = bCaseSensitive?tbl:to_lower(tbl);
 
-  return (str2id(psch)<<16) | (str2id(ptbl));
+  return (str2id(psch,strlen(psch))<<16) | (str2id(ptbl,strlen(ptbl)));
 }
 
 GLOBALCOL* safeGlobalIdColumnList::get(char *schema, char *tbl)
@@ -213,7 +214,7 @@ uint32_t unsafeTblKeyList::get_key(char *item0, char *item1)
   char *p0 = bCaseSensitive?item0:to_lower(item0),
     *p1 = bCaseSensitive?item1:to_lower(item1);
 
-  return (str2id(p0)<<16) | str2id(p1);
+  return (str2id(p0,strlen(p0))<<16) | str2id(p1,strlen(p1));
 }
 
 /* get table name by schema+table */
@@ -1100,7 +1101,7 @@ int safeTableDetailList::add_col(char *schema,
   uint64_t key = gen_key(schema,table);
   tTblDetails *td = get(key);
   tColDetails *cd = 0;
-  uint32_t ckey = str2id(column);
+  uint32_t ckey = str2id(column,strlen(column));
   col_itr itr ;
 
   if (!td) {
@@ -1157,7 +1158,7 @@ int safeTableDetailList::add_col_extra(char *schema,
   }
 
   {
-    uint32_t ckey = str2id(col);
+    uint32_t ckey = str2id(col,strlen(col));
 
     try_read_lock();
     itr = td->columns.find(ckey);
@@ -1249,7 +1250,7 @@ tColDetails* safeTableDetailList::get_col(char *sch, char *tbl, char *col)
     return NULL;
   }
 
-  uint32_t ckey = str2id(col);
+  uint32_t ckey = str2id(col,strlen(col));
 
   try_read_lock();
   col_itr itr = td->columns.find(ckey);
@@ -1361,8 +1362,8 @@ void safeTableDetailList::clear(void)
 
 uint64_t safeTableDetailList::gen_key(char *schema, char *tbl)
 {
-  return ((uint64_t)str2id(schema))<<32|
-    str2id(tbl);
+  return ((uint64_t)str2id(schema,strlen(schema)))<<32|
+    str2id(tbl,strlen(tbl));
 }
 
 /*
@@ -1462,7 +1463,8 @@ tStmtInfo* safeStmtInfoList::get(int lstmtid)
 tStmtInfo* safeStmtInfoList::get(char *req, size_t sz)
 {
   char *stmt = req + 5;
-  const uint32_t skey = str2id(stmt);
+  size_t szStmt= sz-5;
+  const uint32_t skey = str2id(stmt,szStmt);
   keyIndex_t::iterator i ;
 
   {
@@ -1476,10 +1478,11 @@ tStmtInfo* safeStmtInfoList::get(char *req, size_t sz)
   return i->second ;
 }
 
-int safeStmtInfoList::add_key_index(char *req, tStmtInfo *info)
+int safeStmtInfoList::add_key_index(char *req, size_t sz, tStmtInfo *info)
 {
   char *stmt = req + 5;
-  const uint32_t skey = str2id(stmt);
+  size_t szStmt= sz-5;
+  const uint32_t skey = str2id(stmt,szStmt);
 
   try_write_lock();
   m_keyIndex[skey] = info;
@@ -1534,7 +1537,7 @@ safeStmtInfoList::add_prep(int lstmtid, char *prep, size_t sz,
   ps->m_root = stree ;
   ps->sp = sp ;
   /* add statement key mapping */
-  add_key_index(prep,ps);
+  add_key_index(prep,sz,ps);
   return 0;
 }
 

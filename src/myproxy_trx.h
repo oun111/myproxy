@@ -20,11 +20,9 @@ constexpr int nMaxRecvBlk = 10000 ;
 class myproxy_epoll_trx {
 
 public:
-  int rx(int,epoll_priv_data*,char*&,size_t&);
+  int rx(sock_toolkit *st, epoll_priv_data* priv, int fd);
 
   int rx_blk(int,epoll_priv_data*,char*&,ssize_t&,const size_t=nMaxRecvBlk);
-
-  void end_rx(char*&);
 
   int tx(int,char*,size_t);
 };
