@@ -720,33 +720,6 @@ int myproxy_frontend::do_server_greeting(int cid)
 
 int 
 myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
-#if 0
-{
-  int ret = 0;
-  char *req =0;
-  size_t sz = 0;
-
-  /* store the sock_toolkit */
-  pthread_setspecific(m_tkey,(void*)st);
-
-  /* process requests */
-  while (
-    (ret=m_trx.rx(fd,priv,req,sz))==MP_OK && 
-    (/*ret=*/deal_pkt(fd,req,sz,NULL))==MP_OK
-  ) ;
-
-  /* end up processing */
-  if (ret!=MP_FURTHER) {
-    m_trx.end_rx(req);
-  }
-
-  /* client closed */
-  if (ret==MP_ERR) {
-    m_exec.get()->close(fd);
-  }
-  return ret;
-}
-#else
 {
   /* store the sock_toolkit */
   pthread_setspecific(m_tkey,(void*)st);
@@ -760,7 +733,6 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 
   return ret ;
 }
-#endif
 
 int 
 myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
