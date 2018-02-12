@@ -22,6 +22,9 @@ public:
   int on_error(sock_toolkit *st,int fd) {
     return 0;
   }
+  int deal_pkt(int fd, char *pkt, size_t sz, void *arg) {
+    return 0;
+  }
 } ;
 
 #endif /* __DUMMY_BUSINESS_H__ */

@@ -22,6 +22,7 @@ public:
   int rx(sock_toolkit* st,epoll_priv_data* priv,int fd) ;
   int tx(sock_toolkit* st,epoll_priv_data* priv,int fd) ;
   int on_error(sock_toolkit* st,int fd) { return 0; }
+  int deal_pkt(int,char*,size_t,void*) { return 0; }
 } ;
 
 

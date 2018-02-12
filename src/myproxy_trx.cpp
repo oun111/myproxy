@@ -1,100 +1,107 @@
 
 #include "myproxy_trx.h"
 #include "sock_toolkit.h"
+#include "busi_base.h"
 
-
-enum rx_step
-{
-  rx_hdr,
-  rx_body
-} ;
 
 /* 
  * receive mysql packet 
  */
 int 
-myproxy_epoll_trx::rx(int fd, epoll_priv_data *priv, char* &buf, size_t &sz)
+myproxy_epoll_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
 {
-  int total =0, ret = 0, offs=0, step = -1;
-  char tmphdr[4];
+  int ret = 0;
+  char *req =0;
+  ssize_t szBlk = 0;
+  size_t szReq = 0;
+  char blk[nMaxRecvBlk], *pblk = 0;
+  bool bStop = false ;
+  business_base *pb = static_cast<business_base*>(priv->parent);
+  tContainer tmp ;
 
-  if (!priv) {
-    log_print("fatal: %d no priv\n",fd);
-  }
-  /* first step, recv header */
-  if (!priv->cache.valid) {
-    /* TODO: how about using the stack memory, not the heap ? */
-    if (!buf) buf=(char*)malloc(4) ;
-    total= 4;
-    offs = 0;
-    step = rx_hdr ;
+  /* recv a single block of data */
+  do {
+    pblk= blk;
+    ret = rx_blk(fd,priv,pblk,szBlk,nMaxRecvBlk) ;
 
-  } else {
-    /* continue to get the pending request data */
-    buf  = priv->cache.buf ;
-    offs = priv->cache.offs;
-    total= priv->cache.pending ;
-    step = priv->cache.step ;
-    //pi->valid = false;
-    log_print("restart rx on %d, offs %d, total %d, priv %p\n",fd,offs,total,priv);
-  }
-  while (total>0) {
-    ret = read(fd,buf+offs,total);
-    /* error occors */
-    if (ret<=0) {
-      if (errno!=EAGAIN) {
-        /* error, don't do recv on this socket */
-        log_print("abnormal state on fd %d: %s, cache: %d, ret: %d\n",
-          fd, strerror(errno), priv->valid, ret);
-        /* release cache */
-        if (priv->cache.valid) 
-          free(priv->cache.buf);
-        priv->cache.valid = false;
+    if (ret==MP_ERR) {
+      return -1;
+    }
+
+    /* if there're pending bytes in cache, means the 
+     *  packet in cache is incompleted, so go ahead 
+     *  to receive the rest */
+    if (is_epp_data_pending(priv)) {
+      return 0;
+    }
+
+    const char *pBlkEnd = pblk + szBlk ;
+    bool relCache = true ;
+
+    /* get requests out of pblk one by one */
+    for (req=pblk;!bStop && req<pBlkEnd;req+=szReq) {
+
+      const size_t szRest = pBlkEnd-req ;
+
+      if (szRest<4) {
+        log_print("incomplete header %zu on %d\n",szRest,fd);
+
+        /* cache the partial header */
+        create_epp_cache(priv,req,szRest,4);
+
+        return 0 ;
       }
-      if (!ret) 
-        return MP_ERR;
-      return MP_IDLE;
-    }
-    /* more data should be read */
-    if (ret>0 && ret<total && 
-       (errno==EAGAIN || errno==EWOULDBLOCK)) {
-      /* save pending receiving, and stop recv now */
-      priv->cache.valid   = true ;
-      priv->cache.step    = step ;
-      priv->cache.buf     = buf ;
-      priv->cache.offs    = offs+ret ;
-      priv->cache.pending = total-ret;
-      log_print("rx interrupted fd %d, ret %d, total %d, stp %d, priv %p\n",
-        fd, ret, total, step, priv);
-      return MP_FURTHER;
-    }
-    /* XXX: test */
-    if (ret>0 && ret<total) {
-      log_print("fd %d pkt insufficient, %d, err: %d\n",fd,ret,errno);
-    }
-    /* the header is received */
-    if (step==rx_hdr) {
-      memcpy(tmphdr,buf,4);
-      /* get body size */
-      total = mysqls_get_body_size(buf);
-      buf   = (char*)realloc(buf,total+4+10);
-      step  = rx_body ;
-      offs  = 4 ;
-      /* copy the header */
-      memcpy(buf,tmphdr,4);
 
-    } else {
-      /* end received the packet */
-      if (priv->cache.valid) {
-        sz = total+offs ;
-        priv->cache.valid = false;
-      } else {
-        sz = total + 4;
+      /* current req size pointed to by req */
+      szReq = mysqls_get_req_size(req);
+
+      if (szRest<szReq) {
+
+        log_print("incomplete body %zu on %d needs %zu,ret %d\n",
+          szRest,fd,szReq,ret);
+
+        /* there're contents in cache already, so 
+         *  back it up first */
+        if (is_epp_cache_valid(priv)) {
+          tmp.tc_resize(szRest+10);
+          tmp.tc_write(req,szRest);
+          req = tmp.tc_data() ;
+        }
+
+        /* resize the cache and wait to receive the rest */
+        create_epp_cache(priv,req,szRest,szReq);
+        relCache = false ;
+
+        /* continue to read from net and dont release cache */
+        if (ret==MP_OK) {
+          break ;
+        }
+
+        return 0 ;
       }
-      break;
+
+      if (!mysqls_is_packet_valid(req,szReq)) {
+        log_print("myfd %d packet err\n",fd);
+        return -1;
+      }
+
+      /* process the incoming packet */
+      if (pb->deal_pkt(fd,req,szReq,priv->param)) {
+        /* TODO: no need to recv any data */
+        bStop = true ;
+      }
+
+    } /* end for */
+
+    /* all received datas are completely processed, 
+     *  try to release cache if there is */
+    if (relCache) {
+      free_epp_cache(priv);
     }
-  } /* end while */
-  return MP_OK ;
+
+  } while (!bStop && ret==MP_OK);
+
+  return 0;
 }
 
 /* receive a big block of packet data */
@@ -122,7 +129,7 @@ myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* &blk,
     /* error, don't do recv on this socket */
     if (errno!=EAGAIN) 
       log_print("abnormal state on fd %d: %s, cache: %d\n",
-        fd, strerror(errno), priv->valid);
+        fd, strerror(errno), priv->cache.valid);
     if (!ret) 
       return MP_ERR;
     return MP_IDLE;
@@ -139,14 +146,6 @@ myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* &blk,
   }
 
   return MP_OK ;
-}
-
-/* do release */
-void myproxy_epoll_trx::end_rx(char* &buff)
-{
-  if (buff) {
-    free(buff);
-  }
 }
 
 /* send mysql packet */

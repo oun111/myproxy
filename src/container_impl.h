@@ -297,7 +297,7 @@ public:
 public:
   /* statement key map management */
   tStmtInfo* get(int lstmtid);
-  int add_key_index(char *req, tStmtInfo*);
+  int add_key_index(char *req, size_t sz, tStmtInfo*);
 
   tStmtInfo* get(char*req,size_t sz);
 

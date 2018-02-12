@@ -70,7 +70,7 @@ void myproxy_frontend::register_cmd_handlers(void)
   m_handlers[com_stmt_send_long_data].ha = &myproxy_frontend::do_com_stmt_send_long_data;
 }
 
-int myproxy_frontend::deal_command(int fd, char *req, size_t sz_in) 
+int myproxy_frontend::deal_pkt(int fd, char *req, size_t sz_in, void *arg) 
 {
   int cmd=0, rc = 0;
   char *pb = 0, *inb = req;
@@ -80,7 +80,7 @@ int myproxy_frontend::deal_command(int fd, char *req, size_t sz_in)
     return /*1*/MP_ERR;
   }
   /* set packet ending */
-  inb[sz_in] = '\0';
+  //inb[sz_in] = '\0';
   /* 
    * parse command code 
    */
@@ -138,8 +138,8 @@ int myproxy_frontend::do_com_login(int connid,
   /* check if connection is in 'init' state, 
    *  if so, login request is expected */
   if (pss->status!= cs_init) {
-    log_print("invalid connection status "
-      "of id %d\n", connid);
+    log_print("invalid connection status %d "
+      "of id %d\n",pss->status,connid);
     sz_out = do_err_response(sn,outb,
       ER_NET_READ_ERROR_FROM_PIPE, 
       ER_NET_READ_ERROR_FROM_PIPE);
@@ -216,7 +216,11 @@ __end_login:
 int myproxy_frontend::do_com_quit(int connid,char *inb,
   size_t sz)
 {
-  /* TODO: do cleanup here */
+  /* do cleanup here */
+  m_exec.get()->close(connid);
+
+  close(connid);
+
   return MP_OK;
 }
 
@@ -474,6 +478,7 @@ int myproxy_frontend::do_com_query(int connid,
   char *pStmt = inb+5;
   int cmd = s_na ;
 
+#if 0
   /* XXX: test */
   {
     if (strcasestr(pStmt,"autocommit")) {
@@ -485,6 +490,7 @@ int myproxy_frontend::do_com_query(int connid,
       return 0;
     }
   }
+#endif
 
   /* do a simple parse on incoming statement */
   ret = do_simple_explain(pStmt,sz-5,cmd);
@@ -637,12 +643,11 @@ int myproxy_frontend::default_com_handler(int connid,
 int myproxy_frontend::do_com_stmt_prepare(int connid,
   char *inb,size_t sz)
 {
-  char *pbody=0;
   sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
 
-  /* get the sql to be prepared */
-  pbody = mysqls_get_body(inb)+1;
-  log_print("prepare sql: %s\n",pbody);
+  std::string sql(inb+5,sz-5);
+  log_print("prepare sql: %s\n",sql.c_str());
+
   /* return back the logical statement id */
   m_exec.get()->do_stmt_prepare(st,connid,inb,sz);
   return MP_OK;
@@ -715,6 +720,7 @@ int myproxy_frontend::do_server_greeting(int cid)
 
 int 
 myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
+#if 0
 {
   int ret = 0;
   char *req =0;
@@ -726,7 +732,7 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
   /* process requests */
   while (
     (ret=m_trx.rx(fd,priv,req,sz))==MP_OK && 
-    (/*ret=*/deal_command(fd,req,sz))==MP_OK
+    (/*ret=*/deal_pkt(fd,req,sz,NULL))==MP_OK
   ) ;
 
   /* end up processing */
@@ -740,6 +746,21 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
   }
   return ret;
 }
+#else
+{
+  /* store the sock_toolkit */
+  pthread_setspecific(m_tkey,(void*)st);
+
+  int ret = m_trx.rx(st,priv,fd) ;
+
+  /* client closed */
+  if (ret==MP_ERR) {
+    m_exec.get()->close(fd);
+  }
+
+  return ret ;
+}
+#endif
 
 int 
 myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 

@@ -59,7 +59,7 @@ protected:
 
   void register_cmd_handlers(void);
 
-  int deal_command(int,char*,size_t) ;
+  int deal_pkt(int,char*,size_t,void*) ;
 
   /* the login process */
   int do_com_login(int,char*,size_t);
