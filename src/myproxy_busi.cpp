@@ -725,6 +725,12 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 int 
 myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
+  /* if there're pending data in tx cache, send them */
+  if (!flush_epp_tx_cache(st,priv,fd)) {
+    return 0; 
+  }
+
+  /* otherwise, send the greeting */
   return do_server_greeting(fd);
 }
 

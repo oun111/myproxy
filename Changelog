@@ -1,4 +1,9 @@
 Changelog:
+  Feb 14, 2018:
+    1. add a tx-data-cache machanism when the data can not be send completely 
+        during a single 'send()' call
+
+
   Feb 9, 2018:
     1. fix bug: when receiving a mysql packet with incompleted header or body,
         the proxy will work abnormaly

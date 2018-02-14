@@ -250,6 +250,9 @@ do_add2epoll(sock_toolkit *st, int fd, void *parent, void *param, int *dup)
   (*ep)->cache.valid = false;
   (*ep)->tid = pthread_self();
   (*ep)->valid = 1 ;
+  (*ep)->st = st ;
+  (*ep)->tx_cache.valid = 0 ;
+  (*ep)->tx_cache.buf = 0 ;
   /* add this socket to epoll */
   if (is_ep_available(st) && add_to_epoll(st->m_efd,fd,*ep)) {
     /* XXX: error message here */
@@ -335,24 +338,23 @@ int close1(sock_toolkit *st, int fd)
 
 int do_send(int fd, char *buf, size_t len)
 {
-  int ret = 0;
-  size_t offs = 0;
-  int32_t total=0;
-  
-  for (total=len;total>0;total-=ret,
-     offs+=ret) {
-    //ret = write(fd,buf+offs,total);
-    ret = send(fd,buf+offs,total,0);
-    if (errno==EINTR) 
-      continue ;
-    /* no data can be sent */
-    //if (ret<=0 || errno==EAGAIN) {
-    if (ret<0) {
-    //if (ret<=0 && errno==EAGAIN) {
-      //printf("error send packet:%s\n",strerror(errno));
-      return -1;
-    }
+  epoll_priv_data **ep = get_epp(fd);
+
+  /* if there're pending data in cache, due to the sequences 
+   *  of the data, also cache the new ones */
+  if (is_epp_tx_cache_valid(*ep)) {
+    append_epp_tx_cache(*ep,buf,len);
+    return 0;
   }
+
+  size_t ret = send(fd,buf,len,0);
+  size_t rest= len-ret ;
+
+  /* if there're rest data not be send, cache them */
+  if (rest>0) {
+    append_epp_tx_cache(*ep,buf+ret,rest);
+  }
+
   return 0;
 }
 
@@ -460,6 +462,9 @@ int brocast_tx(int fd, int bcast_port, char *data, size_t len)
   return 0;
 }
 
+/*
+ * rx cache
+ */
 int 
 create_epp_cache(epoll_priv_data *ep, char *data, size_t sz, 
   const size_t capacity)
@@ -470,30 +475,9 @@ create_epp_cache(epoll_priv_data *ep, char *data, size_t sz,
   ep->cache.pending = capacity;
 
   if (data && sz>0) {
-    memcpy(ep->cache.buf+ep->cache.offs,data,sz);
+    memcpy(ep->cache.buf,data,sz);
     ep->cache.offs += sz ;
     ep->cache.pending -= sz;
-  }
-
-  return 0;
-}
-
-int append_epp_cache(epoll_priv_data *ep, char *data, size_t sz)
-{
-  char *tmp = 0;
-  size_t offs = 0;
-
-  if (is_epp_cache_valid(ep)) {
-    tmp = malloc(ep->cache.offs);
-    offs= ep->cache.offs ;
-    memcpy(tmp,ep->cache.buf,offs);
-  }
-
-  create_epp_cache(ep,tmp,offs,offs+sz);
-  memcpy(ep->cache.buf+offs,data,sz);
-
-  if (tmp) {
-    free(tmp);
   }
 
   return 0;
@@ -546,6 +530,106 @@ int free_epp_cache(epoll_priv_data *ep)
   free(ep->cache.buf);
   ep->cache.buf = NULL ;
   ep->cache.offs = ep->cache.pending = 0;
+
+  return 0;
+}
+
+/* 
+ * tx cache 
+ */
+
+bool is_epp_tx_cache_valid(epoll_priv_data *ep)
+{
+  return ep->tx_cache.valid;
+}
+
+int append_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz)
+{
+  char *tmp = 0;
+  size_t ln = 0;
+
+  if (is_epp_tx_cache_valid(ep)) {
+    tmp = malloc(ep->tx_cache.len);
+    ln= ep->tx_cache.len ;
+    memcpy(tmp,ep->tx_cache.buf,ln);
+  }
+
+  create_epp_tx_cache(ep,tmp,ln,ln+sz);
+  memcpy(ep->tx_cache.buf+ln,data,sz);
+  ep->tx_cache.len += sz ;
+
+  if (tmp) {
+    free(tmp);
+  }
+
+  return 0;
+}
+
+int 
+create_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz, 
+  const size_t capacity)
+{
+  ep->tx_cache.valid= true;
+  ep->tx_cache.ro   = 0;
+  ep->tx_cache.len  = 0;
+  ep->tx_cache.buf  = realloc(ep->tx_cache.buf,capacity+10);
+
+  if (data && sz>0) {
+    memcpy(ep->tx_cache.buf,data,sz);
+    ep->tx_cache.len = sz ;
+  }
+
+  return 0;
+}
+
+int free_epp_tx_cache(epoll_priv_data *ep)
+{
+  if (!ep->tx_cache.valid)
+    return -1;
+
+  ep->tx_cache.valid = false ;
+  free(ep->tx_cache.buf);
+  ep->tx_cache.buf = NULL ;
+  ep->tx_cache.ro = ep->tx_cache.len = 0;
+
+  return 0;
+}
+
+int flush_epp_tx_cache(sock_toolkit *st, epoll_priv_data *priv, int fd)
+{
+  if (!is_epp_tx_cache_valid(priv)) {
+    return -1;
+  }
+
+  char *buf  = priv->tx_cache.buf + priv->tx_cache.ro ;
+  size_t sz  = priv->tx_cache.len-priv->tx_cache.ro ;
+  size_t ret = send(fd,buf,sz,0);
+  size_t rest= sz-ret ;
+
+  if (ret<0) {
+    printf("fatal: no data be send on fd %d\n",fd);
+    return -1;
+  }
+
+  if (!rest) {
+    free_epp_tx_cache(priv);
+  } else {
+    /* not all the data are send, enable for 
+     *  the last tx event */
+    priv->tx_cache.ro += ret ;
+    enable_send(st,fd);
+  }
+
+  return 0;
+}
+
+int triger_epp_cache_flush(int cfd)
+{
+  epoll_priv_data **ep = get_epp(cfd);
+
+  if (is_epp_tx_cache_valid(*ep)) {
+    enable_send((sock_toolkit*)(*ep)->st,cfd);
+  }
 
   return 0;
 }

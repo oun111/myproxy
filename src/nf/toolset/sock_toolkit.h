@@ -73,15 +73,23 @@ typedef struct tEPollPrivData
   void *parent ;
   void *param ;
   int valid ;
+  void *st ;
 
   /* the fd-based rx cache */
   struct {
     char *buf;
     size_t offs ;
     size_t pending;
-    uint8_t step ;
     bool valid;
   } cache ;
+
+  /* the tx cache */
+  struct {
+    char *buf;
+    size_t ro; // read offset
+    size_t len;  // valid data size
+    bool valid;
+  } tx_cache ;
 
   pthread_t tid ;
 } epoll_priv_data ;
@@ -129,7 +137,13 @@ extern int get_epp_cache_data(epoll_priv_data *ep, char**,ssize_t*,ssize_t*);
 extern int update_epp_cache(epoll_priv_data *ep, size_t sz_in);
 extern int free_epp_cache(epoll_priv_data *ep);
 extern bool is_epp_data_pending(epoll_priv_data *ep);
-extern int append_epp_cache(epoll_priv_data *ep, char *data, size_t sz);
+
+extern int append_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz);
+extern bool is_epp_tx_cache_valid(epoll_priv_data *ep);
+extern int create_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz, 
+  const size_t capacity);
+extern int flush_epp_tx_cache(sock_toolkit *st, epoll_priv_data *priv, int fd);
+extern int triger_epp_cache_flush(int cfd);
 
 #ifdef __cplusplus
 }

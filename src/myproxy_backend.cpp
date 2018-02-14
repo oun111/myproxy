@@ -975,6 +975,9 @@ myproxy_backend::deal_query_res(
     /* this's the LAST packet */
     m_trx.tx(cfd,res,sz);
 
+    /* triger the pending tx data to be send if there're */
+    triger_epp_cache_flush(cfd);
+
   }
 
   return /*0*/ret;
