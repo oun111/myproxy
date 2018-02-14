@@ -140,7 +140,6 @@ void epoll_impl::event_task(int)
       continue ;
     }
 
-    //list_foreach_events(stk,event,pd) {
     for (int i=0;i<num_events(&stk);i++)  {
 
       epoll_priv_data *pd = (epoll_priv_data*)stk.elist[i].data.ptr;

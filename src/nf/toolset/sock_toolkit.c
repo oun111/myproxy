@@ -469,9 +469,32 @@ create_epp_cache(epoll_priv_data *ep, char *data, size_t sz,
   ep->cache.buf  = realloc(ep->cache.buf,capacity+10);
   ep->cache.pending = capacity;
 
-  memcpy(ep->cache.buf+ep->cache.offs,data,sz);
-  ep->cache.offs += sz ;
-  ep->cache.pending -= sz;
+  if (data && sz>0) {
+    memcpy(ep->cache.buf+ep->cache.offs,data,sz);
+    ep->cache.offs += sz ;
+    ep->cache.pending -= sz;
+  }
+
+  return 0;
+}
+
+int append_epp_cache(epoll_priv_data *ep, char *data, size_t sz)
+{
+  char *tmp = 0;
+  size_t offs = 0;
+
+  if (is_epp_cache_valid(ep)) {
+    tmp = malloc(ep->cache.offs);
+    offs= ep->cache.offs ;
+    memcpy(tmp,ep->cache.buf,offs);
+  }
+
+  create_epp_cache(ep,tmp,offs,offs+sz);
+  memcpy(ep->cache.buf+offs,data,sz);
+
+  if (tmp) {
+    free(tmp);
+  }
 
   return 0;
 }

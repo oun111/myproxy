@@ -216,10 +216,12 @@ __end_login:
 int myproxy_frontend::do_com_quit(int connid,char *inb,
   size_t sz)
 {
+  sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
+
   /* do cleanup here */
   m_exec.get()->close(connid);
 
-  close(connid);
+  close1(st,connid);
 
   return MP_OK;
 }
@@ -478,20 +480,6 @@ int myproxy_frontend::do_com_query(int connid,
   char *pStmt = inb+5;
   int cmd = s_na ;
 
-#if 0
-  /* XXX: test */
-  {
-    if (strcasestr(pStmt,"autocommit")) {
-      char outb[256];
-      size_t sz_out = do_ok_response(sn,m_svrStat,outb);
-
-      /* send directly to client */
-      m_trx.tx(connid,outb,sz_out);
-      return 0;
-    }
-  }
-#endif
-
   /* do a simple parse on incoming statement */
   ret = do_simple_explain(pStmt,sz-5,cmd);
 
@@ -702,7 +690,7 @@ int myproxy_frontend::do_server_greeting(int cid)
   size_t sz = 0;
   char outb[MAX_PAYLOAD];
   
-  log_print("cid %d\n",cid);
+  //log_print("cid %d\n",cid);
   /* 
    * create new connection region 
    */
@@ -737,7 +725,6 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 int 
 myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
-  //printf("tx invoke %d\n",fd);
   return do_server_greeting(fd);
 }
 

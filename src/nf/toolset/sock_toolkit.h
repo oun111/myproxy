@@ -129,6 +129,7 @@ extern int get_epp_cache_data(epoll_priv_data *ep, char**,ssize_t*,ssize_t*);
 extern int update_epp_cache(epoll_priv_data *ep, size_t sz_in);
 extern int free_epp_cache(epoll_priv_data *ep);
 extern bool is_epp_data_pending(epoll_priv_data *ep);
+extern int append_epp_cache(epoll_priv_data *ep, char *data, size_t sz);
 
 #ifdef __cplusplus
 }
