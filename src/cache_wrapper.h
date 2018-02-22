@@ -34,6 +34,14 @@ public:
   int do_cache_res(xa_item *xai, char *res, size_t sz);
 
   size_t get_free_size(xa_item *xai);
+
+  int save_err_res(xa_item *xai, char *res, size_t sz);
+
+  bool is_err_pending(xa_item *xai) const;
+
+  int move_err_buff(xa_item *xai, tContainer &con);
+
+  int tx_pending_err(xa_item *xai,int cfd);
 } ;
 
 #endif /* __CACHE_WRAPPER_H__*/

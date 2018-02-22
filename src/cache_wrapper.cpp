@@ -157,3 +157,40 @@ size_t cache_wrapper::get_free_size(xa_item *xai)
   return xai->m_txBuff.tc_free();
 }
 
+int cache_wrapper::save_err_res(xa_item *xai, char *res, size_t sz)
+{
+  xai->m_err.tc_resize(sz+2);
+  xai->m_err.tc_write(res,sz);
+  return 0;
+}
+
+bool cache_wrapper::is_err_pending(xa_item *xai) const
+{
+  return xai->m_err.tc_length()>0;
+}
+
+int cache_wrapper::move_err_buff(xa_item *xai, tContainer &con)
+{
+  if (is_err_pending(xai)) {
+    con.tc_copy(&xai->m_err);
+
+    xai->m_err.tc_update(0);
+  }
+
+  return 0;
+}
+
+int cache_wrapper::tx_pending_err(xa_item *xai,int cfd)
+{
+  char *data = xai->m_err.tc_data();
+  const size_t ln  = xai->m_err.tc_length();
+
+  if (is_err_pending(xai)) {
+    m_parent.get_trx().tx(cfd,data,ln);
+
+    xai->m_err.tc_update(0);
+  }
+
+  return 0;
+}
+

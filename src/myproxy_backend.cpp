@@ -860,8 +860,12 @@ myproxy_backend::deal_query_res(
 
       /* if errors, save it */
       if (mysqls_is_error(res,sz)) {
+#if 0
         xai->m_err.tc_resize(sz+2);
         xai->m_err.tc_write(res,sz);
+#else
+        m_caches.save_err_res(xai,res,sz);
+#endif
         log_print("err myfd %d cid %d\n",myfd,cfd);
       }
 
@@ -959,8 +963,17 @@ myproxy_backend::deal_query_res(
     tSqlParseItem *sp = 0 ;
     tContainer eb ;
 
-    if (xai->m_err.tc_length()>0) {
+    /* the 'm_err' buffer may be un-usable later, so back it up */
+    if (m_caches.is_err_pending(xai)) {
+#if 0
       eb.tc_copy(&xai->m_err);
+
+      /* reset err buffer */
+      xai->m_err.tc_update(0);
+#else
+      m_caches.move_err_buff(xai,eb);
+#endif
+
       res = eb.tc_data();
       sz  = eb.tc_length();
     }
@@ -975,14 +988,8 @@ myproxy_backend::deal_query_res(
     /* this's the LAST packet */
     m_trx.tx(cfd,res,sz);
 
-    /* reset err buffer */
-    if (xai->m_err.tc_length()>0) {
-      xai->m_err.tc_update(0);
-    }
-
     /* triger the pending tx data to be send if there're */
     triger_epp_cache_flush(cfd);
-
   }
 
   return /*0*/ret;
@@ -1067,8 +1074,12 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
 
   if (isErr) {
     /* save the error message */
+#if 0
     xai->m_err.tc_resize(sz+2);
     xai->m_err.tc_write(res,sz);
+#else
+    m_caches.save_err_res(xai,res,sz);
+#endif
   }
   else {
 
@@ -1126,13 +1137,19 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
       m_lss.reset_xaid(cfd);
 
       /* test if error occours */
-      isErr = xai->m_err.tc_length()>0;
+      isErr = m_caches.is_err_pending(xai);
 
       /* sent to client */
       if (isErr) {
+#if 0
         m_trx.tx(cfd,xai->m_err.tc_data(),xai->m_err.tc_length());
         /* XXX: test */
         log_print("err sz: %zu\n",xai->m_err.tc_length());
+        xai->m_err.tc_update(0);
+#else
+        m_caches.tx_pending_err(xai,cfd);
+        log_print("trans err\n");
+#endif
       } 
       else if (st==st_prep_trans) {
         /* XXX: test */
@@ -1148,8 +1165,6 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
       /* run any pending stmt_exec request only if no errors */
       if (!isErr) {
         try_pending_exec(cfd,xaid,p_stk);
-      } else {
-        xai->m_err.tc_update(0);
       }
 
     }

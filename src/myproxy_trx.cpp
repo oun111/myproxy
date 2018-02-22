@@ -117,7 +117,6 @@ myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* &blk,
   } else {
     /* receive the cached partial data first */
     get_epp_cache_data(priv,&blk,&offs,&total);
-    //log_print("fd %d rx %zu pending %zu\n",fd,offs,total);
   }
 
   /* read data block */

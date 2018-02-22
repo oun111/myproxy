@@ -13,32 +13,32 @@
     "BindAddr" : "127.0.0.1",
     "ListenPort" : "2331",
 
-    "IdleSeconds" : "3600"
+    "IdleSeconds" : "30"
   },
 
   "DataNodes": {
     "dn1": {
-      "Address": "127.0.0.1:3306",
+      "Address": "10.200.1.46:14133",
       "Schema": "orcl",
       "Auth": {"root":"123"}
     },
     "dn2": {
-      "Address": "127.0.0.1:3306",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb2",
       "Auth": {"root":"123"}
     },
     "dn3": {
-      "Address": "127.0.0.1:3306",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb3",
       "Auth": {"root":"123"}
     },
     "dn_huge_0": {
-      "Address": "127.0.0.1:3306",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb0",
       "Auth": {"root":"123"}
     },
     "dn_huge_1": {
-      "Address": "127.0.0.1:3306",
+      "Address": "10.200.1.46:14133",
       "Schema": "tsdb1",
       "Auth": {"root":"123"}
     }

@@ -28,8 +28,6 @@ protected:
 
   /* maximun datanode groups count */
   const uint16_t m_maxDnGroup = 20;
-  /* default datanode groups count */
-  const uint16_t m_defDnGroup = 2;
 
   uint16_t m_nDnGroups ;
 

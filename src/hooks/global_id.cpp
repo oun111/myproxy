@@ -259,7 +259,7 @@ int global_id_hook::run_hook(sql_tree &st,stxNode *root,void *params)
     return update(st,pf,pv,key,col);
   }
 
-  /* the statement looks like 'insert <tbl> <fmt list> <val list 0> <val list 1> ...'  */
+  /* TODO: the statement looks like 'insert <tbl> <fmt list> <val list 0> <val list 1> ...'  */
   int ret = 0;
 
   for (auto spv : pv->op_lst) {
@@ -267,7 +267,7 @@ int global_id_hook::run_hook(sql_tree &st,stxNode *root,void *params)
     ret |= rc>0?1:0 ;
   }
 
-  st.print_tree(root,0);
+  //st.print_tree(root,0);
 
   return ret;
 }

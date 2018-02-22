@@ -4,6 +4,8 @@ Changelog:
 
     2. reset error buffer after replying its contents to clients
 
+    3. encapsulate 'xa_item::m_err' related operations into 'cache_wrapper'
+
 
   Feb 14, 2018:
     1. add a tx-data-cache machanism when the data can not be send completely 
