@@ -1,4 +1,10 @@
 Changelog:
+  Feb 22, 2018:
+    1. merge 'id_cache' source into 'global_id_hook' module
+
+    2. reset error buffer after replying its contents to clients
+
+
   Feb 14, 2018:
     1. add a tx-data-cache machanism when the data can not be send completely 
         during a single 'send()' call

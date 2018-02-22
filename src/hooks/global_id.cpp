@@ -6,6 +6,62 @@
 using namespace STREE_TYPES;
 using namespace GLOBAL_ENV;
 
+
+/*
+ * class id_cache
+ */
+id_cache::id_cache(const char *strCache) : 
+  m_cacheDesc(strCache)
+{
+  char *desc = const_cast<char*>(m_cacheDesc.c_str());
+
+  lock_init();
+
+  if (!m_db.init(desc,0,1)) {
+    log_print("id cache %s init ok\n", desc);
+  }
+}
+
+id_cache::~id_cache(void)
+{
+  m_db.close();
+
+  lock_release();
+}
+
+void id_cache::lock_init(void)
+{ 
+  pthread_mutex_init(&m_lk,0); 
+}
+
+void id_cache::lock_release(void) 
+{
+  pthread_mutex_destroy(&m_lk);
+}
+
+int id_cache::int_fetch_and_add(char *key,int &val)
+{
+  long long dl = sizeof(val);
+  const size_t kl = strlen(key);
+
+  val = 0;
+
+  try_lock();
+  /* increment original record */
+  if (!m_db.fetch(key,kl,&val,dl)) {
+    val ++ ;
+  }
+  /* overwrite the key-value */
+  if (m_db.insert(key,kl,&val,dl)) {
+    return -1;
+  }
+  return 0;
+}
+
+
+/*
+ * class global_id_hook
+ */
 global_id_hook::global_id_hook() : m_cache("/tmp/id.cache"),
   m_gidConf(m_conf.m_gidConf)
 {

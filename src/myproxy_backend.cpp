@@ -975,6 +975,11 @@ myproxy_backend::deal_query_res(
     /* this's the LAST packet */
     m_trx.tx(cfd,res,sz);
 
+    /* reset err buffer */
+    if (xai->m_err.tc_length()>0) {
+      xai->m_err.tc_update(0);
+    }
+
     /* triger the pending tx data to be send if there're */
     triger_epp_cache_flush(cfd);
 
@@ -1143,6 +1148,8 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
       /* run any pending stmt_exec request only if no errors */
       if (!isErr) {
         try_pending_exec(cfd,xaid,p_stk);
+      } else {
+        xai->m_err.tc_update(0);
       }
 
     }

@@ -35,6 +35,8 @@ int dnGroups::create_grp_by_conf(void)
 
   m_nDnGroups = m_conf.get_dn_group_count();
   if (m_nDnGroups>=m_maxDnGroup || m_nDnGroups==0) {
+    log_print("datanode group count %d is too big, "
+      "default to %d groups\n", m_nDnGroups,m_defDnGroup);
     m_nDnGroups = m_defDnGroup;
   }
   log_print("takes %d datanode groups\n", m_nDnGroups);
