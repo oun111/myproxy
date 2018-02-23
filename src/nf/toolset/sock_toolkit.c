@@ -358,19 +358,45 @@ int do_send(int fd, char *buf, size_t len)
   return 0;
 }
 
-int do_recv(sock_toolkit *st, int fd, char *buf, int len)
+int do_recv(int fd, char **blk, ssize_t *sz, size_t capacity)
 {
-  int ret = 0;
-  int ln=len, total = 0;
-  int flag = st->bBlock?0:MSG_DONTWAIT;
+  ssize_t total = 0, offs = 0, ret = 0;
+  epoll_priv_data **ep = get_epp(fd);
 
-  do {
-    if ((ret=recv(fd,buf+total,ln,flag))>0) {
-      ln -=ret ;
-      total += ret ;
+  if (!is_epp_cache_valid(*ep)) {
+    total= capacity;
+    offs = 0;
+  } else {
+    /* receive the cached partial data first */
+    get_epp_cache_data(*ep,blk,&offs,&total);
+  }
+
+  /* read data block */
+  ret = read(fd,(*blk)+offs,total);
+  *sz  = offs ;
+
+  /* error occors */
+  if (ret<=0) {
+    /* error, don't do recv on this socket */
+    if (errno!=EAGAIN) {
+      /*log_print("abnormal state on fd %d: %s, cache: %d\n",
+        fd, strerror(errno), (*ep)->cache.valid);*/
     }
-  } while(ln>0 && ret>0);
-  return total>0?total:ret;
+    if (!ret) 
+      return /*MP_ERR*/-1;
+    return /*MP_IDLE*/2;
+  }
+
+  /* update cache if it has */
+  update_epp_cache(*ep,ret);
+
+  *sz += ret  ;
+  /* more data should be read */
+  if (ret>0 && ret<total && 
+     (errno==EAGAIN || errno==EWOULDBLOCK)) {
+    return /*MP_FURTHER*/1;
+  }
+  return /*MP_OK*/0 ;
 }
 
 int disable_send(sock_toolkit *st, int fd)

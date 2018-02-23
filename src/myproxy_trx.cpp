@@ -22,7 +22,7 @@ myproxy_epoll_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
   /* recv a single block of data */
   do {
     pblk= blk;
-    ret = rx_blk(fd,priv,pblk,szBlk,nMaxRecvBlk) ;
+    ret = do_recv(fd,&pblk,&szBlk,nMaxRecvBlk) ;
 
     if (ret==MP_ERR) {
       return -1;
@@ -102,49 +102,6 @@ myproxy_epoll_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
   } while (!bStop && ret==MP_OK);
 
   return 0;
-}
-
-/* receive a big block of packet data */
-int 
-myproxy_epoll_trx::rx_blk(int fd, epoll_priv_data *priv, char* &blk, 
-  ssize_t &sz, const size_t capacity)
-{
-  ssize_t total = 0, offs = 0, ret = 0;
-
-  if (!is_epp_cache_valid(priv)) {
-    total= capacity;
-    offs = 0;
-  } else {
-    /* receive the cached partial data first */
-    get_epp_cache_data(priv,&blk,&offs,&total);
-  }
-
-  /* read data block */
-  ret = read(fd,blk+offs,total);
-  sz  = offs ;
-
-  /* error occors */
-  if (ret<=0) {
-    /* error, don't do recv on this socket */
-    if (errno!=EAGAIN) 
-      log_print("abnormal state on fd %d: %s, cache: %d\n",
-        fd, strerror(errno), priv->cache.valid);
-    if (!ret) 
-      return MP_ERR;
-    return MP_IDLE;
-  }
-
-  /* update cache if it has */
-  update_epp_cache(priv,ret);
-
-  sz += ret  ;
-  /* more data should be read */
-  if (ret>0 && ret<total && 
-     (errno==EAGAIN || errno==EWOULDBLOCK)) {
-    return MP_FURTHER;
-  }
-
-  return MP_OK ;
 }
 
 /* send mysql packet */

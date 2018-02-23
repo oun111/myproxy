@@ -22,8 +22,6 @@ class myproxy_epoll_trx {
 public:
   int rx(sock_toolkit *st, epoll_priv_data* priv, int fd);
 
-  int rx_blk(int,epoll_priv_data*,char*&,ssize_t&,const size_t=nMaxRecvBlk);
-
   int tx(int,char*,size_t);
 };
 
