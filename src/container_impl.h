@@ -517,7 +517,7 @@ public:
   int save_xaid(int,int);
   int reset_xaid(int);
   /* set current command */
-  int set_cmd(int,int,char* = NULL);
+  int set_cmd(int,int,char*,size_t);
 } ;
 
 /* extra column details */

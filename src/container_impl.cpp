@@ -889,7 +889,7 @@ int safeLoginSessions::reset_xaid(int cid)
   return save_xaid(cid,-1);
 }
 
-int safeLoginSessions::set_cmd(int cid, int st, char *cmd)
+int safeLoginSessions::set_cmd(int cid, int st, char *cmd, size_t szCmd)
 {
   tSessionDetails *v = get_session(cid);
 
@@ -915,7 +915,7 @@ int safeLoginSessions::set_cmd(int cid, int st, char *cmd)
   else {
     v->cmd  = "Init";
     v->stat = "Query";
-    v->info = cmd;
+    v->info = std::move(std::string(cmd,szCmd));
   }
 
   v->times = time(NULL);

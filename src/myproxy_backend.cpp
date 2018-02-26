@@ -933,7 +933,7 @@ myproxy_backend::deal_query_res(
     m_stmts.reset(cfd);
 
     /* reset session command states */
-    m_lss.set_cmd(cfd,st_idle);
+    m_lss.set_cmd(cfd,st_idle,NULL,0);
 
     log_print("recv last eof on %d, cid %d\n",myfd, cfd);
 

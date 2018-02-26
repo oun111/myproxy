@@ -479,13 +479,14 @@ int myproxy_frontend::do_com_query(int connid,
   int sn = mysqls_extract_sn(inb), ret = 0;
   char *pStmt = inb+5;
   int cmd = s_na ;
+  const size_t szStmt = sz-5;
 
   /* do a simple parse on incoming statement */
-  ret = do_simple_explain(pStmt,sz-5,cmd);
+  ret = do_simple_explain(pStmt,szStmt,cmd);
 
   /* mark down the activities */
   if (ret==MP_OK) {
-    m_lss.set_cmd(connid,st_qry,pStmt);
+    m_lss.set_cmd(connid,st_qry,pStmt,szStmt);
   }
 
   switch (cmd) {
@@ -551,7 +552,7 @@ int myproxy_frontend::do_com_query(int connid,
 
   /* for any errors, mark down it */
   if (ret==MP_ERR) {
-    m_lss.set_cmd(connid,st_error,pStmt);
+    m_lss.set_cmd(connid,st_error,pStmt,szStmt);
   }
 
   return ret;
