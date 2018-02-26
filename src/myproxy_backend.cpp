@@ -167,7 +167,6 @@ int myproxy_backend::try_do_pending(void)
   int cmd = 0;
   int cmd_state = st_na/*, ret=0*/ ;
 
-  //while (!ret && !m_pendingQ.pop((void*&)st,cfd,cmd,req,sz,cmd_state)) {
   if (!m_pendingQ.pop((void*&)st,cfd,cmd,req,sz,cmd_state)) {
 
     /* reset xaid in related session */
@@ -177,12 +176,12 @@ int myproxy_backend::try_do_pending(void)
     if (cmd==com_stmt_prepare) {
       m_stmts.set_cmd_state(cfd,cmd_state);
 
-      /*ret =*/ do_stmt_prepare(st,cfd,req,sz,cmd_state);
+      do_stmt_prepare(st,cfd,req,sz,cmd_state);
     }
     else if (cmd==com_query)  
-      /*ret =*/ do_query(st,cfd,req,sz);
+      do_query(st,cfd,req,sz);
     else if (cmd==com_stmt_execute) 
-      /*ret =*/ do_stmt_execute(st,cfd,req,sz);
+      do_stmt_execute(st,cfd,req,sz);
   }
   return 0;
 }
@@ -860,12 +859,7 @@ myproxy_backend::deal_query_res(
 
       /* if errors, save it */
       if (mysqls_is_error(res,sz)) {
-#if 0
-        xai->m_err.tc_resize(sz+2);
-        xai->m_err.tc_write(res,sz);
-#else
         m_caches.save_err_res(xai,res,sz);
-#endif
         log_print("err myfd %d cid %d\n",myfd,cfd);
       }
 
@@ -965,15 +959,8 @@ myproxy_backend::deal_query_res(
 
     /* the 'm_err' buffer may be un-usable later, so back it up */
     if (m_caches.is_err_pending(xai)) {
-#if 0
-      eb.tc_copy(&xai->m_err);
 
-      /* reset err buffer */
-      xai->m_err.tc_update(0);
-#else
       m_caches.move_err_buff(xai,eb);
-#endif
-
       res = eb.tc_data();
       sz  = eb.tc_length();
     }
@@ -1074,12 +1061,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
 
   if (isErr) {
     /* save the error message */
-#if 0
-    xai->m_err.tc_resize(sz+2);
-    xai->m_err.tc_write(res,sz);
-#else
     m_caches.save_err_res(xai,res,sz);
-#endif
   }
   else {
 
@@ -1141,18 +1123,10 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
 
       /* sent to client */
       if (isErr) {
-#if 0
-        m_trx.tx(cfd,xai->m_err.tc_data(),xai->m_err.tc_length());
-        /* XXX: test */
-        log_print("err sz: %zu\n",xai->m_err.tc_length());
-        xai->m_err.tc_update(0);
-#else
         m_caches.tx_pending_err(xai,cfd);
         log_print("trans err\n");
-#endif
       } 
       else if (st==st_prep_trans) {
-        /* XXX: test */
         log_print("prep trans sz: %zu\n",xai->m_txBuff.tc_length());
         m_caches.tx_pending_res(xai,cfd); 
       }
