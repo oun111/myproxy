@@ -815,6 +815,7 @@ myproxy_backend::save_col_def_by_dn(xa_item *xai, int cfd, int myfd,
 }
 
 /* responses processing */
+#if 0
 int 
 myproxy_backend::deal_query_res(
   xa_item *xai,  /* transaction object */
@@ -981,6 +982,289 @@ myproxy_backend::deal_query_res(
 
   return /*0*/ret;
 }
+#else
+int 
+myproxy_backend::deal_query_res_single_path(
+  xa_item *xai,  /* transaction object */
+  int myfd, /* backend db fd that responses the packet */
+  char *res, 
+  size_t sz
+  )
+{
+  int cfd = xai->get_client_fd(), nCols = 0;
+  int sn = mysqls_extract_sn(res);
+  int ret = 0;
+  int st = xai->m_states.get(myfd);
+
+  /* 1st packet of response */
+  if (sn==1 && st==0) {
+
+    /* add new state of myfd */
+    xai->m_states.add(myfd);
+
+    /* get total columns */
+    nCols = mysqls_extract_column_count(res,sz);
+
+    /* no columns found in res set or ERROR OCCORS */
+    if (!nCols || mysqls_is_error(res,sz)) {
+      /* this's the last packet from current myfd, 
+       *  jump to last state */
+      xai->m_states.set(myfd,rs_ok);
+    }
+
+  }
+  else if (mysqls_is_eof(res,sz) && (st==rs_none || st==rs_col_def)) {
+
+    xai->m_states.next_state(myfd);
+  }
+
+  /* last packet of last datanode recv */
+  st = xai->m_states.get(myfd);
+  if (st==rs_ok) {
+
+    /* XXX: command exec ends!!! NO data should be received
+     *  from this fd !!! */
+    m_xa.end_exec(xai);
+
+    /* reset if it's under statement prepare mode */
+    m_stmts.reset(cfd);
+
+    /* reset session command states */
+    m_lss.set_cmd(cfd,st_idle,NULL,0);
+
+    log_print("recv last eof on %d, cid %d\n",myfd, cfd);
+
+    /* exit current myfd receiving as soon as possible!! */
+    ret = 1;
+  }
+
+  /* send the delayed responses */
+  if (m_caches.get_free_size(xai)<=sz || st==rs_ok) {
+    m_caches.tx_pending_res(xai,cfd); 
+  }
+
+  /* buffer data if not the eof */
+  if (st!=rs_ok) {
+    m_caches.do_cache_res(xai,res,sz);
+  } 
+  else {
+    /* this's the LAST packet */
+    m_trx.tx(cfd,res,sz);
+
+    /* triger the pending tx data to be send if there're */
+    triger_epp_cache_flush(cfd);
+  }
+
+  return /*0*/ret;
+}
+
+int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
+{
+  tContainer tmp ;
+  int xaid= xai->get_xid();
+
+  /* 
+   * case 1: error occours; 
+   * case 2: single packet in response, such as response to 'insert' statements
+   */
+  if (m_caches.is_err_pending(xai) || xai->get_col_count()==0) {
+    tContainer *pc = (xai->get_col_count()==0)?
+      &xai->m_txBuff:&xai->m_err ;
+
+    tmp.tc_copy(pc);
+    pc->tc_update(0);
+    res = tmp.tc_data();
+    sz  = tmp.tc_length();
+  } 
+  /*
+   * case 3: multi packets in response
+   */
+  else {
+    /* tx the col defs */
+    m_caches.tx_pending_res(xai,cfd);
+
+    /* there maybe rows set in cache, tx them */
+    m_caches.extract_cached_rows(m_stmts,xai);
+
+    mysqls_update_sn(res,xai->inc_last_sn());
+  }
+
+  tSqlParseItem *sp = 0 ;
+
+  /* end current xa if commit/rollback */
+  m_stmts.get_curr_sp(cfd,sp);
+  if (sp && is_xa_end_stmt(sp->stmt_type)) {
+    log_print("force to end xa %d cid %d\n",xaid,cfd);
+    end_xa(cfd);
+  }
+
+  /* send the last packet to client here.. */
+  m_trx.tx(cfd,res,sz);
+
+  /* triger the pending tx data to be send if there're */
+  triger_epp_cache_flush(cfd);
+
+  return 0;
+}
+
+int 
+myproxy_backend::deal_query_res_multi_path(
+  xa_item *xai,  /* transaction object */
+  int myfd, /* backend db fd that responses the packet */
+  char *res, 
+  size_t sz
+  )
+{
+  int cfd = xai->get_client_fd(), nCols = 0;
+  int sn = mysqls_extract_sn(res);
+
+  /* 1st packet of response */
+  if (sn==1 && xai->m_states.get(myfd)==0) {
+
+    /* add new state of db fd */
+    xai->m_states.add(myfd);
+
+    /* get total columns */
+    nCols = mysqls_extract_column_count(res,sz);
+    if (nCols<255) {
+      xai->set_col_count(nCols);
+    }
+
+    /* reset stuffs that needed by the column defs */
+    if (xai->get_last_sn()==0) {
+      xai->m_cols.reset(myfd);
+      /* beginning with the 'sn' of column defs packets */
+      xai->set_last_sn(2);
+    }
+
+    /* no columns found in res set or ERROR OCCORS */
+    if (!nCols || mysqls_is_error(res,sz)) {
+
+      /* if errors, save it */
+      if (mysqls_is_error(res,sz)) {
+        m_caches.save_err_res(xai,res,sz);
+        log_print("err myfd %d cid %d\n",myfd,cfd);
+      }
+
+      /* this's the last packet from current myfd, 
+       *  jump to last state */
+      xai->m_states.set(myfd,rs_ok);
+
+      /* for error or single response packet, sn is 1 */
+      xai->set_last_sn(0);
+    }
+
+    /* set number of last datanode */
+    if (xai->inc_res_dn()<xai->get_desire_dn()) {
+      return 0;
+    }
+    xai->set_last_dn(myfd);
+
+    /* cache the 1st packet except error packet*/
+    if (!mysqls_is_error(res,sz))
+      m_caches.do_cache_res(xai,res,sz);
+  }
+
+  /* rx column defs */
+  else if (xai->m_states.get(myfd)==rs_none) {
+
+    /* end of column defs */
+    if (mysqls_is_eof(res,sz)) {
+      xai->m_states.next_state(myfd);
+      /* save last sn */
+      xai->set_last_sn(sn);
+    } 
+    else {
+      /* caching the column definitions */
+      save_col_def_by_dn(xai,cfd,myfd,res,sz);
+    }
+
+    /* packet is not from last data node, discard it */
+    if (myfd!=xai->get_last_dn()) {
+      return 0;
+    }
+
+    /* cache the col def */
+    m_caches.do_cache_res(xai,res,sz);
+  }
+
+  /* recv the row sets */
+  else if (xai->m_states.get(myfd)==rs_col_def) {
+
+    /* end of row sets */
+    if (mysqls_is_eof(res,sz)) {
+      xai->m_states.next_state(myfd);
+      /* not the last eof recv, just go back and don't 
+       *  receive on this myfd */
+      if (xai->inc_ok_count()<xai->get_desire_dn()) 
+        return /*0*/1;
+    }
+    /* cache row set if it's not from last datanode */
+    else {
+      do_cache_row(xai,myfd,res,sz);
+      return 0;
+    }
+  }
+
+  if (xai->m_states.get(myfd)!=rs_ok) {
+    return 0;
+  }
+
+  /* 
+   * this's the last response packet received 
+   */
+
+  log_print("recv last eof on %d, cid %d\n",myfd, cfd);
+
+  /* stop recv from current datanodes */
+  m_xa.end_exec(xai);
+
+  /* reset if it's under statement prepare mode */
+  m_stmts.reset(cfd);
+
+  /* reset session command states */
+  m_lss.set_cmd(cfd,st_idle,NULL,0);
+
+  /* send all responses to client */
+  do_send_res(xai,cfd,res,sz);
+
+  return 1;
+}
+
+int 
+myproxy_backend::deal_query_res(
+  xa_item *xai,  /* transaction object */
+  int myfd, /* backend db fd that responses the packet */
+  char *res, 
+  size_t sz
+  )
+{
+  int xaid = xai->get_xid();
+
+  /* check validation of xaid */
+  if (xaid<0 || !m_xa.get_xa(xaid)) {
+    log_print("invalid xaid %d %p from %d\n", xaid,xai,myfd);
+    xai->dump();
+    return -1;
+  }
+
+  int nDn = xai->get_desire_dn();
+
+  if (unlikely(nDn<=0)) {
+    log_print("fatal: no source datanode!\n");
+    return -1;
+  }
+
+  /* packets are from a single datanode */
+  if (nDn==1) {
+    return deal_query_res_single_path(xai,myfd,res,sz);
+  }
+
+  /* from multi datanodes */
+  return deal_query_res_multi_path(xai,myfd,res,sz);
+}
+
+#endif
 
 int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
 {
