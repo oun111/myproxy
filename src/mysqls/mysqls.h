@@ -125,6 +125,8 @@ extern int mysqls_gen_normal_resp(char *inb, uint16_t sql_stat,
 
 extern int mysqls_gen_stmt_close(char *inb, int stmtid);
 
+extern size_t mysqls_gen_rollback(char *inb);
+
 #ifdef __cplusplus
 }
 #endif

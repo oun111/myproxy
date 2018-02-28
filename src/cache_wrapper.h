@@ -42,6 +42,8 @@ public:
   int move_err_buff(xa_item *xai, tContainer &con);
 
   int tx_pending_err(xa_item *xai,int cfd);
+
+  int move_buff(xa_item *xai,tContainer &con);
 } ;
 
 #endif /* __CACHE_WRAPPER_H__*/

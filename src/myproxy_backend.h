@@ -35,6 +35,7 @@ protected:
   int deal_query_res_single_path(xa_item*, int, char *req, size_t sz);
   int deal_query_res_multi_path(xa_item*, int, char *req, size_t sz);
   int do_send_res(xa_item *xai, int cfd, char *res, size_t sz);
+  int force_rollback(xa_item *xai,int cfd);
 
   int deal_stmt_prepare_res(xa_item*, int, char *req, size_t sz);
 

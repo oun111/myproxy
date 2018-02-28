@@ -8,7 +8,7 @@
     "CachePoolSize" : /*"5"*/ "20",
 
     "__comment" : "*** this's the datanode group count, each transaction uses one group ***",
-    "DatanodeGroupCount" : /*"3"*/ "5",
+    "DatanodeGroupCount" : /*"3"*/ "15",
 
     "BindAddr" : "127.0.0.1",
     "ListenPort" : "2331",
@@ -18,27 +18,27 @@
 
   "DataNodes": {
     "dn1": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "orcl",
       "Auth": {"root":"123"}
     },
     "dn2": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb2",
       "Auth": {"root":"123"}
     },
     "dn3": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb3",
       "Auth": {"root":"123"}
     },
     "dn_huge_0": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb0",
       "Auth": {"root":"123"}
     },
     "dn_huge_1": {
-      "Address": "10.200.1.46:14133",
+      "Address": "127.0.0.1:3306",
       "Schema": "tsdb1",
       "Auth": {"root":"123"}
     }

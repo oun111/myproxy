@@ -329,6 +329,10 @@ enum cmd_state {
   /* statement execution */
   st_stmt_exec,
 
+  /* silence, execute commands without 
+   *  replying to client */
+  st_silence,
+
   /* query mode execution */
   //st_query,
 } ;

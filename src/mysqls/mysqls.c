@@ -271,6 +271,25 @@ int mysqls_auth_usr(char *usr,char *orig_pwd,
   return 0;
 }
 
+size_t mysqls_gen_rollback(char *inb)
+{
+  char *psz = inb, *end = inb;
+
+  /* skip size bytes */
+  end += 3;
+  /* serial number */
+  end[0] = 0 ;
+  end++;
+  /* command code */
+  end[0] = com_query ;
+  end++ ;
+  /* query string */
+  end = stpcpy(end,"rollback");
+  /* packet size */
+  ul3store(end-inb-4,psz);
+  return end-inb;
+}
+
 int mysqls_gen_ok(char *inb, uint16_t st,uint32_t sn, 
   uint64_t affected_rows, uint64_t last_id)
 {

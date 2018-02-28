@@ -1058,24 +1058,60 @@ myproxy_backend::deal_query_res_single_path(
   return /*0*/ret;
 }
 
+int myproxy_backend::force_rollback(xa_item *xai,int cfd)
+{
+  tContainer tmp ;
+
+  tmp.tc_resize(32);
+
+  char *pb = tmp.tc_data();
+  size_t ln = mysqls_gen_rollback(pb);
+
+  /* don't reply to client */
+  m_stmts.set_cmd_state(cfd,st_silence);
+
+  log_print("force silence and rollback all "
+    "backends cfd %d\n",cfd);
+
+  /* emit rollback */
+  do_query(xai->get_sock(),cfd,pb,ln);
+
+  return 0;
+}
+
 int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 {
   tContainer tmp ;
   int xaid= xai->get_xid();
+  tSqlParseItem *sp = 0 ;
+  int st = st_na ;
+
+  /* get command states */
+  m_stmts.get_cmd_state(cfd,st);
+
+  /* receive an error, try to rollback all backends */
+  if (st!=st_silence && m_caches.is_err_pending(xai)) {
+
+    force_rollback(xai,cfd);
+
+    return 0;
+  }
+
+  /* reset to normal */
+  m_stmts.set_cmd_state(cfd,st_na);
 
   /* 
    * case 1: error occours; 
    * case 2: single packet in response, such as response to 'insert' statements
    */
   if (m_caches.is_err_pending(xai) || xai->get_col_count()==0) {
-    tContainer *pc = (xai->get_col_count()==0)?
-      &xai->m_txBuff:&xai->m_err ;
 
-    tmp.tc_copy(pc);
-    pc->tc_update(0);
+    /* move 'err buffer' or 'tx buffer' -> tmp */
+    m_caches.move_buff(xai,tmp);
+
     res = tmp.tc_data();
     sz  = tmp.tc_length();
-  } 
+  }
   /*
    * case 3: multi packets in response
    */
@@ -1089,12 +1125,12 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     mysqls_update_sn(res,xai->inc_last_sn());
   }
 
-  tSqlParseItem *sp = 0 ;
-
   /* end current xa if commit/rollback */
   m_stmts.get_curr_sp(cfd,sp);
   if (sp && is_xa_end_stmt(sp->stmt_type)) {
+
     log_print("force to end xa %d cid %d\n",xaid,cfd);
+
     end_xa(cfd);
   }
 
@@ -1117,6 +1153,10 @@ myproxy_backend::deal_query_res_multi_path(
 {
   int cfd = xai->get_client_fd(), nCols = 0;
   int sn = mysqls_extract_sn(res);
+  int st = st_na ;
+
+  /* get command states */
+  m_stmts.get_cmd_state(cfd,st);
 
   /* 1st packet of response */
   if (sn==1 && xai->m_states.get(myfd)==0) {
@@ -1160,8 +1200,9 @@ myproxy_backend::deal_query_res_multi_path(
     }
     xai->set_last_dn(myfd);
 
-    /* cache the 1st packet except error packet*/
-    if (!mysqls_is_error(res,sz))
+    /* cache the 1st packet except:  error packet, 
+     *  no silence state */
+    if (!mysqls_is_error(res,sz) && st!=st_silence)
       m_caches.do_cache_res(xai,res,sz);
   }
 

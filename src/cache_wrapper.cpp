@@ -194,3 +194,19 @@ int cache_wrapper::tx_pending_err(xa_item *xai,int cfd)
   return 0;
 }
 
+int cache_wrapper::move_buff(xa_item *xai, tContainer &con)
+{
+  tContainer *pc = is_err_pending(xai)?
+    &xai->m_err:&xai->m_txBuff ;
+
+  if (pc->tc_length()<=0) {
+    return 0;
+  }
+
+  con.tc_copy(pc);
+  pc->tc_update(0);
+
+  return 0;
+}
+
+
