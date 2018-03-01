@@ -1831,6 +1831,19 @@ int safeClientStmtInfoList::set_curr_sp(int cid, int lstmtid)
   return 0;
 }
 
+#include "sql_parser.h"
+
+using namespace global_parser_items;
+
+bool safeClientStmtInfoList::test_xa_end(int cid)
+{
+  tSqlParseItem *sp = 0;
+
+  get_curr_sp(cid,sp);
+
+  return sp && is_xa_end_stmt(sp->stmt_type) ;
+}
+
 int safeClientStmtInfoList::get_curr_sp(int cid, tSqlParseItem* &sp)
 {
   tClientStmtInfo *ci = get(cid);

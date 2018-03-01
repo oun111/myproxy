@@ -36,8 +36,8 @@ protected:
   /* total datanode count that received complete responses */
   int m_totalOk ;
 
-  /* datanode count that response for the request */
-  int m_resDn;
+  /* count of 1st response packet(sn=1)  */
+  int m_1stRes;
 
   /* the last datanode that responses */
   int m_lastDnFd ;
@@ -49,11 +49,8 @@ protected:
   /* placeholder count */
   int m_phs ;
 
-#if 1
-  /* the packet serial number counter */
-  int sn_count ;
-  int xa_lock ;
-#endif
+  /* be scheduled to be closed */
+  int m_schClose ;
 
 public:
 
@@ -65,7 +62,6 @@ public:
 
   /* relations of st& myfds */
   using STM_PAIR = std::pair<sock_toolkit*,int> ;
-  //std::vector<STM_PAIR> m_stVec ;
   safeStMapList m_stVec ;
 
   tContainer m_err ;
@@ -73,9 +69,8 @@ public:
 public:
 
   /* the cached column definitions base on datanode numbers */
-  //tContainer m_cols ;
   safeColDefGroup m_cols ;
-  //
+
   safeRxStateList m_states;
 
 public:
@@ -103,9 +98,9 @@ public:
   void set_last_dn(int);
   int get_last_dn(void) const;
 
-  void reset_res_dn(void);
-  int inc_res_dn(void);
-  int get_res_dn(void) const;
+  void reset_1st_res_count(void);
+  int inc_1st_res_count(void);
+  int get_1st_res_count(void) const;
 
   void reset_ok_count(void);
   int inc_ok_count(void);
@@ -132,6 +127,9 @@ public:
 
   void set_sock(sock_toolkit*);
   sock_toolkit* get_sock(void) const;
+
+  void set_schedule_close(int n=0);
+  bool is_schedule_close(void);
 
   void dump(void);
 } ;

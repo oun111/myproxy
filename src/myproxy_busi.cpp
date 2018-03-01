@@ -218,6 +218,8 @@ int myproxy_frontend::do_com_quit(int connid,char *inb,
 {
   sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
 
+  log_print("fd %d\n",connid);
+
   /* do cleanup here */
   m_exec.get()->close(connid);
 
@@ -717,7 +719,10 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 
   /* client closed */
   if (ret==MP_ERR) {
-    m_exec.get()->close(fd);
+    log_print("mp_err fd %d: %s\n",fd,strerror(errno));
+
+    //m_exec.get()->close(fd);
+    m_exec.get()->schedule_close(fd);
   }
 
   return ret ;
@@ -737,6 +742,8 @@ myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 
 int myproxy_frontend::on_error(sock_toolkit *st, int fd) 
 {
-  return m_exec?m_exec->close(fd):-1;
+  log_print("fd %d\n",fd);
+
+  return m_exec?/*m_exec->close(fd)*/m_exec.get()->schedule_close(fd):-1;
 }
 

@@ -114,6 +114,9 @@ public:
   /* release a client's resource */
   int close(int);
 
+  /* schedule to close the fd, not at the moment */
+  int schedule_close(int cid);
+
 } ;
 
 #endif /* __MYPROXY_BACKEND_H__*/

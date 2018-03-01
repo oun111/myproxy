@@ -136,22 +136,26 @@ xamgr::execute(sock_toolkit *st,
   return 0;
 }
 
-int remove_from_ep(STM_PAIR &pair)
-{
-  auto st = pair.first ;
-  auto myfd = pair.second ;
+namespace {
 
-  /* remove from local thread epoll */
-  if (do_del_from_ep(st,myfd)) 
-    log_print("error remove myfd %d -> %d: %s\n",
-      myfd,st->m_efd,strerror(errno));
-  else log_print("ok removed %d -> %d\n",myfd,st->m_efd);
+  int remove_from_ep(STM_PAIR &pair)
+  {
+    auto st = pair.first ;
+    auto myfd = pair.second ;
 
-  /* free the st */
-  g_epItems.return_back(st);
+    /* remove from local thread epoll */
+    if (do_del_from_ep(st,myfd)) 
+      log_print("error remove myfd %d -> %d: %s\n",
+        myfd,st->m_efd,strerror(errno));
+    else log_print("ok removed %d -> %d\n",myfd,st->m_efd);
 
-  return 0;
-}
+    /* free the st */
+    g_epItems.return_back(st);
+
+    return 0;
+  }
+
+} ;
 
 int xamgr::end_exec(xa_item *xai)
 {

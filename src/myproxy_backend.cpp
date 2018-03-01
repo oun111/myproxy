@@ -40,6 +40,38 @@ int myproxy_backend::close(int cid)
   return 0;
 }
 
+int myproxy_backend::schedule_close(int cid)
+{
+  tSessionDetails *pss = 0;
+  int xaid = 0, nDn = 0;;
+  xa_item *xai = 0;
+
+  /* get current connection region */
+  pss  = m_lss.get_session(cid);
+  if (!pss) {
+    log_print("fatal: no connection state "
+      "found for client %d\n", cid);
+    return -1 ;
+  }
+
+  /* if no related xa, close cid immediately */
+  if ((xaid=pss->get_xaid())<0 || !(xai=m_xa.get_xa(xaid))) {
+    this->close(cid);
+    return 0;
+  }
+
+  /* no rest data in any backends, also close cid */
+  if (xai->get_ok_count()>=(nDn=xai->get_desire_dn()) && nDn>0) {
+    this->close(cid);
+    return 0;
+  }
+
+  /* there're more backends to be received, so don't close now */
+  xai->set_schedule_close(1);
+
+  return 0;
+}
+
 int 
 myproxy_backend::new_xa(tSessionDetails *pss, sock_toolkit *st, 
   int cid, int cmd, char *req, size_t sz, int &xaid, int cmd_state)
@@ -873,7 +905,7 @@ myproxy_backend::deal_query_res(
     }
 
     /* set number of last datanode */
-    if (xai->inc_res_dn()<xai->get_desire_dn()) {
+    if (xai->inc_1st_res_count()<xai->get_desire_dn()) {
       return 0;
     }
     xai->set_last_dn(myfd);
@@ -1013,7 +1045,8 @@ myproxy_backend::deal_query_res_single_path(
     }
 
   }
-  else if (mysqls_is_eof(res,sz) && (st==rs_none || st==rs_col_def)) {
+  else if ((st==rs_none || st==rs_col_def) && 
+      mysqls_is_eof(res,sz)) {
 
     xai->m_states.next_state(myfd);
   }
@@ -1083,12 +1116,12 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 {
   tContainer tmp ;
   int xaid= xai->get_xid();
-  tSqlParseItem *sp = 0 ;
   int st = st_na ;
 
   /* get command states */
   m_stmts.get_cmd_state(cfd,st);
 
+#if 0
   /* receive an error, try to rollback all backends */
   if (st!=st_silence && m_caches.is_err_pending(xai)) {
 
@@ -1096,6 +1129,7 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 
     return 0;
   }
+#endif
 
   /* reset to normal */
   m_stmts.set_cmd_state(cfd,st_na);
@@ -1105,6 +1139,10 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
    * case 2: single packet in response, such as response to 'insert' statements
    */
   if (m_caches.is_err_pending(xai) || xai->get_col_count()==0) {
+
+    /* XXX: test */
+    if (m_caches.is_err_pending(xai))
+      log_print("cfd %d reply err\n",cfd);
 
     /* move 'err buffer' or 'tx buffer' -> tmp */
     m_caches.move_buff(xai,tmp);
@@ -1125,13 +1163,21 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     mysqls_update_sn(res,xai->inc_last_sn());
   }
 
-  /* end current xa if commit/rollback */
-  m_stmts.get_curr_sp(cfd,sp);
-  if (sp && is_xa_end_stmt(sp->stmt_type)) {
+  /* end current xa if: commit/rollback */
+  if (m_stmts.test_xa_end(cfd)) {
 
     log_print("force to end xa %d cid %d\n",xaid,cfd);
 
     end_xa(cfd);
+  }
+
+  /* if schedule to close this fd before, it's 
+   *  time to close it now */
+  if (xai->is_schedule_close()) {
+
+    log_print("closing schedule cid %d\n",cfd);
+
+    this->close(cfd);
   }
 
   /* send the last packet to client here.. */
@@ -1140,7 +1186,7 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
   /* triger the pending tx data to be send if there're */
   triger_epp_cache_flush(cfd);
 
-  return 0;
+  return 1;
 }
 
 int 
@@ -1154,6 +1200,7 @@ myproxy_backend::deal_query_res_multi_path(
   int cfd = xai->get_client_fd(), nCols = 0;
   int sn = mysqls_extract_sn(res);
   int st = st_na ;
+  int ret = 0;
 
   /* get command states */
   m_stmts.get_cmd_state(cfd,st);
@@ -1192,11 +1239,16 @@ myproxy_backend::deal_query_res_multi_path(
 
       /* for error or single response packet, sn is 1 */
       xai->set_last_sn(0);
+
+      xai->inc_ok_count();
+
+      /* there's only 1 packet in this response  */
+      ret = 1;
     }
 
-    /* set number of last datanode */
-    if (xai->inc_res_dn()<xai->get_desire_dn()) {
-      return 0;
+    /* find out last datanode */
+    if (xai->inc_1st_res_count()<xai->get_desire_dn()) {
+      return ret;
     }
     xai->set_last_dn(myfd);
 
@@ -1235,8 +1287,8 @@ myproxy_backend::deal_query_res_multi_path(
     /* end of row sets */
     if (mysqls_is_eof(res,sz)) {
       xai->m_states.next_state(myfd);
-      /* not the last eof recv, just go back and don't 
-       *  receive on this myfd */
+      /* all response from current myfd is completed, but other
+       *  myfds are not */
       if (xai->inc_ok_count()<xai->get_desire_dn()) 
         return /*0*/1;
     }
@@ -1267,9 +1319,9 @@ myproxy_backend::deal_query_res_multi_path(
   m_lss.set_cmd(cfd,st_idle,NULL,0);
 
   /* send all responses to client */
-  do_send_res(xai,cfd,res,sz);
+  return do_send_res(xai,cfd,res,sz);
 
-  return 1;
+  //return 1;
 }
 
 int 
@@ -1415,7 +1467,7 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
        *  logical statement id */
       mysqls_update_stmt_prep_stmt_id(res,sz,lstmtid);
 
-      if (xai->inc_res_dn()<xai->get_desire_dn()) {
+      if (xai->inc_1st_res_count()<xai->get_desire_dn()) {
         return 0;
       }
 

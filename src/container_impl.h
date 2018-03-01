@@ -440,6 +440,8 @@ public:
   int set_curr_sp(int cid, int lstmtid=-1);
   int get_curr_sp(int cid, tSqlParseItem*&);
 
+  bool test_xa_end(int cid);
+
   int drop(int);
   int reset(int);
   void clear(void);

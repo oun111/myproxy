@@ -11,12 +11,10 @@ using namespace GLOBAL_ENV;
 
 xa_item::xa_item(int xid) : xaid(xid),m_cfd(0),
   m_cmd(0),m_parent(NULL),m_dnGid(0),m_st(0),
-  m_desireResDn(0),m_totalOk(0),m_resDn(0),
+  m_desireResDn(0),m_totalOk(0),m_1stRes(0),
   m_lastDnFd(0),m_lastSn(0),m_numCols(0),
-  sn_count(0),xa_lock(0),m_cache(0)
+  m_schClose(0),m_cache(0)
 {
-  //priv.parent = this ;
-  
 #if 1
   /* init the tx buffer */
   m_txBuff.tc_init();
@@ -43,7 +41,6 @@ int xa_item::set_xa_info(int fd, int gid, void *parent)
 
 int xa_item::set_cmd(int cmd)
 {
-  //m_cmd = cmd;
   __sync_lock_test_and_set(&m_cmd,cmd);
   return 0;
 }
@@ -60,7 +57,7 @@ void xa_item::reset(sock_toolkit *st, int cmd, int total)
   /* reset ok reponse count */
   reset_ok_count();
   /* reset reponse data node count */
-  reset_res_dn();
+  reset_1st_res_count();
   /* reset last datanode */
   set_last_dn(-1);
   /* the column & placeholder count */
@@ -68,17 +65,26 @@ void xa_item::reset(sock_toolkit *st, int cmd, int total)
   set_phs_count(0);
   /* reset last sn */
   set_last_sn(0);
-  /* reset sn counter */
-  //reset_sn_count();
   /* reset relation vector */
   m_stVec.clear();
   /* reset the column defs */
   m_cols.clear();
+  /* the schedule close flag */
+  set_schedule_close(0);
+}
+
+void xa_item::set_schedule_close(int n)
+{
+  __sync_lock_test_and_set(&m_schClose,n);
+}
+
+bool xa_item::is_schedule_close(void)
+{
+  return __sync_fetch_and_add(&m_schClose,0)==1;
 }
 
 void xa_item::set_desire_dn(int dn)
 {
-  //m_desireResDn = dn ;
   __sync_lock_test_and_set(&m_desireResDn,dn);
 }
 
@@ -102,24 +108,23 @@ int xa_item::get_ok_count(void) const
   return m_totalOk;
 }
 
-void xa_item::reset_res_dn(void)
+void xa_item::reset_1st_res_count(void)
 {
-  __sync_lock_test_and_set(&m_resDn,0);
+  __sync_lock_test_and_set(&m_1stRes,0);
 }
 
-int xa_item::inc_res_dn(void)
+int xa_item::inc_1st_res_count(void)
 {
-  return __sync_add_and_fetch(&m_resDn,1);
+  return __sync_add_and_fetch(&m_1stRes,1);
 }
 
-int xa_item::get_res_dn(void) const
+int xa_item::get_1st_res_count(void) const
 {
-  return m_resDn;
+  return m_1stRes;
 }
 
 void xa_item::set_last_dn(int fd)
 {
-  //m_lastDnFd = fd ;
   __sync_lock_test_and_set(&m_lastDnFd,fd);
 }
 
@@ -150,7 +155,6 @@ int xa_item::get_col_count(void) const
 
 void xa_item::set_last_sn(int sn)
 {
-  //m_lastSn = sn;
   __sync_lock_test_and_set(&m_lastSn,sn);
 }
 
@@ -182,7 +186,6 @@ int xa_item::get_xid(void)
 
 void xa_item::reset_xid(void) 
 {
-  //xaid =-1 ;
   __sync_lock_test_and_set(&xaid,-1) ;
 }
 
@@ -202,50 +205,13 @@ int xa_item::get_gid(void) const
   return m_dnGid ;
 }
 
-#if 0
-int xa_item::lock_xa(void)
-{
-  return __sync_val_compare_and_swap(&xa_lock,0,1);
-}
-
-void xa_item::unlock_xa(void)
-{
-  __sync_lock_test_and_set(&xa_lock,0);
-}
-
-void xa_item::reset_sn_count(void)
-{
-  unlock_xa();
-  set_sn_count(1);
-}
-
-void xa_item::set_sn_count(int sn)
-{
-  __sync_lock_test_and_set(&sn_count,sn);
-}
-
-int xa_item::get_sn_count(void)
-{
-  return __sync_fetch_and_add(&sn_count,0);
-}
-
-int xa_item::get_sn_count1(void)
-{
-  return __sync_fetch_and_add(&sn_count,0);
-}
-
-int xa_item::inc_sn_count(void)
-{
-  return __sync_add_and_fetch(&sn_count,1);
-}
-#endif
-
 void xa_item::dump(void)
 {
   log_print("xaid: %d, cfd: %d, cmd: %d, parent: %p,"
     "gid: %d, st: %d, desire dn: %d, total ok: %d, res dn: %d,"
     "last dn fd: %d, last sn: %d, num cols: %d, phs: %d\n",
     xaid, m_cfd, m_cmd, m_parent, m_dnGid, m_st->m_efd,
-    m_desireResDn,m_totalOk,m_resDn,m_lastDnFd,m_lastSn,
+    m_desireResDn,m_totalOk,m_1stRes,m_lastDnFd,m_lastSn,
     m_numCols,m_phs);
 }
+
