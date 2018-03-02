@@ -378,7 +378,7 @@ int do_recv(int fd, char **blk, ssize_t *sz, size_t capacity)
   /* error occors */
   if (ret<=0) {
     /* error, don't do recv on this socket */
-    if (errno!=EAGAIN) {
+    if (errno!=EAGAIN && errno!=EWOULDBLOCK) {
       /*log_print("abnormal state on fd %d: %s, cache: %d\n",
         fd, strerror(errno), (*ep)->cache.valid);*/
     }

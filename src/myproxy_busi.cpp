@@ -270,6 +270,7 @@ int myproxy_frontend::do_com_field_list(int connid,char *inb,
     char *rows[numRows];
     tColDetails *cd = 0;
     char *outb = 0;
+    tContainer con ;
     size_t total = 0;
     safeTableDetailList::col_itr itr ;
     bool bStart = true;
@@ -288,14 +289,13 @@ int myproxy_frontend::do_com_field_list(int connid,char *inb,
       if (bStart) bStart=false;
     }
 
-    outb = new char [total];
+    con.tc_resize(total);
+    outb = con.tc_data() ;
 
     sz_out = mysqls_gen_qry_field_resp(outb,
       m_svrStat,m_charSet,sn+1,(char*)pss->db.c_str(),
       (char*)tbl.c_str(),rows,numRows);
     m_trx.tx(connid,outb,sz_out);
-
-    delete []outb ;
   }
 
   return MP_OK;
@@ -356,14 +356,16 @@ int myproxy_frontend::do_show_dbs(int connid,int sn)
 
   {
     /* allocates out buffer */
-    char *outb = new char [sz_total];
+    tContainer con ;
+    char *outb = 0;
     char *cols[] {(char*)"DataBase"} ;
+
+    con.tc_resize(sz_total);
+    outb = con.tc_data();
 
     sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
       m_charSet,sn+1,(char*)"",(char*)"",cols,1,rows,ndbs);
     m_trx.tx(connid,outb,sz_out);
-
-    delete []outb ;
   }
 
   return MP_OK;
@@ -402,14 +404,16 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
 
   {
     /* allocate output buffer */
-    char *outb = new char [sz_total] ;
+    tContainer con ;
+    char *outb = 0 ;
     char *cols[] {(char*)"Table"} ;
+
+    con.tc_resize(sz_total);
+    outb = con.tc_data();
 
     sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
       m_charSet,sn+1,(char*)"",(char*)"",cols,1,rows,valid_tbls);
     m_trx.tx(connid,outb,sz_out);
-
-    delete []outb ;
   }
 
   return MP_OK;
@@ -459,15 +463,16 @@ int myproxy_frontend::do_show_proclst(int connid,int sn)
       "Command", "Time", "State", "Info", "Progress"
     } ;
 
+    tContainer con ;
+
+    con.tc_resize(total);
     /* allocates out buffer */
-    outb = new char [total];
+    outb = con.tc_data();
 
     sz_out = mysqls_gen_normal_resp(outb,m_svrStat,
       m_charSet,sn+1,(char*)"",(char*)"",(char**)cols,nCols,
       rows,nConn);
     m_trx.tx(connid,outb,sz_out);
-
-    delete [] outb ;
   }
 
   return MP_OK;
