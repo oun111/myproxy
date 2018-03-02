@@ -225,7 +225,7 @@ int myproxy_frontend::do_com_quit(int connid,char *inb,
 
   close1(st,connid);
 
-  return MP_OK;
+  return /*MP_OK*/MP_IDLE;
 }
 
 /* process the 'field list' command */
@@ -724,7 +724,7 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 
   /* client closed */
   if (ret==MP_ERR) {
-    log_print("mp_err fd %d: %s\n",fd,strerror(errno));
+    log_print("mp_err fd %d\n",fd);
 
     //m_exec.get()->close(fd);
     m_exec.get()->schedule_close(fd);

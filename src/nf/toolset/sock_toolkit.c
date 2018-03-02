@@ -382,6 +382,10 @@ int do_recv(int fd, char **blk, ssize_t *sz, size_t capacity)
       /*log_print("abnormal state on fd %d: %s, cache: %d\n",
         fd, strerror(errno), (*ep)->cache.valid);*/
     }
+	/* XXX: test */
+    if (total==0 && ret==0) {
+      printf("invalid sz on fd %d\n",fd);
+    }
     if (!ret) 
       return /*MP_ERR*/-1;
     return /*MP_IDLE*/2;

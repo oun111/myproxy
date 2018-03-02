@@ -1202,6 +1202,12 @@ myproxy_backend::deal_query_res_multi_path(
   int st = st_na ;
   int ret = 0;
 
+  /* XXX: test */
+  if (xai->m_states.get(myfd)==rs_ok) {
+    log_print("redundant res on %d\n",myfd);
+    return 0;
+  }
+  
   /* get command states */
   m_stmts.get_cmd_state(cfd,st);
 
@@ -1299,9 +1305,8 @@ myproxy_backend::deal_query_res_multi_path(
     }
   }
 
-  if (xai->m_states.get(myfd)!=rs_ok) {
+  if (xai->m_states.get(myfd)!=rs_ok) 
     return 0;
-  }
 
   /* 
    * this's the last response packet received 
@@ -1535,8 +1540,14 @@ int myproxy_backend::deal_stmt_execute_res(xa_item *xai, int cid, char *res, siz
 int myproxy_backend::deal_pkt(int myfd, char *res, size_t sz, void *arg)
 {
   xa_item *xai = static_cast<xa_item*>(arg);
-  int cmd = xai->get_cmd();
-  //int cid = xai->get_client_fd();
+  int cmd = 0;
+
+  if (!xai) {
+    log_print("warning: no xa in myfd %d\n",myfd);
+    return 0;
+  }
+
+  cmd = xai->get_cmd();
 
   switch (cmd) {
     case com_query:
