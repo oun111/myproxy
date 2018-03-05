@@ -306,7 +306,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
     if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
       log_print("error scan statement %s\n",pSql);
 
-      do_send(cid,err.tc_data(),err.tc_length());
+      m_trx.tx(cid,err.tc_data(),err.tc_length());
 
       RETURN(-1) ;
     }
@@ -409,7 +409,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
       log_print("error parse statement %s\n",pSql);
 
       /*  send the error message to client */
-      do_send(cid,err.tc_data(),err.tc_length());
+      m_trx.tx(cid,err.tc_data(),err.tc_length());
 
       RETURN(-1);
     }

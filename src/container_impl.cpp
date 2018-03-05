@@ -1972,6 +1972,7 @@ safeClientStmtInfoList::add_qry_info(int cid, tSqlParseItem &sp)
     ci = new tClientStmtInfo ;
     ci->lstmtid_counter = 0;
     ci->cid = cid ;
+    ci->curr.state= st_na ;
     try_write_lock();
     safe_container_base<int,tClientStmtInfo*>::insert(cid,ci);
   }

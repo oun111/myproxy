@@ -348,7 +348,13 @@ int do_send(int fd, char *buf, size_t len)
   }
 
   size_t ret = send(fd,buf,len,0);
-  size_t rest= len-ret ;
+
+  if (ret<=0) {
+    printf("%s: send no data on %d: %s\n",__func__,fd,strerror(errno));
+    //return -1;
+  }
+
+  size_t rest = (ret<=0)?len:(len-ret) ;
 
   /* if there're rest data not be send, cache them */
   if (rest>0) {
@@ -575,22 +581,28 @@ bool is_epp_tx_cache_valid(epoll_priv_data *ep)
 
 int append_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz)
 {
-  char *tmp = 0;
   size_t ln = 0;
+  char *tmp = 0;
 
-  if (is_epp_tx_cache_valid(ep)) {
-    tmp = malloc(ep->tx_cache.len);
-    ln= ep->tx_cache.len ;
-    memcpy(tmp,ep->tx_cache.buf,ln);
+  if (is_epp_tx_cache_valid(ep)) 
+    ln  = ep->tx_cache.len ;
+
+  if (!is_epp_tx_cache_valid(ep) || (ep->tx_cache.capacity-ep->tx_cache.len)<=sz) {
+
+    /* not enough space in tx cache */
+    if (is_epp_tx_cache_valid(ep)) {
+      tmp = malloc(ln);
+      memcpy(tmp,ep->tx_cache.buf,ln);
+    }
+
+    create_epp_tx_cache(ep,tmp,ln,ln+sz);
+
+    if (tmp)
+      free(tmp);
   }
 
-  create_epp_tx_cache(ep,tmp,ln,ln+sz);
   memcpy(ep->tx_cache.buf+ln,data,sz);
   ep->tx_cache.len += sz ;
-
-  if (tmp) {
-    free(tmp);
-  }
 
   return 0;
 }
@@ -599,10 +611,13 @@ int
 create_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz, 
   const size_t capacity)
 {
+  const size_t szRedundant = 10 ;
+
   ep->tx_cache.valid= true;
   ep->tx_cache.ro   = 0;
   ep->tx_cache.len  = 0;
-  ep->tx_cache.buf  = realloc(ep->tx_cache.buf,capacity+10);
+  ep->tx_cache.capacity  = capacity+szRedundant;
+  ep->tx_cache.buf  = realloc(ep->tx_cache.buf,capacity+szRedundant);
 
   if (data && sz>0) {
     memcpy(ep->tx_cache.buf,data,sz);
@@ -634,13 +649,15 @@ int flush_epp_tx_cache(sock_toolkit *st, epoll_priv_data *priv, int fd)
   char *buf  = priv->tx_cache.buf + priv->tx_cache.ro ;
   size_t sz  = priv->tx_cache.len-priv->tx_cache.ro ;
   size_t ret = send(fd,buf,sz,0);
-  size_t rest= sz-ret ;
 
-  if (ret<0) {
-    printf("fatal: no data be send on fd %d\n",fd);
-    return -1;
+  if (ret<=0) {
+    printf("%s: send no data on %d: %s\n",__func__,fd,strerror(errno));
+    //return -1;
   }
 
+  size_t rest = ret<=0?sz:(sz-ret) ;
+
+  //printf("%s: flush %zu rest %zu fd %d\n",__func__,ret,rest,fd);
   if (!rest) {
     free_epp_tx_cache(priv);
   } else {

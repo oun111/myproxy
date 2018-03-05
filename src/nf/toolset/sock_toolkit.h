@@ -88,6 +88,7 @@ typedef struct tEPollPrivData
     char *buf;
     size_t ro; // read offset
     size_t len;  // valid data size
+    size_t capacity ;
     bool valid;
   } tx_cache ;
 
