@@ -126,7 +126,7 @@ cache_wrapper::extract_cached_rows(safeClientStmtInfoList &stmts,
 
   /* release cache */
   return_cache(xai);
-  /* release buffer */
+
   return 0;
 }
 

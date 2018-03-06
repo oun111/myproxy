@@ -2154,6 +2154,21 @@ safeScheQueue::pop(void *&st, int &cfd, int &cmd,
   return 0;
 }
 
+void safeScheQueue::clear(void)
+{
+  {
+    try_write_lock();
+    while (!m_queue.empty()) {
+      tSchedule *ps = safe_queue_base<tSchedule*>::top();
+
+      if (ps->req) delete []ps->req;
+      if (ps) delete ps ;
+      safe_queue_base<tSchedule*>::pop();
+    }
+  }
+
+}
+
 /*
  * class safeXAList
  */

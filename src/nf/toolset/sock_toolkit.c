@@ -332,6 +332,14 @@ int close1(sock_toolkit *st, int fd)
   if (do_del_from_ep(st,fd)) {
     printf("error del %d from ep %d: %s\n",fd,st->m_efd,strerror(errno));
   }
+
+  {
+    epoll_priv_data **ep = get_epp(fd);
+
+    free_epp_cache(*ep);
+    free_epp_tx_cache(*ep);
+  }
+
   close(fd);
   return 0;
 }
@@ -388,10 +396,7 @@ int do_recv(int fd, char **blk, ssize_t *sz, size_t capacity)
       /*log_print("abnormal state on fd %d: %s, cache: %d\n",
         fd, strerror(errno), (*ep)->cache.valid);*/
     }
-	/* XXX: test */
-    if (total==0 && ret==0) {
-      printf("invalid sz on fd %d\n",fd);
-    }
+
     if (!ret) 
       return /*MP_ERR*/-1;
     return /*MP_IDLE*/2;

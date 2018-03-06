@@ -43,8 +43,9 @@ int myproxy_backend::close(int cid)
 int myproxy_backend::schedule_close(int cid)
 {
   tSessionDetails *pss = 0;
-  int xaid = 0, nDn = 0;;
+  int xaid = 0;
   xa_item *xai = 0;
+  int st = st_na ;
 
   /* get current connection region */
   pss  = m_lss.get_session(cid);
@@ -54,15 +55,17 @@ int myproxy_backend::schedule_close(int cid)
     return -1 ;
   }
 
-  /* if no related xa, close cid immediately */
-  if ((xaid=pss->get_xaid())<0 || !(xai=m_xa.get_xa(xaid))) {
-    this->close(cid);
-    return 0;
-  }
+  m_stmts.get_cmd_state(cid,st);
 
-  /* no rest data in any backends, also close cid */
-  if (xai->get_ok_count()>=(nDn=xai->get_desire_dn()) && nDn>0) {
+  /* if no related xa, close cid immediately */
+  if ((xaid=pss->get_xaid())<0 || !(xai=m_xa.get_xa(xaid)) ||
+    /* the response process is done, also close cid */
+      st==st_done) {
+
     this->close(cid);
+
+    /* clearing pending queue */
+    m_pendingQ.clear();
     return 0;
   }
 
@@ -1140,10 +1143,6 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
    */
   if (m_caches.is_err_pending(xai) || xai->get_col_count()==0) {
 
-    /* XXX: test */
-    if (m_caches.is_err_pending(xai))
-      log_print("cfd %d reply err\n",cfd);
-
     /* move 'err buffer' or 'tx buffer' -> tmp */
     m_caches.move_buff(xai,tmp);
 
@@ -1171,6 +1170,9 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     end_xa(cfd);
   }
 
+  /* all are ok */
+  m_stmts.set_cmd_state(cfd,st_done);
+
   /* if schedule to close this fd before, it's 
    *  time to close it now */
   if (xai->is_schedule_close()) {
@@ -1178,6 +1180,9 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     log_print("closing schedule cid %d\n",cfd);
 
     this->close(cfd);
+
+    /* clearing pending queue */
+    m_pendingQ.clear();
   }
 
   /* send the last packet to client here.. */
@@ -1202,12 +1207,6 @@ myproxy_backend::deal_query_res_multi_path(
   int st = st_na ;
   int ret = 0;
 
-  /* XXX: test */
-  if (xai->m_states.get(myfd)==rs_ok) {
-    log_print("redundant res on %d\n",myfd);
-    return 0;
-  }
-  
   /* get command states */
   m_stmts.get_cmd_state(cfd,st);
 
@@ -1260,8 +1259,9 @@ myproxy_backend::deal_query_res_multi_path(
 
     /* cache the 1st packet except:  error packet, 
      *  no silence state */
-    if (!mysqls_is_error(res,sz) && st!=st_silence)
+    if (!mysqls_is_error(res,sz) && st!=st_silence) {
       m_caches.do_cache_res(xai,res,sz);
+    }
   }
 
   /* rx column defs */
@@ -1293,6 +1293,7 @@ myproxy_backend::deal_query_res_multi_path(
     /* end of row sets */
     if (mysqls_is_eof(res,sz)) {
       xai->m_states.next_state(myfd);
+      //log_print("myfd %d eof\n",myfd);
       /* all response from current myfd is completed, but other
        *  myfds are not */
       if (xai->inc_ok_count()<xai->get_desire_dn()) 

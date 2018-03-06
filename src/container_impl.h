@@ -333,6 +333,8 @@ enum cmd_state {
    *  replying to client */
   st_silence,
 
+  st_done,
+
   /* query mode execution */
   //st_query,
 } ;
@@ -692,11 +694,12 @@ public:
 class safeScheQueue : safe_queue_base<tSchedule*> {
 public:
   safeScheQueue(void) { lock_init(); }
-  ~safeScheQueue(void) { lock_release(); }
+  ~safeScheQueue(void) { clear(); lock_release(); }
 
 public:
   void push(void*,int,int,char*,size_t,int);
   int pop(void*&,int&,int&,char*,size_t&,int&); 
+  void clear(void);
 } ;
 
 

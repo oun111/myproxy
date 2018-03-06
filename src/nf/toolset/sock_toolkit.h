@@ -144,6 +144,7 @@ extern int create_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz,
   const size_t capacity);
 extern int flush_epp_tx_cache(sock_toolkit *st, epoll_priv_data *priv, int fd);
 extern int triger_epp_cache_flush(int cfd);
+extern int free_epp_tx_cache(epoll_priv_data *ep);
 
 #ifdef __cplusplus
 }

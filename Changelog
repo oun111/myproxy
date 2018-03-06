@@ -1,4 +1,23 @@
 Changelog:
+  Mar 6, 2018:
+    1. clear the m_pendingQ item when exit or errors encounter
+
+    2. close and release all resources related to a client fd if error occors
+        only when all responses are received from backends, otherwise, 
+        set a 'schedule close' flag for it and do release job until all
+        are fetched 
+
+    3. split deal_query_res() into 2 flows by determining whether the
+        responses are from a single backend or more ones
+
+    4. optimize the processing flows of 'show_xxx' commands by managing
+        memory with 'tContainer' instead of 'new/delete'
+
+    5. add 'tx_cache' machanism when not all data can be send successfully 
+        by a single do_send() call 
+
+    6. rewrite the startup script with python3
+
   Feb 22, 2018:
     1. merge 'id_cache' source into 'global_id_hook' module
 
