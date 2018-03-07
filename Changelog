@@ -1,4 +1,8 @@
 Changelog:
+  Mar 7, 2018:
+    1. remove related items in m_pendingQ instead of clearing all items 
+        when error encounters
+
   Mar 6, 2018:
     1. clear the m_pendingQ item when exit or errors encounter
 

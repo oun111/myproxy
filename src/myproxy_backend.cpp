@@ -64,8 +64,13 @@ int myproxy_backend::schedule_close(int cid)
 
     this->close(cid);
 
+#if 0
     /* clearing pending queue */
     m_pendingQ.clear();
+#else
+    /* remove related pending items */
+    m_pendingQ.drop(cid);
+#endif
     return 0;
   }
 
@@ -1181,8 +1186,13 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 
     this->close(cfd);
 
+#if 0
     /* clearing pending queue */
     m_pendingQ.clear();
+#else
+    /* remove related pending items */
+    m_pendingQ.drop(cfd);
+#endif
   }
 
   /* send the last packet to client here.. */

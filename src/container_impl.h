@@ -691,6 +691,7 @@ public:
   int cmd_state;
 } ;
 
+#if 0
 class safeScheQueue : safe_queue_base<tSchedule*> {
 public:
   safeScheQueue(void) { lock_init(); }
@@ -701,6 +702,19 @@ public:
   int pop(void*&,int&,int&,char*,size_t&,int&); 
   void clear(void);
 } ;
+#else
+class safeScheQueue : safe_vector_base<tSchedule*> {
+public:
+  safeScheQueue(void) { lock_init(); }
+  ~safeScheQueue(void) { clear(); lock_release(); }
+
+public:
+  void push(void*,int,int,char*,size_t,int);
+  int pop(void*&,int&,int&,char*,size_t&,int&); 
+  void clear(void);
+  int drop(int);
+} ;
+#endif
 
 
 class xa_item ;

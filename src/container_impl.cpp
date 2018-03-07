@@ -2106,6 +2106,7 @@ size_t safeStdVector::size(void)
 /*
  * class safeScheQueue
  */
+#if 0
 void 
 safeScheQueue::push(void *st,int cfd, int cmd, 
   char *req, size_t sz, int cmd_state)
@@ -2168,6 +2169,94 @@ void safeScheQueue::clear(void)
   }
 
 }
+#else
+void 
+safeScheQueue::push(void *st,int cfd, int cmd, 
+  char *req, size_t sz, int cmd_state)
+{
+  tSchedule *ps = new tSchedule ;
+
+  ps->st  = st;
+  ps->cfd = cfd;
+  ps->cmd = cmd;
+  ps->req = new char[sz] ;
+  memcpy(ps->req,req,sz);
+  ps->sz  = sz ;
+  ps->cmd_state = cmd_state ;
+  {
+    try_write_lock();
+    //safe_queue_base<tSchedule*>::push(ps);
+    m_list.emplace_back(ps);
+  }
+}
+
+int 
+safeScheQueue::pop(void *&st, int &cfd, int &cmd, 
+  char* req, size_t &sz, int &cmd_state)
+{
+  tSchedule *ps = 0;
+
+  {
+    try_write_lock();
+    if (!m_list.empty()) {
+#if 0
+      ps = safe_queue_base<tSchedule*>::top();
+      safe_queue_base<tSchedule*>::pop();
+#else
+      ps = *m_list.begin();
+      m_list.erase(m_list.begin());
+#endif
+    } else {
+      return -1;
+    }
+  }
+  if (!ps) {
+    return -1;
+  }
+  st = ps->st;
+  cfd= ps->cfd ;
+  cmd= ps->cmd ;
+  memcpy(req,ps->req,ps->sz);
+  sz = ps->sz ;
+  cmd_state = ps->cmd_state ;
+  delete []ps->req ;
+  delete ps ;
+  return 0;
+}
+
+void safeScheQueue::clear(void)
+{
+  try_write_lock();
+
+  for (auto i : m_list) {
+    if (i->req) delete []i->req;
+    if (i) delete i ;
+  }
+
+  m_list.clear();
+
+}
+
+/* the std::queue is good enough for queue operations
+ *  except that it dosen't provide the 'erase' , 
+ *  so using std::vector instead */
+int safeScheQueue::drop(int fd)
+{
+  try_write_lock();
+
+  for (auto i = m_list.begin();i!=m_list.end();) {
+    if ((*i)->cfd==fd) {
+      if ((*i)->req) delete [](*i)->req;
+      if (*i) delete *i ;
+      i = m_list.erase(i);
+    } else {
+      i++ ;
+    }
+  }
+
+  return 0;
+}
+#endif
 
 /*
  * class safeXAList
