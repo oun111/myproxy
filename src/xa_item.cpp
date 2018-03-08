@@ -15,13 +15,13 @@ xa_item::xa_item(int xid) : xaid(xid),m_cfd(0),
   m_lastDnFd(0),m_lastSn(0),m_numCols(0),
   m_schClose(0),m_cache(0)
 {
-#if 1
+#if 0
   /* init the tx buffer */
   m_txBuff.tc_init();
   m_txBuff.tc_resize(MAX_PAYLOAD*10);
-#endif
 
   m_err.tc_init();
+#endif
 }
 
 xa_item::~xa_item(void) 

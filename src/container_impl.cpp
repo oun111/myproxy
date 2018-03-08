@@ -834,18 +834,28 @@ tSessionDetails* safeLoginSessions::add_session(int cid)
 
 int safeLoginSessions::drop_session(int cid)
 {
+#if 0
   tSessionDetails *v = get_session(cid);
 
   if (!v)
     return -1;
+#else
+  tSessionDetails *v = 0;
+#endif
+
   {
     try_write_lock();
+    v = find(cid);
+
+    if (!v) 
+      return -1;
+
     drop(cid);
   }
   delete v ;
 
   if (m_list.size()==0) {
-    __sync_fetch_and_and(&m_id,0);
+    __sync_lock_test_and_set(&m_id,0);
   }
 
   return 0;
@@ -1972,7 +1982,7 @@ safeClientStmtInfoList::add_qry_info(int cid, tSqlParseItem &sp)
     ci = new tClientStmtInfo ;
     ci->lstmtid_counter = 0;
     ci->cid = cid ;
-    ci->curr.state= st_na ;
+    ci->curr.state= /*st_na*/st_query ;
     try_write_lock();
     safe_container_base<int,tClientStmtInfo*>::insert(cid,ci);
   }

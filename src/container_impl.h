@@ -318,6 +318,9 @@ public:
 enum cmd_state {
   st_na,
 
+  /* query mode execution */
+  st_query,
+
   /* the prepare result should be 
    *  transmited to client */
   st_prep_trans,
@@ -334,9 +337,6 @@ enum cmd_state {
   st_silence,
 
   st_done,
-
-  /* query mode execution */
-  //st_query,
 } ;
 
 class tClientStmtInfo {
@@ -725,7 +725,7 @@ protected:
   int m_xaid ;
 
 public:
-  safeXAList (void):m_xaid(0) { lock_init(); m_list.clear(); }
+  safeXAList (void):m_xaid(0) { lock_init(); /*m_list.clear();*/ }
   ~safeXAList (void) { lock_release(); }
 
 
