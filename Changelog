@@ -1,4 +1,7 @@
 Changelog:
+  Mar 8, 2018:
+    1. make all .o files be generated under a temporary dir '.gen'
+
   Mar 7, 2018:
     1. remove related items in m_pendingQ instead of clearing all items 
         when error encounters
