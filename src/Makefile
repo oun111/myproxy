@@ -6,16 +6,11 @@ GEN_DIR:=$(shell pwd)/.gen/
 CPP:= g++
 CC := gcc
 
-ENTRY_SRC       := $(wildcard main.c)
-CPP_SRCS        := $(wildcard *.cpp)
-CPP_SRCS        += $(notdir $(wildcard hooks/*.cpp))
-CPP_SRCS        += $(notdir $(wildcard nf/*.cpp))
-CPP_SRCS        += $(notdir $(wildcard dbw/*.cpp))
+CPP_SRCS        := $(notdir $(shell find . -name "*.cpp"))
 CPP_OBJS        := $(patsubst %.cpp,$(GEN_DIR)/%.o,$(CPP_SRCS))
-CPP_OBJS        += $(patsubst %.c,$(GEN_DIR)/%.o,$(ENTRY_SRC))
+CPP_OBJS        += $(GEN_DIR)/main.o
 
-C_SRCS          := $(notdir $(wildcard mysqls/*.c))
-C_SRCS          += $(notdir $(wildcard nf/toolset/*.c))
+C_SRCS          := $(notdir $(shell find mysqls/ nf/toolset/ -name "*.c"))
 C_OBJS          := $(patsubst %.c,$(GEN_DIR)/%.o,$(C_SRCS))
 
 HOOK_PATH       := hooks/
