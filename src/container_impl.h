@@ -336,7 +336,7 @@ enum cmd_state {
    *  replying to client */
   st_silence,
 
-  st_done,
+  //st_done,
 } ;
 
 class tClientStmtInfo {
@@ -365,8 +365,6 @@ public:
     /* total placeholders count */
     int total_phs ;
 
-    /* command state */
-    int state ;
 
     /* current statement id that are operated on */
     int lstmtid ;
@@ -417,15 +415,10 @@ public:
 
   int get_mapping(int cid, int lstmtid, int grp, int dn, int &stmtid);
 
-  int get_cmd_state(int cid, int &st);
-
-  int set_cmd_state(int cid, int st);
-
   int save_exec_req(int cid, int xaid, char *req, size_t sz);
   int get_exec_req(int cid, int &xaid, char* &req, size_t &sz);
   int get_prep_req(int cid, char* &req, size_t &sz);
   int release_exec_req(int cid);
-  bool is_exec_ready(int cid);
 
   int get_parser_item(int cid, int lstmtid, tSqlParseItem*&);
 
@@ -481,6 +474,11 @@ public:
   /* session related xa identifier */
   int xaid ;
 
+  /* command step */
+  int cmd_step ;
+
+  int m_forceClose ;
+
 public:
   /* xaid management */
   int get_xaid(void) ;
@@ -516,6 +514,7 @@ public:
   tSessionDetails* get_session(int) ;
   /* add new variable by fd */
   tSessionDetails* add_session(int);
+  int reset_session(tSessionDetails *v);
   /* delete fd's variable */
   int drop_session(int);
   /* clear all items */
@@ -526,6 +525,17 @@ public:
   int reset_xaid(int);
   /* set current command */
   int set_cmd(int,int,char*,size_t);
+
+  int change_cmd_step(tSessionDetails *v,int step) ;
+  int reset_cmd_step(int cfd);
+  int set_cmd_step(int cfd,int step);
+  int get_cmd_step(int cfd);
+  int set_cmd_step(tSessionDetails*,int step) ;
+  int get_cmd_step(tSessionDetails*);
+  bool is_exec_ready(int cfd);
+
+  void set_force_close(tSessionDetails*);
+  bool is_force_close(int);
 } ;
 
 /* extra column details */

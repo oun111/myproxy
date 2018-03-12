@@ -13,15 +13,9 @@ xa_item::xa_item(int xid) : xaid(xid),m_cfd(0),
   m_cmd(0),m_parent(NULL),m_dnGid(0),m_st(0),
   m_desireResDn(0),m_totalOk(0),m_1stRes(0),
   m_lastDnFd(0),m_lastSn(0),m_numCols(0),
-  m_schClose(0),m_cache(0)
+  m_cache(0)
 {
-#if 0
-  /* init the tx buffer */
-  m_txBuff.tc_init();
-  m_txBuff.tc_resize(MAX_PAYLOAD*10);
 
-  m_err.tc_init();
-#endif
 }
 
 xa_item::~xa_item(void) 
@@ -69,19 +63,9 @@ void xa_item::reset(sock_toolkit *st, int cmd, int total)
   m_stVec.clear();
   /* reset the column defs */
   m_cols.clear();
-  /* the schedule close flag */
-  set_schedule_close(0);
+
 }
 
-void xa_item::set_schedule_close(int n)
-{
-  __sync_lock_test_and_set(&m_schClose,n);
-}
-
-bool xa_item::is_schedule_close(void)
-{
-  return __sync_fetch_and_add(&m_schClose,0)==1;
-}
 
 void xa_item::set_desire_dn(int dn)
 {

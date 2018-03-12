@@ -40,12 +40,9 @@ int myproxy_backend::close(int cid)
   return 0;
 }
 
-int myproxy_backend::schedule_close(int cid)
+int myproxy_backend::force_close(int cid)
 {
   tSessionDetails *pss = 0;
-  int xaid = 0;
-  xa_item *xai = 0;
-  int st = st_na ;
 
   /* get current connection region */
   pss  = m_lss.get_session(cid);
@@ -58,49 +55,47 @@ int myproxy_backend::schedule_close(int cid)
   /* remove related pending items */
   m_pendingQ.drop(cid);
 
-  m_stmts.get_cmd_state(cid,st);
+  /* do release if no activities */ 
+  if (m_lss.get_cmd_step(cid)==st_na) {
 
-  /* FIXME: if no related xa, close cid immediately. BUT, 
-   *  how to know before calling new_xa() ? */
-  if ((xaid=pss->get_xaid())<0 || !(xai=m_xa.get_xa(xaid))) {
+    end_xa(cid);
 
-    this->close(cid);
-
-    return 0;
+    m_stmts.drop(cid);
   }
 
-  /* the response process is done, also close cid */
-  if (st==st_done) {
-
-    this->close(cid);
-
-    return 0;
-  }
-
-  /* there're more backends to be received, so don't close now */
-  xai->set_schedule_close(1);
+  /* set the 'close it' flag */
+  m_lss.set_force_close(pss);
 
   return 0;
 }
 
 int 
 myproxy_backend::new_xa(tSessionDetails *pss, sock_toolkit *st, 
-  int cid, int cmd, char *req, size_t sz, int &xaid, int cmd_state)
+  int cid, int cmd, char *req, size_t sz, int &xaid, int cmd_step)
 {
   if ((xaid=pss->get_xaid())>0) {
     log_print("use xaid %d\n",xaid);
     return 0;
   }
+
   /* acquire a new transaction */
   if (m_xa.begin(cid,this,xaid)) {
+
+    m_lss.reset_cmd_step(cid);
+
     /* no xa available, so buffer this request 
      *  for later executing */
-    m_pendingQ.push(st,cid,cmd,req,sz,cmd_state);
+    m_pendingQ.push(st,cid,cmd,req,sz,cmd_step);
     log_print("adding redo for client %d\n", cid);
+
     return /*-1*/1;
   }
+
   pss->save_xaid(xaid);
-  log_print("acquired xa %d cid %d %p\n",xaid,cid,m_xa.get_xa(xaid));
+
+  log_print("acquired xa %d cid %d %p\n",xaid,
+    cid,m_xa.get_xa(xaid));
+
   return 0;
 }
 
@@ -155,6 +150,7 @@ int myproxy_backend::end_xa(int cid)
   } else {
     log_print("warning: cid %d has no xa\n",cid);
   }
+
   return 0;
 }
 
@@ -193,7 +189,7 @@ myproxy_backend::get_route(int xaid,
   }
 
   /* acquire cache if multiple datanodes are invoked */
-  if (needcache&& rlist.size()>1) {
+  if (needcache&& rlist.size()>1 && m_lss.get_cmd_step(cid)!=st_silence) {
     if (m_caches.acquire_cache(xai)) {
       return -1;
     }
@@ -209,19 +205,19 @@ int myproxy_backend::try_do_pending(void)
   char req[MAX_PAYLOAD] ;
   size_t sz = MAX_PAYLOAD;
   int cmd = 0;
-  int cmd_state = st_na/*, ret=0*/ ;
+  int cmd_step = st_na ;
 
-  if (!m_pendingQ.pop((void*&)st,cfd,cmd,req,sz,cmd_state)) {
+  if (!m_pendingQ.pop((void*&)st,cfd,cmd,req,sz,cmd_step)) {
 
     /* reset xaid in related session */
     m_lss.reset_xaid(cfd);
 
-    log_print("try redo job for client %d, cmd %d\n",cfd,cmd);
-    if (cmd==com_stmt_prepare) {
-      m_stmts.set_cmd_state(cfd,cmd_state);
+    m_lss.reset_cmd_step(cfd);
 
-      do_stmt_prepare(st,cfd,req,sz,cmd_state);
-    }
+    log_print("try redo job for client %d, cmd %d\n",cfd,cmd);
+
+    if (cmd==com_stmt_prepare) 
+      do_stmt_prepare(st,cfd,req,sz,cmd_step);
     else if (cmd==com_query)  
       do_query(st,cfd,req,sz);
     else if (cmd==com_stmt_execute) 
@@ -280,6 +276,14 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
     return -1 ;
   }
 
+  if (m_lss.get_cmd_step(pss)!=st_silence) {
+
+    /* check if multiple requests from the same client are received */
+    if (m_lss.change_cmd_step(pss,st_query)>st_na) {
+      return 1;
+    }
+  }
+
   /* try to acquire a new transaction */
   if (new_xa(pss,st,cid,com_query,req,sz,xaid)) {
     /* no xa available currently */
@@ -324,6 +328,8 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   if ((rc=get_route(xaid,cid,&sp,false,true,rlist))) {
 
     if (rc==-1) {
+      m_lss.reset_cmd_step(cid);
+
       m_pendingQ.push(st,cid,com_query,req,sz,st_na);
       log_print("adding redo for client %d\n", cid);
     }
@@ -351,7 +357,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 /* do the stmt_prepare request */
 int 
 myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid, 
-  char *req, size_t sz, int cmd_state)
+  char *req, size_t sz, int cmd_step)
 {
   int xaid = -1 ;
   char *pSql = req + 5;
@@ -376,8 +382,13 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
     return -1 ;
   }
 
+  /* check if multiple requests from the same client are received */
+  if (m_lss.change_cmd_step(pss,cmd_step)>st_na) {
+    return 1;
+  }
+
   /* try to acquire a new transaction */
-  if (new_xa(pss,st,cid,com_stmt_prepare,req,sz,xaid,cmd_state)) {
+  if (new_xa(pss,st,cid,com_stmt_prepare,req,sz,xaid,cmd_step)) {
     /* no xa available currently */
     return 1;
   }
@@ -408,7 +419,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   szSql= sz-5;
 
   /* dig informations from tree into 'sp' */
-  if (cmd_state==st_prep_trans) {
+  if (cmd_step==st_prep_trans) {
 
     tContainer err ;
     sql_parser parser ;
@@ -438,15 +449,13 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   }
 
   /* this prepare command should send response to client */
-  if (cmd_state==st_prep_trans) {
+  if (cmd_step==st_prep_trans) {
     /* save prepare info */
     m_stmts.add_stmt(cid,(char*)pOldReq,(size_t)szOldReq,0,pTree,*sp);
   } 
   else {
     if (bNewTree) del_tree(pTree);
   }
-
-  m_stmts.set_cmd_state(cid,cmd_state);
 
   log_print("try to prepare sql %s\n",pSql);
   /* send and execute the request */
@@ -591,9 +600,8 @@ int myproxy_backend::do_execute_blobs(int cid, int xaid, sock_toolkit *st,
    *  so we free the myfd(s) now */
   xa_item *xai = m_xa.get_xa(xaid);
 
-  if (xai) {
+  if (xai) 
     m_xa.end_exec(xai);
-  }
 
   return 0;
 }
@@ -643,6 +651,19 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
   tSqlParseItem *sp = 0 ;
   safeDnStmtMapList *maps = 0 ;
 
+  /* get current connection region */
+  pss  = m_lss.get_session(cid);
+  if (!pss) {
+    log_print("fatal: no connection state "
+      "found for client %d\n", cid);
+    return -1 ;
+  }
+
+  /* check if multiple requests from the same client are received */
+  if (m_lss.change_cmd_step(pss,st_stmt_exec)>st_na) {
+    return 1;
+  }
+
   /* parse total blob-type place-holders */
   m_stmts.get_total_phs(cid,nphs);
 
@@ -658,14 +679,6 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     m_stmts.save_exec_req(cid,0,req,sz);
     log_print("blob is not ready\n");
     return 0;
-  }
-
-  /* get current connection region */
-  pss  = m_lss.get_session(cid);
-  if (!pss) {
-    log_print("fatal: no connection state "
-      "found for client %d\n", cid);
-    return -1 ;
   }
 
   /* try to acquire a new transaction */
@@ -687,6 +700,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
 
     /* do re-prepare the statement on group */
     if (!m_stmts.get_prep_req(cid,req,sz)) {
+      m_lss.reset_cmd_step(cid);
       do_stmt_prepare(st,cid,req,sz,st_prep_exec);
     }
     return 1;
@@ -702,6 +716,8 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     if ((ret=get_route(xaid,cid,sp,false,true,rlist))) {
 
       if (ret==-1) {
+        m_lss.reset_cmd_step(cid);
+
         m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
         log_print("adding redo for client %d\n", cid);
       }
@@ -709,9 +725,6 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
       return -1;
     }
   }
-
-  /* update command state */
-  m_stmts.set_cmd_state(cid,st_stmt_exec);
 
   maps = get_stmt_id_map(cid,req,sz);
   /* 
@@ -750,13 +763,15 @@ int myproxy_backend::do_send_blob(int cid, char *req, size_t sz)
   m_stmts.save_blob(cid,req,sz);
   /* test if it's ready to execute statement */
   if (!m_stmts.is_blobs_ready(cid) || 
-     !m_stmts.is_exec_ready(cid)) {
+     !m_lss.is_exec_ready(cid)) {
     log_print("blobs or exec not ready\n");
     return 0;
   }
 
   /* get buffered statement exec req */
   m_stmts.get_exec_req(cid,xaid,req,sz);
+
+  m_lss.reset_cmd_step(cid);
 
   /* try execute process */
   do_stmt_execute(xai->get_sock(),cid,req,sz);
@@ -788,9 +803,11 @@ myproxy_backend::get_ordering_col(char *cols, int num_cols, char **name)
     *name = col ;
     return 0;
   }
+
   /* retrive the 1st digit-type column name if 
    *  no sharding columns are matched */
   mysqls_get_col_full_name(cols,digit_col,0,0,name,0) ;
+
   return 0;
 }
 
@@ -925,11 +942,10 @@ myproxy_backend::deal_query_res_single_path(
     m_caches.do_cache_res(xai,res,sz);
   } 
   else {
+    m_lss.reset_cmd_step(cfd);
+
     /* this's the LAST packet */
     m_trx.tx(cfd,res,sz);
-
-    /* triger the pending tx data to be send if there're */
-    triger_epp_cache_flush(cfd);
   }
 
   return /*0*/ret;
@@ -945,7 +961,7 @@ int myproxy_backend::force_rollback(xa_item *xai,int cfd)
   size_t ln = mysqls_gen_rollback(pb);
 
   /* don't reply to client */
-  m_stmts.set_cmd_state(cfd,st_silence);
+  m_lss.set_cmd_step(cfd,st_silence);
 
   log_print("force silence and rollback all "
     "backends cfd %d\n",cfd);
@@ -960,12 +976,14 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 {
   tContainer tmp ;
   int xaid= xai->get_xid();
-  int st = st_na ;
+  int st = m_lss.get_cmd_step(cfd);
 
-  /* get command states */
-  m_stmts.get_cmd_state(cfd,st);
+  if (st<0) {
+    log_print("no login session found for cfd %d\n", cfd);
+    return -1;
+  }
 
-#if 0
+#if 1
   /* receive an error, try to rollback all backends */
   if (st!=st_silence && m_caches.is_err_pending(xai)) {
 
@@ -974,9 +992,6 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     return 0;
   }
 #endif
-
-  /* reset to normal */
-  m_stmts.set_cmd_state(cfd,st_na);
 
   /* 
    * case 1: error occours; 
@@ -1003,9 +1018,6 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     mysqls_update_sn(res,xai->inc_last_sn());
   }
 
-  /* remove related pending items */
-  m_pendingQ.drop(cfd);
-
   /* end current xa if: commit/rollback */
   if (m_stmts.test_xa_end(cfd)) {
 
@@ -1014,23 +1026,23 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
     end_xa(cfd);
   }
 
-  /* all are ok */
-  m_stmts.set_cmd_state(cfd,st_done);
-
-  /* if schedule to close this fd before, it's 
+  /* if force to close this fd before, it's 
    *  time to close it now */
-  if (xai->is_schedule_close()) {
+  if (m_lss.is_force_close(cfd)) {
 
-    log_print("closing schedule cid %d\n",cfd);
+    log_print("force closing cid %d\n",cfd);
+
+    /* remove related pending items */
+    m_pendingQ.drop(cfd);
 
     this->close(cfd);
   }
 
+  /* all are ok */
+  m_lss.reset_cmd_step(cfd);
+
   /* send the last packet to client here.. */
   m_trx.tx(cfd,res,sz);
-
-  /* triger the pending tx data to be send if there're */
-  triger_epp_cache_flush(cfd);
 
   return 1;
 }
@@ -1045,11 +1057,13 @@ myproxy_backend::deal_query_res_multi_path(
 {
   int cfd = xai->get_client_fd(), nCols = 0;
   int sn = mysqls_extract_sn(res);
-  int st = st_na ;
+  int st = m_lss.get_cmd_step(cfd); ;
   int ret = 0;
 
-  /* get command states */
-  m_stmts.get_cmd_state(cfd,st);
+  if (st<0) {
+    log_print("no login session found for cfd %d\n",cfd);
+    return -1;
+  }
 
   /* 1st packet of response */
   if (sn==1 && xai->m_states.get(myfd)==0) {
@@ -1167,8 +1181,6 @@ myproxy_backend::deal_query_res_multi_path(
 
   /* send all responses to client */
   return do_send_res(xai,cfd,res,sz);
-
-  //return 1;
 }
 
 int 
@@ -1208,14 +1220,17 @@ int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
 {
   char *req = 0;
   size_t sz = 0;
-  int cmd_state = 0;
+  int cmd_step = m_lss.get_cmd_step(cfd);
   int exec_xaid = 0;
 
-  m_stmts.get_cmd_state(cfd,cmd_state) ;
+  if (cmd_step<0) {
+    log_print("no login session found for cfd %d\n",cfd);
+    return -1;
+  }
 
   /* state = st_prep_exec, means an execute request 
    *  is pending, do it */
-  if (cmd_state!=st_prep_exec) {
+  if (cmd_step!=st_prep_exec) {
     return 0;
   }
 
@@ -1226,8 +1241,10 @@ int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
     //log_print("xaid %d != %d\n",exec_xaid,xaid);
     return 0;
   }
-  //log_print("exec_xid sz %zu\n",sz);
+ 
   if (sz>0) {
+    m_lss.reset_cmd_step(cfd);
+
     /* execute it  */
     do_stmt_execute(st,cfd,req,sz);
   }
@@ -1265,12 +1282,18 @@ int
 myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t sz)
 {
   int ret = 0;
-  int lstmtid = 0, stmtid=0, st=st_na; 
+  int lstmtid = 0, stmtid=0; 
   int nCols = 0, nPhs = 0;
   const int cfd = xai->get_client_fd();
   const int sn = mysqls_extract_sn(res);
   int xaid = xai->get_xid();
   bool isErr = (sn==1 && mysqls_is_error(res,sz)) ;
+  int st = m_lss.get_cmd_step(cfd);
+
+  if (st<0) {
+    log_print("no login session found for cfd %d\n", cfd);
+    return -1;
+  }
 
   /* check validation of xaid */
   if (xaid<0 || !m_xa.get_xa(xaid)) {
@@ -1278,8 +1301,6 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
     xai->dump();
     return -1;
   }
-
-  m_stmts.get_cmd_state(cfd,st) ;
 
   if (isErr) {
     /* save the error message */
@@ -1340,6 +1361,9 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
        *  last prepare response to client under multi-thread envirogments */
       m_lss.reset_xaid(cfd);
 
+      if (st!=st_prep_exec)
+        m_lss.reset_cmd_step(cfd);
+
       /* test if error occours */
       isErr = m_caches.is_err_pending(xai);
 
@@ -1392,21 +1416,12 @@ int myproxy_backend::deal_pkt(int myfd, char *res, size_t sz, void *arg)
   switch (cmd) {
     case com_query:
       return deal_query_res(xai,myfd,res,sz);
-      //break;
 
     case com_stmt_prepare:
       return deal_stmt_prepare_res(xai,myfd,res,sz);
-      //break;
 
     case com_stmt_execute:
       return deal_stmt_execute_res(xai,myfd,res,sz);
-      //break;
-
-    /* no response for 'com_stmt_send_long_data:' */
-#if 0
-    case com_stmt_send_long_data:
-      break;
-#endif
 
     default:
       log_print("unknown response command %d from %d\n", cmd,myfd);

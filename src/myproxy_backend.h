@@ -114,8 +114,8 @@ public:
   /* release a client's resource */
   int close(int);
 
-  /* schedule to close the fd, not at the moment */
-  int schedule_close(int cid);
+  /* force to close the fd, not immediately */
+  int force_close(int cid);
 
 } ;
 

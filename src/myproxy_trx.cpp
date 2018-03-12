@@ -86,7 +86,7 @@ myproxy_epoll_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
       }
 
       /* process the incoming packet */
-      if (pb->deal_pkt(fd,req,szReq,priv->param)) {
+      if (pb && pb->deal_pkt(fd,req,szReq,priv->param)) {
         /* TODO: no need to recv any data */
         bStop = true ;
       }

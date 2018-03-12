@@ -807,6 +807,20 @@ tSessionDetails* safeLoginSessions::get_session(int cid)
   return find(cid);
 }
 
+int safeLoginSessions::reset_session(tSessionDetails *v)
+{
+  {
+    try_read_lock();
+
+    v->status   = cs_init ;
+    v->xaid     = -1;
+    v->times    = time(NULL);
+    v->cmd_step = st_na ;
+    v->m_forceClose = 0;
+  }
+  return 0;
+}
+
 tSessionDetails* safeLoginSessions::add_session(int cid)
 {
   tSessionDetails *v = get_session(cid);
@@ -819,12 +833,14 @@ tSessionDetails* safeLoginSessions::add_session(int cid)
   v = new tSessionDetails ;
   mysqls_gen_rand_string(v->scramble,AP_LENGTH-1);
   v->scramble[AP_LENGTH] = 0;
-  v->sc_len = AP_LENGTH-1;
-  v->status = cs_init ;
-  v->xaid = -1;
+  v->sc_len   = AP_LENGTH-1;
+  v->status   = cs_init ;
+  v->xaid     = -1;
   sprintf(chId,"%lld",__sync_fetch_and_add(&m_id,1));
-  v->id = chId;
-  v->times= time(NULL);
+  v->id       = chId;
+  v->times    = time(NULL);
+  v->cmd_step = st_na ;
+  v->m_forceClose = 0;
   {
     try_write_lock();
     insert(cid,v);
@@ -845,14 +861,15 @@ int safeLoginSessions::drop_session(int cid)
 
   {
     try_write_lock();
+#if 1
     v = find(cid);
 
     if (!v) 
       return -1;
-
+#endif
     drop(cid);
+    delete v ;
   }
-  delete v ;
 
   if (m_list.size()==0) {
     __sync_lock_test_and_set(&m_id,0);
@@ -931,6 +948,75 @@ int safeLoginSessions::set_cmd(int cid, int st, char *cmd, size_t szCmd)
   v->times = time(NULL);
 
   return 0;
+}
+
+int safeLoginSessions::reset_cmd_step(int cfd) 
+{
+  return set_cmd_step(cfd,st_na);
+}
+
+
+int safeLoginSessions::change_cmd_step(tSessionDetails *v, int step) 
+{
+  return __sync_val_compare_and_swap(&v->cmd_step,st_na,step);
+}
+
+int safeLoginSessions::set_cmd_step(int cid, int step) 
+{
+  tSessionDetails *v = get_session(cid);
+
+  if (!v) {
+    return -1;
+  }
+
+  __sync_lock_test_and_set(&v->cmd_step,step);
+  return 0;
+}
+
+int safeLoginSessions::get_cmd_step(int cid) 
+{
+  tSessionDetails *v = get_session(cid);
+
+  if (!v) {
+    return -1;
+  }
+
+  return __sync_fetch_and_add(&v->cmd_step,0);
+}
+
+int safeLoginSessions::set_cmd_step(tSessionDetails *ss, int step) 
+{
+  __sync_lock_test_and_set(&ss->cmd_step,step);
+  return 0;
+}
+
+int safeLoginSessions::get_cmd_step(tSessionDetails *ss) 
+{
+  return __sync_fetch_and_add(&ss->cmd_step,0);
+}
+
+bool safeLoginSessions::is_exec_ready(int cfd)
+{
+  tSessionDetails *v = get_session(cfd);
+
+  if (!v) {
+    return false;
+  }
+
+  return __sync_fetch_and_add(&v->cmd_step,0)==st_stmt_exec;
+}
+
+void safeLoginSessions::set_force_close(tSessionDetails *v)
+{
+  if (v) 
+    __sync_lock_test_and_set(&v->m_forceClose,1);
+}
+
+bool safeLoginSessions::is_force_close(int cfd)
+{
+  tSessionDetails *v = get_session(cfd);
+
+  return v&&__sync_fetch_and_add(&v->m_forceClose,0)==1;
 }
 
 /*
@@ -1630,29 +1716,6 @@ int safeClientStmtInfoList::get_lstmtid(int cid, int &lstmtid)
   return 0;
 }
 
-int safeClientStmtInfoList::get_cmd_state(int cid, int &st)
-{
-  tClientStmtInfo *ci = get(cid);
-
-  if (!ci) {
-    return -1;
-  }
-  st = __sync_fetch_and_add(&ci->curr.state,0) ;
-  return 0;
-}
-
-int safeClientStmtInfoList::set_cmd_state(int cid, int st)
-{
-  tClientStmtInfo *ci = get(cid);
-
-  if (!ci) {
-    return -1;
-  }
-  {
-    __sync_lock_test_and_set(&ci->curr.state,st);
-  }
-  return 0;
-}
 
 int safeClientStmtInfoList::get_blob(int cid, char* &req, size_t &sz)
 {
@@ -1710,17 +1773,6 @@ bool safeClientStmtInfoList::is_blobs_ready(int cid)
   return ci->curr.total_blob==ci->curr.rx_blob ;
 }
 
-bool safeClientStmtInfoList::is_exec_ready(int cid)
-{
-  tClientStmtInfo *ci = get(cid);
-
-  if (!ci) {
-    return false;
-  }
-  try_read_lock();
-  return ci->curr.state==st_stmt_exec ;
-}
-
 int safeClientStmtInfoList::save_exec_req(
   int cid,
   int xaid,
@@ -1739,7 +1791,6 @@ int safeClientStmtInfoList::save_exec_req(
     ci->curr.exec_buf.tc_resize(sz);
     ci->curr.exec_buf.tc_write(req,sz);
   }
-  __sync_lock_test_and_set(&ci->curr.state,st_stmt_exec);
   __sync_lock_test_and_set(&ci->curr.exec_xaid,xaid);
   return 0;
 }
@@ -1960,7 +2011,6 @@ safeClientStmtInfoList::add_stmt(int cid, char *prep_req, size_t sz,
   ci->curr.rx_blob   = 0;
   ci->curr.total_blob= 0;
   ci->curr.total_phs = static_cast<int>(nPhs);
-  ci->curr.state= st_na ;
   ci->curr.blob_buf.tc_update(0);
   ci->curr.exec_buf.tc_update(0);
   ci->curr.exec_xaid = 0;
@@ -1982,7 +2032,6 @@ safeClientStmtInfoList::add_qry_info(int cid, tSqlParseItem &sp)
     ci = new tClientStmtInfo ;
     ci->lstmtid_counter = 0;
     ci->cid = cid ;
-    ci->curr.state= /*st_na*/st_query ;
     try_write_lock();
     safe_container_base<int,tClientStmtInfo*>::insert(cid,ci);
   }

@@ -1,4 +1,7 @@
 Changelog:
+  Mar 12, 2018:
+    1. force all backends to be rollback when error(s) occor
+
   Mar 8, 2018:
     1. make all .o files be generated under a temporary dir '.gen'
 

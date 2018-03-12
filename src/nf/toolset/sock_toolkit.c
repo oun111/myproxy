@@ -352,7 +352,8 @@ int do_send(int fd, char *buf, size_t len)
    *  of the data, also cache the new ones */
   if (is_epp_tx_cache_valid(*ep)) {
     append_epp_tx_cache(*ep,buf,len);
-    return 0;
+    //return 0;
+    goto __triger_tx ;
   }
 
   size_t ret = send(fd,buf,len,0);
@@ -368,6 +369,10 @@ int do_send(int fd, char *buf, size_t len)
   if (rest>0) {
     append_epp_tx_cache(*ep,buf+ret,rest);
   }
+
+__triger_tx:
+  /* triger the pending tx data to be send if there're */
+  triger_epp_cache_flush(fd);
 
   return 0;
 }

@@ -135,9 +135,9 @@ int myproxy_frontend::do_com_login(int connid,
     ret = MP_ERR ;
     goto __end_login ;
   }
-  /* check if connection is in 'init' state, 
-   *  if so, login request is expected */
+  /* check if connection is in 'init' state */
   if (pss->status!= cs_init) {
+#if 0
     log_print("invalid connection status %d "
       "of id %d\n",pss->status,connid);
     sz_out = do_err_response(sn,outb,
@@ -145,6 +145,10 @@ int myproxy_frontend::do_com_login(int connid,
       ER_NET_READ_ERROR_FROM_PIPE);
     ret = MP_ERR ;
     goto __end_login ;
+#else
+    log_print("login session %d already exists\n",connid);
+    m_lss.reset_session(pss);
+#endif
   }
   if (mysqls_parse_login_req(inb,sz,usr,pwd_in,&sz_in,db)) {
     log_print("failed parsing login request "
@@ -727,7 +731,7 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
     log_print("mp_err fd %d\n",fd);
 
     //m_exec.get()->close(fd);
-    m_exec.get()->schedule_close(fd);
+    m_exec.get()->force_close(fd);
   }
 
   return ret ;
@@ -749,6 +753,6 @@ int myproxy_frontend::on_error(sock_toolkit *st, int fd)
 {
   log_print("fd %d\n",fd);
 
-  return m_exec?/*m_exec->close(fd)*/m_exec.get()->schedule_close(fd):-1;
+  return m_exec?/*m_exec->close(fd)*/m_exec.get()->force_close(fd):-1;
 }
 

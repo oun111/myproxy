@@ -49,8 +49,6 @@ protected:
   /* placeholder count */
   int m_phs ;
 
-  /* be scheduled to be closed */
-  int m_schClose ;
 
 public:
 
@@ -81,16 +79,6 @@ public:
 public:
   void reset(sock_toolkit*,int,int);
 
-#if 0
-  int lock_xa(void);
-  void unlock_xa(void);
-
-  void reset_sn_count(void);
-  void set_sn_count(int sn);
-  int get_sn_count(void);
-  int get_sn_count1(void);
-  int inc_sn_count(void);
-#endif
 
   int set_cmd(int);
   int get_cmd(void) const;
@@ -128,8 +116,6 @@ public:
   void set_sock(sock_toolkit*);
   sock_toolkit* get_sock(void) const;
 
-  void set_schedule_close(int n=0);
-  bool is_schedule_close(void);
 
   void dump(void);
 } ;
