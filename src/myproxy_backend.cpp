@@ -319,6 +319,8 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
     log_print("error scan statement %s\n",pSql);
 
+    m_lss.reset_cmd_step(cid);
+
     m_trx.tx(cid,err.tc_data(),err.tc_length());
 
     RETURN(-1) ;
@@ -327,8 +329,10 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
   /* calcualte routing infomations */
   if ((rc=get_route(xaid,cid,&sp,false,true,rlist))) {
 
+    m_lss.reset_cmd_step(cid);
+
     if (rc==-1) {
-      m_lss.reset_cmd_step(cid);
+      //m_lss.reset_cmd_step(cid);
 
       m_pendingQ.push(st,cid,com_query,req,sz,st_na);
       log_print("adding redo for client %d\n", cid);
@@ -428,6 +432,8 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
 
       log_print("error parse statement %s\n",pSql);
 
+      m_lss.reset_cmd_step(cid);
+
       /*  send the error message to client */
       m_trx.tx(cid,err.tc_data(),err.tc_length());
 
@@ -444,6 +450,8 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   /* calculate sql routes */
   if (get_route(xaid,cid,sp,true,false,rlist)) {
     log_print("fail getting route\n");
+
+    m_lss.reset_cmd_step(cid);
 
     RETURN(-1);
   }
@@ -715,8 +723,10 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
     /* calcualte routing infomations */
     if ((ret=get_route(xaid,cid,sp,false,true,rlist))) {
 
+      m_lss.reset_cmd_step(cid);
+
       if (ret==-1) {
-        m_lss.reset_cmd_step(cid);
+        //m_lss.reset_cmd_step(cid);
 
         m_pendingQ.push(st,cid,com_stmt_execute,req,sz,st_stmt_exec);
         log_print("adding redo for client %d\n", cid);

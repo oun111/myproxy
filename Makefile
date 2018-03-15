@@ -14,7 +14,7 @@ clean:
 	$(MAKE) -C src clean
 
 .PHONY: distclean
-distclean:clean
+distclean:
 	$(MAKE) -C src distclean
 	rm -rf cscope.* 
 	rm -rf tags
