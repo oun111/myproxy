@@ -32,19 +32,20 @@ CPPFLAGS        := -Wall -Werror -I. -g \
 OBJS            := $(CPP_OBJS) $(C_OBJS) 
 TARGET          := myproxy_app
 
+HOOK_SCRIPT     := $(shell pwd)/../scripts/hook_prob.py
 
 
 .PHONY: all
-all: mkdir gen_module_list $(TARGET) 
+all: mkdir hook_detect $(TARGET) 
 
 mkdir:
 	$(shell mkdir  $(GEN_DIR))
 
-del_module_list:
-	$(shell python3 module_gen.py --del $(HOOK_LIST))
+hook_clr:
+	$(shell python3 $(HOOK_SCRIPT) --del $(HOOK_LIST))
 
-gen_module_list: 
-	$(shell python3 module_gen.py --gen $(HOOK_PATH) $(HOOK_LIST))
+hook_detect: 
+	$(shell python3 $(HOOK_SCRIPT) --gen $(HOOK_PATH) $(HOOK_LIST))
 
 Libraries: 
 	make -C $(ZAS_PATH) all
@@ -75,7 +76,7 @@ $(TARGET): Libraries  $(OBJS)
 
 
 .PHONY: clean
-clean: del_module_list
+clean: hook_clr
 	rm -rf $(TARGET) $(OBJS) 
 
 .PHONY: distclean
