@@ -9,6 +9,7 @@ from sys import argv
 # TODO: use file to record these sets
 vethList = set()
 conList = set()
+
 vethDict = dict()
 
 MAX_NO = 65536
@@ -72,9 +73,13 @@ def clearContainers():
 
 
 
-def attachVeth(conItems):
+def attachVeth():
+
+  conItems = detectContainers()
 
   for c in conItems:
+
+    print("dealing with container '{0}'".format(c))
 
     # create new veth pair
     veths = createVethPairs()
@@ -112,6 +117,64 @@ def assignIpAddress():
   exit(0)
 
 
+
+def detectContainers():
+
+  st = set()
+
+  for __path,__subPaths,__files in os.walk(CONTAINER_PATH):
+    for f in __files:
+      st.add(f)
+
+  return st
+
+
+
+def loadVethList():
+
+  with open("list.txt","a+") as mf:
+
+    contents = mf.read()
+
+    pos = contents.find("vlist:")
+
+    if pos>=0:
+      pos = contents.find(":",pos)+1
+      ptn = re.compile("(\w+),(\w+)")
+      res = ptn.findall(contents,pos)
+
+      for n in res :
+        vethList.add(n[0])
+        vethList.add(n[1])
+        vethDict[n[0]] = n[1]
+
+
+
+def flushVethList():
+  
+  with open("list.txt","w+") as mf:
+
+    mf.truncate()
+
+    mf.write("vlist:")
+
+    for n in vethDict:
+      mf.write("({0},{1})".format(n,vethDict[n]))
+
+
+def init():
+  os.system("mkdir -p /var/run/netns/")
+
+  loadVethList()
+
+
+def release():
+  flushVethList()
+  #clearVeths()
+  clearContainers()
+  #dropBridge()
+
+
 def help():
   print("help message: ")
   exit(-1)
@@ -119,37 +182,27 @@ def help():
 
 def __main__():
 
-  if len(argv)==2:
-    script,method = argv
-    if method!='-v' and method!='-c':
-      print("wrong argument '{0}'".format(method))
-      help()
+  init()
 
-  if len(argv)==3:
-    script,method,con_lst = argv
-    if method!='-a':
-      print("wrong argument '{0}'".format(method))
-      help()
+  if len(argv)!=2:
+    help()
 
+  script,method = argv
   
-  if method=='-v':
-    veths = createVethPairs()
-
-  elif method=='-a':
-    conItems = re.findall(r"(\w+)",con_lst)
-    attachVeth(conItems)
+  if method=='-a':
+    attachVeth()
 
   elif method=='-c':
     createContainer()
 
   else:
-    print("unknown method '{0}'".format(method))
-    exit(-1)
+    print("wrong argument '{0}'".format(method))
+    help()
 
-  #clearVeths()
-  clearContainers()
-  #dropBridge()
+  #print(vethList)
+  #print(vethDict)
 
+  release()
 
 
 if __name__=="__main__":
