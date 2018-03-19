@@ -45,10 +45,12 @@ class Global(object):
   conDict = {}
   CONTAINER_PATH = "/var/run/netns/"
   BR_NAME = "br0"
-  ADDR_BASE = "192.168.0."
+  ADDR_BASE = "138.1.123."
   ADDR_INDEX = 1
   VETH_CACHE = "./list.txt"
   FS_NAME = "rootfs.ext4"
+  PHY_IF = "enp0s25"
+  PHY_ADDR = ""
 
 
 def fetchName(hdr,chk_set):
@@ -108,10 +110,23 @@ def createContainer():
 
   cp = Global.CONTAINER_PATH+c
   print("Creating container '{0}' with persistent file '{1}'".format(c,cp))
+  print(
+"""
+
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  REMEMBER to run /bashrc1 MANUALLY  !!! enjoy !
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+"""
+)
 
   # create persistent container 
   os.system("touch "+cp)
-  os.system("unshare -pu --fork --net={0} chroot /mnt/{1} /bin/sh ".format(cp,c))
+  os.system("unshare -pu --fork --net={0} chroot /mnt/{1} /bin/sh".format(cp,c))
 
   # un-mount filesystem
   unmountFS(c)
@@ -136,7 +151,7 @@ def dropContainer(c):
 
 def attachVeth():
 
-  Global.ADDR_BASE = re.findall(r"(\w+\.\w+\.\w+)",Global.ADDR_BASE)[0]
+  Global.ADDR_BASE = re.findall(r"(\w+\.\w+\.\w+)",Global.ADDR_BASE)[0] + "."
 
   for c in Global.conDict.keys():
 
@@ -182,11 +197,29 @@ def dropBridge():
   os.system("ifconfig {0} down".format(Global.BR_NAME))
   os.system("brctl delbr " + Global.BR_NAME)
 
+  # restore address of physical interface
+  os.system("ifconfig {0} {1} up".format(Global.PHY_IF,Global.PHY_ADDR))
+
 
 
 def assignAddr(c,veth,ip):
   os.system("ip netns exec {0} ifconfig {1} {2} up".format(c,veth,ip))
   os.system("ip netns exec {0} ifconfig lo up".format(c))
+
+
+def modifyBridgeAddr():
+  # backup original ip of the physical interface
+  res = str(os.popen("ifconfig "+Global.PHY_IF).readlines())
+  n = re.findall(r"inet\s*(\w+\.\w+\.\w+\.\w+)",res)
+  if len(n)>0:
+    Global.PHY_ADDR = n[0]
+
+  #os.system("ifconfig {0} 0.0.0.0".format(Global.PHY_IF))
+  os.system("ifconfig {0} {1}".format(Global.BR_NAME, \
+    Global.ADDR_BASE+str(Global.ADDR_INDEX)))
+  Global.ADDR_INDEX += 1
+
+  #attachBridgeIf(Global.PHY_IF)
 
 
 def loadCache():
@@ -219,6 +252,17 @@ def loadCache():
       if res!=None:
         Global.ADDR_INDEX = int(res[0])
 
+    # read the 'ip of physical interface'
+    pos = contents.find("phy_ip:")
+
+    if pos>=0:
+      pos = contents.find(":",pos)+1
+      ptn = re.compile("(\w+\.\w+\.\w+\.\w+)")
+      res = ptn.findall(contents,pos)
+
+      if res!=None:
+        Global.PHY_ADDR = str(res[0])
+
 
 
 def flushCache():
@@ -232,8 +276,11 @@ def flushCache():
     for n in Global.vethDict:
       mf.write("({0},{1})".format(n,Global.vethDict[n]))
 
-    # the 
+    # the ip address index
     mf.write("\naindex: {0}".format(Global.ADDR_INDEX))
+
+    # the original ip of pyhsical interface
+    mf.write("\nphy_ip: {0}".format(Global.PHY_ADDR))
 
 
 
@@ -324,6 +371,7 @@ def __main__():
   if method=='-a':
     loadCache()
     createBridge()
+    modifyBridgeAddr()
     attachVeth()
     flushCache()
 
