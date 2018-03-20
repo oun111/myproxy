@@ -229,6 +229,7 @@ def loadCache():
         Global.vethDict[n[0]] = n[1]
 
     # read the 'ip address base index'
+    """
     pos = contents.find("aindex:")
 
     if pos>=0:
@@ -238,6 +239,7 @@ def loadCache():
 
       if res!=None:
         Global.ADDR_INDEX = int(res[0])
+    """
 
 
 
@@ -272,9 +274,10 @@ def mountFS(c):
 
 
 def unmountFS(c):
+  os.system("umount /mnt/{0}/tmp/*".format(c))
   os.system("umount /mnt/{0}/*".format(c))
   os.system("umount /mnt/"+c)
-  os.system("rm -rf /mnt/"+c)
+  #os.system("rm -rf /mnt/"+c)
 
 
 
