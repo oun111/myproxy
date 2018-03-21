@@ -277,7 +277,7 @@ def unmountFS(c):
   os.system("umount /mnt/{0}/tmp/*".format(c))
   os.system("umount /mnt/{0}/*".format(c))
   os.system("umount /mnt/"+c)
-  #os.system("rm -rf /mnt/"+c)
+  os.system("rm -rf /mnt/"+c)
 
 
 
