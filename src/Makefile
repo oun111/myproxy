@@ -16,7 +16,7 @@ C_OBJS          := $(patsubst %.c,$(GEN_DIR)/%.o,$(C_SRCS))
 HOOK_PATH       := hooks/
 HOOK_LIST       := ./hook_list.h
 
-ZAS_PATH        := ./zas/src/
+ZAS_PATH        := /home/user1/work/zas/src/
 LDFLAG          := -Wall -g -pthread -Werror  \
                      -L$(ZAS_PATH) -lzas   \
                      -lz -lcrypto  $(DBWPR_LDFLAGS) 
