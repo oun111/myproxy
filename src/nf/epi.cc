@@ -8,7 +8,7 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <signal.h>
-#include "framework.h"
+#include "epi.h"
 #include "busi_base.h"
 #include "accepter.h"
 #include "epi_list.h"

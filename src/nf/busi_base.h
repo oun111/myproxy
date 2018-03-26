@@ -2,7 +2,7 @@
 #ifndef __BUSI_BASE_H__
 #define __BUSI_BASE_H__
 
-#include "framework.h"
+#include "epi.h"
 
 class business_base {
 public:

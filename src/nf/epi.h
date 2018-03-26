@@ -12,8 +12,8 @@
  *  History:       refer to 'ChangeLog'
  *
  */ 
-#ifndef __FRAMEWORK_H__
-#define __FRAMEWORK_H__
+#ifndef __EPI_H__
+#define __EPI_H__
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -115,5 +115,5 @@ protected:
 #endif
 } ;
 
-#endif  /* __FRAMEWORK_H__ */
+#endif  /* __EPI_H__ */
 

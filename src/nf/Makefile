@@ -19,7 +19,7 @@ CFLAG_OBJS      := -Wall -Werror -I. -g -I./toolset -I./proto -fPIC \
                    -Wno-deprecated-declarations -Wno-misleading-indentation
 
 
-MOD_VER         := $(shell grep -i "__ver_str__" ./framework.h|awk '{print $$3}'|sed 's/\"//g')
+MOD_VER         := $(shell grep -i "__ver_str__" ./epi.h|awk '{print $$3}'|sed 's/\"//g')
 
 OBJS            := $(CPP_OBJS) $(C_OBJS)
 TARGET_LIB      := libnf.a
@@ -42,7 +42,7 @@ all: $(TARGETS)
 	#
 	# update 'last modified date'
 	#
-	sed -i "s/Last modified: [a-zA-Z0-9]\+[\ \-]\+[0-9]\+[\,\ \-]\+[0-9]\+/Last modified: `grep -i '[a-z]\+\ [0-9]\+\, [0-9]\+\:' ChangeLog -m1|sed 's/\://'|sed 's/\ \+//'`/g" framework.h
+	sed -i "s/Last modified: [a-zA-Z0-9]\+[\ \-]\+[0-9]\+[\,\ \-]\+[0-9]\+/Last modified: `grep -i '[a-z]\+\ [0-9]\+\, [0-9]\+\:' ChangeLog -m1|sed 's/\://'|sed 's/\ \+//'`/g" epi.h
 
 $(CLIENT): 
 	$(CPP) $(CLIENT_SRC) -o $@ $(LDFLAG) toolset/sock_toolkit.o -I./test
