@@ -1,6 +1,6 @@
 
-#ifndef __RESIZABLE_CONTAINER_H__
-#define __RESIZABLE_CONTAINER_H__
+#ifndef __TCONTAINER_H__
+#define __TCONTAINER_H__
 
 #include <stddef.h>
 
@@ -60,4 +60,4 @@ public:
   int tc_concat(char*,size_t);
 } ;
 
-#endif /* __RESIZABLE_CONTAINER_H__*/
+#endif /* __TCONTAINER_H__*/

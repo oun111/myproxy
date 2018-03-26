@@ -18,7 +18,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <string>
-#include "thread_helper.h"
+#include "threads.h"
 #include "lock.h"
 //#include "distrib.h"
 #include "dbg_log.h"
@@ -26,7 +26,7 @@
 //#include "container.h"
 //#include "container_implements.h"
 #include "toolset.h"
-#include "resizable_container.h"
+#include "tContainer.h"
 
 /* version number string */
 #define __VER_STR__  "v0.0.1 alpha"

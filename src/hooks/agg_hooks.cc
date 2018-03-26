@@ -5,7 +5,7 @@
 #include "ctnr_impl.h"
 #include "porting.h"
 #include "simple_types.h"
-#include "resizable_container.h"
+#include "tContainer.h"
 #include "dbug.h"
 
 using namespace AGG_HOOK_ENV;

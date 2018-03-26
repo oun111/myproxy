@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include "mp_cfg.h"
-#include "thread_helper.h"
+#include "threads.h"
 #include "xamgr.h"
 #include "cache_wpr.h"
 #include "hook.h"

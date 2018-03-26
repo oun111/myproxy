@@ -10,7 +10,7 @@
 #include <signal.h>
 #include "framework.h"
 #include "busi_base.h"
-#include "normal_accepter.h"
+#include "accepter.h"
 #include "epi_list.h"
 
 epi_list g_epItems ;
@@ -52,7 +52,7 @@ epoll_impl::epoll_impl(
   /* 
    * init the accepter 
    */
-  m_accepter = new normal_accepter(m_busi);
+  m_accepter = new accepter(m_busi);
 
   /* 
    * init business network 
@@ -65,7 +65,7 @@ epoll_impl::~epoll_impl(void)
   stop();
 
   if (m_accepter)
-    delete (normal_accepter*)m_accepter ;
+    delete (accepter*)m_accepter ;
 
   /* close all handles */
   if (m_busi_fd>0) close(m_busi_fd);

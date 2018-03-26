@@ -3,7 +3,7 @@
 #define __CACHE_WPR_H__
 
 #include "dbmgr.h"
-#include "resizable_container.h"
+#include "tContainer.h"
 #include "mp_trx.h"
 
 class xa_item ;

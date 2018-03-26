@@ -1,6 +1,6 @@
 
 #include <stdint.h>
-#include "thread_helper.h"
+#include "threads.h"
 
 
 namespace th_context {

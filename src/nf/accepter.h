@@ -1,12 +1,12 @@
 
-#ifndef __NORMAL_ACCEPTER_H__
-#define __NORMAL_ACCEPTER_H__
+#ifndef __ACCEPTER_H__
+#define __ACCEPTER_H__
 
 #include "busi_base.h"
 #include "sock_toolkit.h"
 
 
-class normal_accepter : public business_base
+class accepter : public business_base
 {
 protected:
   /* client data */
@@ -15,8 +15,8 @@ protected:
   //epoll_priv_data *m_ep;
 
 public:
-  normal_accepter(void*) ;
-  virtual ~normal_accepter(void) ;
+  accepter(void*) ;
+  virtual ~accepter(void) ;
 
 public:
   int rx(sock_toolkit* st,epoll_priv_data* priv,int fd) ;
@@ -26,4 +26,4 @@ public:
 } ;
 
 
-#endif /* __NORMAL_ACCEPTER_H__*/
+#endif /* __ACCEPTER_H__*/
