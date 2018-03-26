@@ -1,22 +1,22 @@
 
-#ifndef __CACHE_WRAPPER_H__
-#define __CACHE_WRAPPER_H__
+#ifndef __CACHE_WPR_H__
+#define __CACHE_WPR_H__
 
 #include "dbmgr.h"
 #include "resizable_container.h"
-#include "myproxy_trx.h"
+#include "mp_trx.h"
 
 class xa_item ;
-class myproxy_backend ;
-class cache_wrapper
+class mp_backend ;
+class cache_wpr
 {
   dbmgr m_cachePool ;
 
-  myproxy_backend &m_parent ;
+  mp_backend &m_parent ;
 
 public:
-  //cache_wrapper() = default;
-  cache_wrapper(myproxy_backend&);
+  //cache_wpr() = default;
+  cache_wpr(mp_backend&);
 
 public:
   bool is_needed(xa_item *xai);
@@ -46,4 +46,4 @@ public:
   int move_buff(xa_item *xai,tContainer &con);
 } ;
 
-#endif /* __CACHE_WRAPPER_H__*/
+#endif /* __CACHE_WPR_H__*/

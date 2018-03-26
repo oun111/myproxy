@@ -3,7 +3,7 @@
 #define __DEST_DN_H__
 
 #include "hook.h"
-#include "container_impl.h"
+#include "ctnr_impl.h"
 
 
 /* hook destination datanode number */

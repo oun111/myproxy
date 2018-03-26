@@ -1,12 +1,12 @@
 
-#ifndef __MYPROXY_BUSI_H__
-#define __MYPROXY_BUSI_H__
+#ifndef __MP_FRONTEND_H__
+#define __MP_FRONTEND_H__
 
 #include "busi_base.h"
-#include "myproxy_config.h"
+#include "mp_cfg.h"
 #include "sock_toolkit.h"
-#include "myproxy_trx.h"
-#include "myproxy_backend.h"
+#include "mp_trx.h"
+#include "mp_backend.h"
 #include <memory>
 
 #ifdef __VER_STR__
@@ -17,7 +17,7 @@
 /* 
  * the front-end of myproxy 
  */
-class myproxy_frontend : public business_base {
+class mp_frontend : public business_base {
 
 protected:
   /* default character set */
@@ -27,15 +27,15 @@ protected:
   volatile uint16_t m_svrStat ;
 
   /* the formated proxy configs */
-  //myproxy_config m_conf ;
+  //mp_cfg m_conf ;
 
   /* tx/rx methods */
-  myproxy_epoll_trx m_trx ;
+  mp_trx m_trx ;
 
   /* command handlers */
-  using cmdHandler = int(myproxy_frontend::*)(int,char*, size_t);
+  using cmdHandler = int(mp_frontend::*)(int,char*, size_t);
   using cmdNode_t  = struct tCommandNode {
-    myproxy_frontend::cmdHandler ha ;
+    mp_frontend::cmdHandler ha ;
   } ;
 
   cmdNode_t *m_handlers;
@@ -47,8 +47,8 @@ protected:
   //safeTableDetailList m_tables;
 
   /* the executor */
-  //myproxy_backend *m_exec ;
-  std::shared_ptr<myproxy_backend> m_exec ;
+  //mp_backend *m_exec ;
+  std::shared_ptr<mp_backend> m_exec ;
 
   /* the TLS object */
   pthread_key_t m_tkey ;
@@ -113,8 +113,8 @@ protected:
   int do_server_greeting(int);
 
 public:
-  myproxy_frontend(char*);
-  virtual ~myproxy_frontend(void);
+  mp_frontend(char*);
+  virtual ~mp_frontend(void);
 
 public:
   int rx(sock_toolkit*,epoll_priv_data*,int) ;
@@ -125,5 +125,5 @@ public:
 
 } ;
 
-#endif /* __MYPROXY_BUSI_H__*/
+#endif /* __MP_FRONTEND_H__*/
 

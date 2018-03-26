@@ -1,6 +1,6 @@
 
-#ifndef __CONTAINER_IMPL_H__
-#define __CONTAINER_IMPL_H__
+#ifndef __CTNR_IMPL_H__
+#define __CTNR_IMPL_H__
 
 #include "mysqls.h"
 #include "container.h"
@@ -24,7 +24,7 @@ public:
   SHARDING_EXTRA extra ;
 } ;
 
-class safeShardingColumnList : public safe_container_base<uint32_t,SHARDING_KEY*>
+class safeShardingColumnList : public safe_map_base<uint32_t,SHARDING_KEY*>
 {
 protected:
   bool bCaseSensitive ;
@@ -51,7 +51,7 @@ public:
 } ;
 
 /* the global column list */
-class safeGlobalIdColumnList : public safe_container_base<uint32_t,GLOBALCOL*>
+class safeGlobalIdColumnList : public safe_map_base<uint32_t,GLOBALCOL*>
 {
 protected:
   bool bCaseSensitive ;
@@ -75,7 +75,7 @@ public:
   std::string tbl ;
 } ;
 
-class unsafeTblKeyList : public safe_container_base<uint32_t,TABLE_NAME*>
+class unsafeTblKeyList : public safe_map_base<uint32_t,TABLE_NAME*>
 {
 protected:
   bool bCaseSensitive ;
@@ -246,7 +246,7 @@ public:
 using DNSTMT_MAP_ITR_FUNC = int(*)(int,int);
 using dnStmtKey = int ;
 
-class safeDnStmtMapList : public safe_container_base<dnStmtKey,dnStmtMapInfo*> {
+class safeDnStmtMapList : public safe_map_base<dnStmtKey,dnStmtMapInfo*> {
 
 public:
   safeDnStmtMapList(void) { lock_init();  }
@@ -283,7 +283,7 @@ public:
 } ;
 
 /* mappings of lstmtid -> tStmtInfo */
-class safeStmtInfoList : public safe_container_base<int,tStmtInfo*>
+class safeStmtInfoList : public safe_map_base<int,tStmtInfo*>
 {
 protected:
   /* the statement key - logical statement id index */
@@ -387,7 +387,7 @@ public:
 } ;
 
 /* mappings of  client id -> tClientStmtInfo */
-class safeClientStmtInfoList : public safe_container_base<int,tClientStmtInfo*>
+class safeClientStmtInfoList : public safe_map_base<int,tClientStmtInfo*>
 {
 
 public:
@@ -500,7 +500,7 @@ enum cmdStat
   st_error,
 } ;
 
-class safeLoginSessions : public safe_container_base<int,tSessionDetails*>
+class safeLoginSessions : public safe_map_base<int,tSessionDetails*>
 {
 protected:
   long long m_id ;
@@ -594,7 +594,7 @@ public:
  * class safeTableDetailList
  */
 
-class safeTableDetailList : public safe_container_base<uint64_t,tTblDetails*>
+class safeTableDetailList : public safe_map_base<uint64_t,tTblDetails*>
 {
 public:
   safeTableDetailList (void) { lock_init(); }
@@ -650,7 +650,7 @@ public:
   int add_ep:1;
 } ;
 
-class safeDataNodeList : public safe_container_base<int,tDNInfo*>
+class safeDataNodeList : public safe_map_base<int,tDNInfo*>
 {
 
 public:
@@ -728,7 +728,7 @@ public:
 
 
 class xa_item ;
-class safeXAList : public safe_container_base<int,xa_item*>
+class safeXAList : public safe_map_base<int,xa_item*>
 {
 protected:
   /* the latest xaid, may be overflow */
@@ -757,7 +757,7 @@ enum {
   rs_ok=3, /* all parts are recv */
 } ;
 
-class safeRxStateList : public safe_container_base<int,uint8_t>
+class safeRxStateList : public safe_map_base<int,uint8_t>
 {
 public:
   safeRxStateList (void) { lock_init(); }
@@ -781,7 +781,7 @@ public:
 /* 
  * container gruops 
  */
-class safeColDefGroup : public safe_container_base<int,tContainer*>
+class safeColDefGroup : public safe_map_base<int,tContainer*>
 {
 public:
   safeColDefGroup (void) { clear(); lock_init(); }
@@ -826,7 +826,7 @@ public:
 using myfdMapKey = uint64_t ;
 using MYFD_MAP_ITR_FUNC = int(*)(int,int);
 
-class safeMyFdMapList : public safe_container_base<myfdMapKey,int> {
+class safeMyFdMapList : public safe_map_base<myfdMapKey,int> {
 
 public:
   safeMyFdMapList (void) { lock_init(); }
@@ -843,5 +843,5 @@ public:
   int extract_key(myfdMapKey k, int &myfd, int &stmtid);
 };
 
-#endif /* __CONTAINER_IMPL_H__ */
+#endif /* __CTNR_IMPL_H__ */
 

@@ -1,5 +1,5 @@
 
-#include "sql_parser.h"
+#include "sql_scanner.h"
 #include "hook.h"
 #include "hooks/agg_hooks.h"
 #include "dbg_log.h"
@@ -140,16 +140,16 @@ namespace global_parser_items {
 
 } ;
 
-sql_parser::sql_parser(): 
+sql_scanner::sql_scanner(): 
   m_shds(m_conf.m_shds)
 {
 }
 
-sql_parser::~sql_parser() 
+sql_scanner::~sql_scanner() 
 {
 }
 
-int sql_parser::enum_sharding_configs(
+int sql_scanner::enum_sharding_configs(
   tSqlParseItem *sp,  /* tree parsing result */
   stxNode *node, /* tree node where the requesting column locates */
   char *strCol, /* column name to try */
@@ -179,7 +179,7 @@ int sql_parser::enum_sharding_configs(
   return 1;
 }
 
-int sql_parser::deal_binary_sv(int idx, tSqlParseItem *sp, stxNode *nd1)
+int sql_scanner::deal_binary_sv(int idx, tSqlParseItem *sp, stxNode *nd1)
 {
   /* the operand is constant digit */
   if (nd1->type==mktype(m_endp,s_c_int) || nd1->type==mktype(m_endp,s_c_float)) {
@@ -228,7 +228,7 @@ int sql_parser::deal_binary_sv(int idx, tSqlParseItem *sp, stxNode *nd1)
   return 0;
 }
 
-int sql_parser::deal_operator(tSqlParseItem *sp, 
+int sql_scanner::deal_operator(tSqlParseItem *sp, 
   stxNode *nd0, SHARDING_KEY *psk)
 {
   uint8_t ct = 0;
@@ -278,7 +278,7 @@ int sql_parser::deal_operator(tSqlParseItem *sp,
   return 0;
 }
 
-int sql_parser::deal_endpoints(
+int sql_scanner::deal_endpoints(
   stxNode *node, /* tree root */ 
   tSqlParseItem *sp, /* the tree parsing results */
   char *db /* the default database name */
@@ -344,7 +344,7 @@ int sql_parser::deal_endpoints(
   return 1;
 }
 
-int sql_parser::collect_normal_shd_cols(
+int sql_scanner::collect_normal_shd_cols(
   stxNode *node, /* tree root */ 
   tSqlParseItem *sp, /* the tree parsing results */
   char *db /* the default database name */
@@ -371,7 +371,7 @@ int sql_parser::collect_normal_shd_cols(
 
 /* collect sharding column infos from normal 'insert' statements,
  *  in 'format list' + 'value list' form */
-int sql_parser::collect_shd_cols_4_normal_insert(
+int sql_scanner::collect_shd_cols_4_normal_insert(
   stxNode *root, /* tree root */ 
   tSqlParseItem *sp, /* the tree parsing results */
   char *db /* the default database name */
@@ -464,7 +464,7 @@ int sql_parser::collect_shd_cols_4_normal_insert(
 }
 
 /* collect sharding column infos from 'insert' statements */
-int sql_parser::collect_sharding_col_4_insert(
+int sql_scanner::collect_sharding_col_4_insert(
   stxNode *root, /* tree root */ 
   tSqlParseItem *sp, /* the tree parsing results */
   char *db /* the default database name */
@@ -479,7 +479,7 @@ int sql_parser::collect_sharding_col_4_insert(
 }
 
 /* collect sharding column infos from 'select'/'update'/'delete' statements */
-int sql_parser::collect_sharding_cols(
+int sql_scanner::collect_sharding_cols(
   stxNode *node, /* tree root */ 
   tSqlParseItem *sp, /* the tree parsing results */
   char *db /* the default database name */
@@ -497,7 +497,7 @@ int sql_parser::collect_sharding_cols(
   return 0;
 }
 
-int sql_parser::collect_sharding_columns(
+int sql_scanner::collect_sharding_columns(
   stxNode *root, /* tree root */ 
   tSqlParseItem *sp, /* the tree parsing results */
   char *db /* the default database name */
@@ -555,7 +555,7 @@ int sql_parser::collect_sharding_columns(
   return -1;
 }
 
-int sql_parser::collect_target_tbls(
+int sql_scanner::collect_target_tbls(
   stxNode *node, 
   tSqlParseItem *sp, 
   char *def_db, /* default schema */
@@ -635,7 +635,7 @@ int sql_parser::collect_target_tbls(
   return 0;
 }
 
-int sql_parser::collect_place_holders(stxNode *node, int &num_phs)
+int sql_scanner::collect_place_holders(stxNode *node, int &num_phs)
 {
   uint16_t i=0;
 
@@ -650,7 +650,7 @@ int sql_parser::collect_place_holders(stxNode *node, int &num_phs)
   return 0;
 }
 
-bool sql_parser::is_agg_func(char *name, int &t)
+bool sql_scanner::is_agg_func(char *name, int &t)
 {
   const std::map<std::string,int> ag_list {
     {"sum",agt_sum}, 
@@ -668,7 +668,7 @@ bool sql_parser::is_agg_func(char *name, int &t)
   return false;
 }
 
-int sql_parser::collect_agg_info(stxNode *node, tSqlParseItem *sp)
+int sql_scanner::collect_agg_info(stxNode *node, tSqlParseItem *sp)
 {
   stxNode *nd = 0;
   int t = 0;
@@ -696,7 +696,7 @@ int sql_parser::collect_agg_info(stxNode *node, tSqlParseItem *sp)
   return 0;
 }
 
-int sql_parser::get_stmt_type(stxNode *tree, stxNode* &out, int &type)
+int sql_scanner::get_stmt_type(stxNode *tree, stxNode* &out, int &type)
 {
   stxNode *nd = tree ;
   
@@ -720,7 +720,7 @@ int sql_parser::get_stmt_type(stxNode *tree, stxNode* &out, int &type)
 }
 
 /* do a deep digging on statement */
-int sql_parser::scan(char *sql, size_t sz, 
+int sql_scanner::scan(char *sql, size_t sz, 
   tSqlParseItem *sp, char *db, tContainer &err,
   stxNode *pTree
   )

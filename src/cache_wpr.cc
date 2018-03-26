@@ -1,8 +1,8 @@
 
-#include "cache_wrapper.h"
+#include "cache_wpr.h"
 #include "xa_item.h"
 #include "env.h"
-#include "myproxy_backend.h"
+#include "mp_backend.h"
 #include "hooks/agg_hooks.h"
 
 
@@ -10,7 +10,7 @@ using namespace GLOBAL_ENV ;
 using namespace AGG_HOOK_ENV ;
 
 
-cache_wrapper::cache_wrapper(myproxy_backend &prt) :
+cache_wpr::cache_wpr(mp_backend &prt) :
   m_parent(prt)
 {
   size_t sz = m_conf.get_cache_pool_size();
@@ -25,13 +25,13 @@ cache_wrapper::cache_wrapper(myproxy_backend &prt) :
  * is cache needed ?
  */
 bool
-cache_wrapper::is_needed(xa_item *xai)
+cache_wpr::is_needed(xa_item *xai)
 {
   return xai->m_cache ;
 }
 
 int 
-cache_wrapper::acquire_cache(xa_item *xai)
+cache_wpr::acquire_cache(xa_item *xai)
 {
   /* reset the cache */
   xai->m_cache = m_cachePool.get_db();
@@ -44,7 +44,7 @@ cache_wrapper::acquire_cache(xa_item *xai)
   return 0;
 }
 
-void cache_wrapper::return_cache(xa_item *xai)
+void cache_wpr::return_cache(xa_item *xai)
 {
   if (xai->m_cache) {
     log_print("return cache %p\n",xai->m_cache);
@@ -54,14 +54,14 @@ void cache_wrapper::return_cache(xa_item *xai)
 }
 
 int 
-cache_wrapper::cache_row(xa_item *xai, tContainer &odrCol, char *res, size_t sz)
+cache_wpr::cache_row(xa_item *xai, tContainer &odrCol, char *res, size_t sz)
 {
   xai->m_cache->db.insert(odrCol.tc_data(),odrCol.tc_length(),res,sz);
   return 0;
 }
 
 int 
-cache_wrapper::extract_cached_rows(safeClientStmtInfoList &stmts, 
+cache_wpr::extract_cached_rows(safeClientStmtInfoList &stmts, 
   xa_item *xai)
 {
   tContainer con;
@@ -131,7 +131,7 @@ cache_wrapper::extract_cached_rows(safeClientStmtInfoList &stmts,
 }
 
 int 
-cache_wrapper::tx_pending_res(xa_item *xai, int cfd)
+cache_wpr::tx_pending_res(xa_item *xai, int cfd)
 {
   char *data = xai->m_txBuff.tc_data();
   size_t len  = xai->m_txBuff.tc_length();
@@ -145,31 +145,31 @@ cache_wrapper::tx_pending_res(xa_item *xai, int cfd)
 }
 
 int 
-cache_wrapper::do_cache_res(xa_item *xai, char *res, size_t sz)
+cache_wpr::do_cache_res(xa_item *xai, char *res, size_t sz)
 {
   //xai->m_txBuff.tc_write(res,sz);
   xai->m_txBuff.tc_concat(res,sz);
   return 0;
 }
 
-size_t cache_wrapper::get_free_size(xa_item *xai)
+size_t cache_wpr::get_free_size(xa_item *xai)
 {
   return xai->m_txBuff.tc_free();
 }
 
-int cache_wrapper::save_err_res(xa_item *xai, char *res, size_t sz)
+int cache_wpr::save_err_res(xa_item *xai, char *res, size_t sz)
 {
   xai->m_err.tc_resize(sz+2);
   xai->m_err.tc_write(res,sz);
   return 0;
 }
 
-bool cache_wrapper::is_err_pending(xa_item *xai) const
+bool cache_wpr::is_err_pending(xa_item *xai) const
 {
   return xai->m_err.tc_length()>0;
 }
 
-int cache_wrapper::move_err_buff(xa_item *xai, tContainer &con)
+int cache_wpr::move_err_buff(xa_item *xai, tContainer &con)
 {
   if (is_err_pending(xai)) {
     con.tc_copy(&xai->m_err);
@@ -180,7 +180,7 @@ int cache_wrapper::move_err_buff(xa_item *xai, tContainer &con)
   return 0;
 }
 
-int cache_wrapper::tx_pending_err(xa_item *xai,int cfd)
+int cache_wpr::tx_pending_err(xa_item *xai,int cfd)
 {
   char *data = xai->m_err.tc_data();
   const size_t ln  = xai->m_err.tc_length();
@@ -194,7 +194,7 @@ int cache_wrapper::tx_pending_err(xa_item *xai,int cfd)
   return 0;
 }
 
-int cache_wrapper::move_buff(xa_item *xai, tContainer &con)
+int cache_wpr::move_buff(xa_item *xai, tContainer &con)
 {
   tContainer *pc = is_err_pending(xai)?
     &xai->m_err:&xai->m_txBuff ;

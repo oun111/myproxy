@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "container_impl.h"
+#include "ctnr_impl.h"
 #include "simple_types.h"
 #include "crypto.h"
 #include "xa_item.h"
@@ -12,7 +12,7 @@
 #include "sql_tree.h"
 #include "dbug.h"
 #include "dnmgr.h"
-#include "myproxy_config.h"
+#include "mp_cfg.h"
 
 
 /*
@@ -88,7 +88,7 @@ int safeShardingColumnList::drop(uint32_t k)
   }
   {
     try_write_lock();
-    safe_container_base<uint32_t,SHARDING_KEY*>::drop(k);
+    safe_map_base<uint32_t,SHARDING_KEY*>::drop(k);
   }
   delete sk ;
   return 0;
@@ -102,7 +102,7 @@ int safeShardingColumnList::drop(char *schema,char *tbl, char *col)
 void safeShardingColumnList::clear(void)
 {
   try_write_lock();
-  list_foreach_container_item {
+  list_foreach_map_item {
     delete i.second;
   }
 }
@@ -175,7 +175,7 @@ int safeGlobalIdColumnList::drop(uint32_t k)
   }
   {
     try_write_lock();
-    safe_container_base<uint32_t,GLOBALCOL*>::drop(k);
+    safe_map_base<uint32_t,GLOBALCOL*>::drop(k);
   }
   delete sk ;
   return 0;
@@ -189,7 +189,7 @@ int safeGlobalIdColumnList::drop(char *schema,char *tbl)
 void safeGlobalIdColumnList::clear(void)
 {
   try_write_lock();
-  list_foreach_container_item {
+  list_foreach_map_item {
     delete i.second;
   }
 }
@@ -282,7 +282,7 @@ int unsafeTblKeyList::drop(uint32_t k, bool bRemove)
   }
   delete pt ;
   if (bRemove) {
-    safe_container_base<uint32_t,TABLE_NAME*>::drop(k);
+    safe_map_base<uint32_t,TABLE_NAME*>::drop(k);
   }
   return 0;
 }
@@ -294,7 +294,7 @@ int unsafeTblKeyList::drop(char *schema,char *tbl,bool bRemove)
 
 void unsafeTblKeyList::clear(void)
 {
-  list_foreach_container_item {
+  list_foreach_map_item {
     delete i.second ;
   }
   m_list.clear();
@@ -882,7 +882,7 @@ void safeLoginSessions::clear(void)
 {
   try_write_lock();
 
-  list_foreach_container_item {
+  list_foreach_map_item {
     delete i.second ;
   }
   m_list.clear();
@@ -1118,7 +1118,7 @@ int safeDataNodeList::drop(int dn)
     return -1;
   {
     try_write_lock();
-    safe_container_base<int,tDNInfo*>::drop(dn);
+    safe_map_base<int,tDNInfo*>::drop(dn);
   }
   return 0;
 }
@@ -1128,7 +1128,7 @@ void safeDataNodeList::clear(void)
 {
   try_write_lock();
 
-  list_foreach_container_item {
+  list_foreach_map_item {
     if (i.second->mysql) {
       mysql_close(i.second->mysql);
     }
@@ -1142,7 +1142,7 @@ void safeDataNodeList::reset_stats(void)
 {
   try_read_lock();
 
-  list_foreach_container_item {
+  list_foreach_map_item {
     i.second->stat = s_invalid;
   }
 }
@@ -1406,7 +1406,7 @@ int safeTableDetailList::drop(uint64_t key)
     return -1;
   {
     try_write_lock();
-    safe_container_base<uint64_t,tTblDetails*>::drop(key);
+    safe_map_base<uint64_t,tTblDetails*>::drop(key);
   }
 
   /* release columns */
@@ -1433,7 +1433,7 @@ void safeTableDetailList::clear(void)
   {
     try_write_lock();
 
-    list_foreach_container_item {
+    list_foreach_map_item {
       /* release columns */
       for (auto pc : i.second->columns) {
         delete pc.second ;
@@ -1593,7 +1593,7 @@ tStmtInfo* safeStmtInfoList::new_mapping(int lstmtid)
   ps->m_root  = 0;
   {
     try_write_lock();
-    safe_container_base<int,tStmtInfo*>::insert(lstmtid,ps);
+    safe_map_base<int,tStmtInfo*>::insert(lstmtid,ps);
   }
   return ps ;
 }
@@ -1658,7 +1658,7 @@ int safeStmtInfoList::drop(int lstmtid)
   }
   {
     try_write_lock();
-    safe_container_base<int,tStmtInfo*>::drop(lstmtid);
+    safe_map_base<int,tStmtInfo*>::drop(lstmtid);
     delete ps ;
   }
   return 0;
@@ -1669,7 +1669,7 @@ void safeStmtInfoList::clear(void)
   sql_tree st ;
 
   try_write_lock();
-  list_foreach_container_item {
+  list_foreach_map_item {
     if (i.second->m_root) {
       st.destroy_tree(i.second->m_root,true);
       i.second->m_root = 0;
@@ -1892,7 +1892,7 @@ int safeClientStmtInfoList::set_curr_sp(int cid, int lstmtid)
   return 0;
 }
 
-#include "sql_parser.h"
+#include "sql_scanner.h"
 
 using namespace global_parser_items;
 
@@ -2006,7 +2006,7 @@ safeClientStmtInfoList::add_stmt(int cid, char *prep_req, size_t sz,
     ci->lstmtid_counter = 0;
     ci->cid = cid ;
     try_write_lock();
-    safe_container_base<int,tClientStmtInfo*>::insert(cid,ci);
+    safe_map_base<int,tClientStmtInfo*>::insert(cid,ci);
   }
   ci->curr.rx_blob   = 0;
   ci->curr.total_blob= 0;
@@ -2033,7 +2033,7 @@ safeClientStmtInfoList::add_qry_info(int cid, tSqlParseItem &sp)
     ci->lstmtid_counter = 0;
     ci->cid = cid ;
     try_write_lock();
-    safe_container_base<int,tClientStmtInfo*>::insert(cid,ci);
+    safe_map_base<int,tClientStmtInfo*>::insert(cid,ci);
   }
 
   {
@@ -2120,7 +2120,7 @@ int safeClientStmtInfoList::drop(int cid)
   }
   {
     try_write_lock();
-    safe_container_base<int,tClientStmtInfo*>::drop(cid);
+    safe_map_base<int,tClientStmtInfo*>::drop(cid);
   }
   delete ci ;
   return 0;
@@ -2129,7 +2129,7 @@ int safeClientStmtInfoList::drop(int cid)
 void safeClientStmtInfoList::clear(void)
 {
   try_write_lock();
-  list_foreach_container_item {
+  list_foreach_map_item {
     delete i.second;
   }
 }
@@ -2348,7 +2348,7 @@ int safeXAList::drop(int xid)
   }
   {
     try_write_lock();
-    safe_container_base<int,xa_item*>::drop(xid);
+    safe_map_base<int,xa_item*>::drop(xid);
   }
 
   px->reset_xid();
@@ -2362,7 +2362,7 @@ int safeXAList::drop(int xid)
 void safeXAList::clear(void)
 {
   try_write_lock();
-  list_foreach_container_item {
+  list_foreach_map_item {
     delete i.second;
   }
 }
@@ -2414,7 +2414,7 @@ uint8_t safeRxStateList::next_state(int fd)
 int safeRxStateList::drop(int fd)
 {
   try_write_lock();
-  safe_container_base<int,uint8_t>::drop(fd);
+  safe_map_base<int,uint8_t>::drop(fd);
   return 0;
 }
 
@@ -2482,7 +2482,7 @@ int safeColDefGroup::reset(int myfd)
 /* clear all items */
 void safeColDefGroup::clear(void)
 {
-  list_foreach_container_item {
+  list_foreach_map_item {
     i.second->tc_close();
     delete i.second ;
   }

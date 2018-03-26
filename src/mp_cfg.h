@@ -1,9 +1,9 @@
 
-#ifndef __MYPROXY_CONFIG_H__
-#define __MYPROXY_CONFIG_H__
+#ifndef __MP_CONFIG_H__
+#define __MP_CONFIG_H__
 
 #include "json_parser.h"
-#include "container_impl.h"
+#include "ctnr_impl.h"
 
 
 
@@ -87,11 +87,11 @@ public:
   int idleSeconds ;
 } ;
 
-class myproxy_config : public SimpleJsonParser 
+class mp_cfg : public SimpleJsonParser 
 {
 public:
-  myproxy_config(void);
-  ~myproxy_config(void);
+  mp_cfg(void);
+  ~mp_cfg(void);
 
 protected:
   std::string m_confFile ;
@@ -183,6 +183,6 @@ protected:
   int save_range_maps(jsonKV_t*,SHARDING_EXTRA&);
 } ;
 
-#endif /* __MYPROXY_CONFIG_H__*/
+#endif /* __MP_CONFIG_H__*/
 
 

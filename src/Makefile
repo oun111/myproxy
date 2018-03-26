@@ -6,8 +6,8 @@ GEN_DIR:=$(shell pwd)/.gen/
 CPP:= g++
 CC := gcc
 
-CPP_SRCS        := $(notdir $(shell find . -name "*.cpp"))
-CPP_OBJS        := $(patsubst %.cpp,$(GEN_DIR)/%.o,$(CPP_SRCS))
+CPP_SRCS        := $(notdir $(shell find . -name "*.cc"))
+CPP_OBJS        := $(patsubst %.cc,$(GEN_DIR)/%.o,$(CPP_SRCS))
 CPP_OBJS        += $(GEN_DIR)/main.o
 
 C_SRCS          := $(notdir $(shell find mysqls/ nf/toolset/ -name "*.c"))
@@ -56,16 +56,16 @@ $(TARGET): Libraries  $(OBJS)
 %.o:../%.c
 	$(CPP) $(CPPFLAGS) -c $< -o $@
 
-%.o:../%.cpp
+%.o:../%.cc
 	$(CPP) $(CPPFLAGS) -c $< -o $@
 
-%.o:../nf/%.cpp
+%.o:../nf/%.cc
 	$(CPP) $(CPPFLAGS) -c $< -o $@
 
-%.o:../hooks/%.cpp
+%.o:../hooks/%.cc
 	$(CPP) $(CPPFLAGS) -c $< -o $@
 
-%.o:../dbw/%.cpp
+%.o:../dbw/%.cc
 	$(CPP) $(CPPFLAGS) -c $< -o $@
 
 %.o:../mysqls/%.c

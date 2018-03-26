@@ -4,7 +4,7 @@
 
 #include "busi_base.h"
 #include "dbwrapper.h"
-#include "myproxy_trx.h"
+#include "mp_trx.h"
 
 typedef struct db_pool_object_t tDbPoolObj;
 

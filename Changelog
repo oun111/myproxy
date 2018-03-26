@@ -1,4 +1,10 @@
 Changelog:
+  Mar 26, 2018:
+    1. change all .cpp files to .cc
+
+    2. change all classes or files that contain 'myproxy' to 'mp'
+
+
   Mar 12, 2018:
     1. force all backends to be rollback when error(s) occor
 

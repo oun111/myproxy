@@ -1,9 +1,9 @@
-#include "myproxy_busi.h"
+#include "mp_frontend.h"
 #include <signal.h>
 #include "porting.h"
 #include "simple_types.h"
 #include "mysqld_ername.h"
-#include "sql_parser.h"
+#include "sql_scanner.h"
 #include "env.h"
 
 using namespace GLOBAL_ENV;
@@ -13,7 +13,7 @@ using namespace global_parser_items;
 /*
  * front-end of myproxy
  */
-myproxy_frontend::myproxy_frontend(char*desc) :
+mp_frontend::mp_frontend(char*desc) :
   /* default char set: utf8 */
   m_charSet(0x21),
   m_svrStat(SERVER_STATUS_AUTOCOMMIT)
@@ -24,53 +24,53 @@ myproxy_frontend::myproxy_frontend(char*desc) :
   register_cmd_handlers();
 
   /* init the executor */
-  m_exec = std::shared_ptr<myproxy_backend>(new myproxy_backend(m_lss));
+  m_exec = std::shared_ptr<mp_backend>(new mp_backend(m_lss));
 
   /* acquire the TLS */
   pthread_key_create(&m_tkey,NULL);
 }
 
-myproxy_frontend::~myproxy_frontend(void)
+mp_frontend::~mp_frontend(void)
 {
   unregister_cmd_handlers();
   /* release the TLS */
   pthread_key_delete(m_tkey);
 }
 
-void myproxy_frontend::unregister_cmd_handlers(void)
+void mp_frontend::unregister_cmd_handlers(void)
 {
   if (m_handlers)
     delete []m_handlers ;
 }
 
-void myproxy_frontend::register_cmd_handlers(void)
+void mp_frontend::register_cmd_handlers(void)
 {
   int i=0;
 
   /* standard mysql commands */
   m_handlers = new cmdNode_t[com_end] ;
   for (;i<com_end;i++) {
-    m_handlers[i].ha = &myproxy_frontend::default_com_handler;
+    m_handlers[i].ha = &mp_frontend::default_com_handler;
   }
   /* command 'com_query' */
-  m_handlers[com_query].ha = &myproxy_frontend::do_com_query;
+  m_handlers[com_query].ha = &mp_frontend::do_com_query;
   /* command 'com_init_db' */
-  m_handlers[com_init_db].ha = &myproxy_frontend::do_com_init_db;
+  m_handlers[com_init_db].ha = &mp_frontend::do_com_init_db;
   /* command 'com_field_list' */
-  m_handlers[com_field_list].ha = &myproxy_frontend::do_com_field_list;
+  m_handlers[com_field_list].ha = &mp_frontend::do_com_field_list;
   /* command 'com_quit' */
-  m_handlers[com_quit].ha = &myproxy_frontend::do_com_quit;
+  m_handlers[com_quit].ha = &mp_frontend::do_com_quit;
   /* command 'com_stmt_prepare' */
-  m_handlers[com_stmt_prepare].ha = &myproxy_frontend::do_com_stmt_prepare;
+  m_handlers[com_stmt_prepare].ha = &mp_frontend::do_com_stmt_prepare;
   /* command 'com_stmt_close' */
-  m_handlers[com_stmt_close].ha = &myproxy_frontend::do_com_stmt_close;
+  m_handlers[com_stmt_close].ha = &mp_frontend::do_com_stmt_close;
   /* command 'com_stmt_execute' */
-  m_handlers[com_stmt_execute].ha = &myproxy_frontend::do_com_stmt_execute;
+  m_handlers[com_stmt_execute].ha = &mp_frontend::do_com_stmt_execute;
   /* command 'com_stmt_send_long_data' */
-  m_handlers[com_stmt_send_long_data].ha = &myproxy_frontend::do_com_stmt_send_long_data;
+  m_handlers[com_stmt_send_long_data].ha = &mp_frontend::do_com_stmt_send_long_data;
 }
 
-int myproxy_frontend::deal_pkt(int fd, char *req, size_t sz_in, void *arg) 
+int mp_frontend::deal_pkt(int fd, char *req, size_t sz_in, void *arg) 
 {
   int cmd=0, rc = 0;
   char *pb = 0, *inb = req;
@@ -106,7 +106,7 @@ int myproxy_frontend::deal_pkt(int fd, char *req, size_t sz_in, void *arg)
   return /*-1*/MP_ERR;
 }
 
-int myproxy_frontend::do_com_login(int connid,
+int mp_frontend::do_com_login(int connid,
   char *inb,size_t sz)
 {
   tSessionDetails *pss = 0;
@@ -217,7 +217,7 @@ __end_login:
 }
 
 /* process the 'quit' command */
-int myproxy_frontend::do_com_quit(int connid,char *inb,
+int mp_frontend::do_com_quit(int connid,char *inb,
   size_t sz)
 {
   sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
@@ -233,7 +233,7 @@ int myproxy_frontend::do_com_quit(int connid,char *inb,
 }
 
 /* process the 'field list' command */
-int myproxy_frontend::do_com_field_list(int connid,char *inb,
+int mp_frontend::do_com_field_list(int connid,char *inb,
   size_t sz)
 {
   int sn = 0;
@@ -305,7 +305,7 @@ int myproxy_frontend::do_com_field_list(int connid,char *inb,
   return MP_OK;
 }
 
-int myproxy_frontend::do_sel_cur_db(int connid,int sn)
+int mp_frontend::do_sel_cur_db(int connid,int sn)
 {
   /* get connection region */
   tSessionDetails *pss = m_lss.get_session(connid);
@@ -331,7 +331,7 @@ int myproxy_frontend::do_sel_cur_db(int connid,int sn)
   return MP_OK;
 }
 
-int myproxy_frontend::do_sel_ver_comment(int connid,int sn)
+int mp_frontend::do_sel_ver_comment(int connid,int sn)
 {
   char outb[MAX_PAYLOAD] ;
   size_t sz_out = 0;
@@ -345,7 +345,7 @@ int myproxy_frontend::do_sel_ver_comment(int connid,int sn)
   return MP_OK;
 }
 
-int myproxy_frontend::do_show_dbs(int connid,int sn)
+int mp_frontend::do_show_dbs(int connid,int sn)
 {
   uint16_t i=0;
   size_t sz_out = 0, sz_total = 100;
@@ -375,7 +375,7 @@ int myproxy_frontend::do_show_dbs(int connid,int sn)
   return MP_OK;
 }
 
-int myproxy_frontend::do_show_tbls(int connid,int sn)
+int mp_frontend::do_show_tbls(int connid,int sn)
 {
   uint16_t i=0;
   size_t sz_out = 0, sz_total = 150;
@@ -385,7 +385,7 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
   tTblDetails *td = 0;
   /* get connection region */
   tSessionDetails *pss = m_lss.get_session(connid);
-  safe_container_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
+  safe_map_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
 
   if (!pss) {
     log_print("FATAL: connetion id %d not found\n",connid);
@@ -423,7 +423,7 @@ int myproxy_frontend::do_show_tbls(int connid,int sn)
   return MP_OK;
 }
 
-int myproxy_frontend::do_show_proclst(int connid,int sn)
+int mp_frontend::do_show_proclst(int connid,int sn)
 {
   char *outb = 0 ;
   size_t total = 400, sz_out = 0;
@@ -483,7 +483,7 @@ int myproxy_frontend::do_show_proclst(int connid,int sn)
 }
 
 /* process the 'query' command */
-int myproxy_frontend::do_com_query(int connid,
+int mp_frontend::do_com_query(int connid,
   char *inb,size_t sz)
 {
   /* extract serial number */
@@ -570,7 +570,7 @@ int myproxy_frontend::do_com_query(int connid,
 }
 
 /* process the 'init_db' command */
-int myproxy_frontend::do_com_init_db(int connid,
+int mp_frontend::do_com_init_db(int connid,
   char *inb,size_t sz)
 {
   uint32_t sn = 0;
@@ -630,7 +630,7 @@ __end_init_db:
   return ret;
 }
 
-int myproxy_frontend::default_com_handler(int connid,
+int mp_frontend::default_com_handler(int connid,
   char *inb,size_t sz)
 {
   char *cmd = 0;
@@ -640,7 +640,7 @@ int myproxy_frontend::default_com_handler(int connid,
   return MP_OK;
 }
 
-int myproxy_frontend::do_com_stmt_prepare(int connid,
+int mp_frontend::do_com_stmt_prepare(int connid,
   char *inb,size_t sz)
 {
   sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
@@ -653,7 +653,7 @@ int myproxy_frontend::do_com_stmt_prepare(int connid,
   return MP_OK;
 }
 
-int myproxy_frontend::do_com_stmt_close(int connid,
+int mp_frontend::do_com_stmt_close(int connid,
   char *inb,size_t sz)
 {
   int stmtid = 0;
@@ -666,7 +666,7 @@ int myproxy_frontend::do_com_stmt_close(int connid,
   return MP_OK;
 }
 
-int myproxy_frontend::do_com_stmt_execute(int connid,
+int mp_frontend::do_com_stmt_execute(int connid,
   char *inb,size_t sz)
 {
   int stmtid = 0;
@@ -680,7 +680,7 @@ int myproxy_frontend::do_com_stmt_execute(int connid,
   return MP_OK;
 }
 
-int myproxy_frontend::do_com_stmt_send_long_data(int connid,
+int mp_frontend::do_com_stmt_send_long_data(int connid,
   char *inb,size_t sz)
 {
   int stmtid = 0;
@@ -695,7 +695,7 @@ int myproxy_frontend::do_com_stmt_send_long_data(int connid,
 
 /* this function is called at server side when a 
  *  new client is just connected */
-int myproxy_frontend::do_server_greeting(int cid)
+int mp_frontend::do_server_greeting(int cid)
 {
   //tSessionDetails cs ;
   tSessionDetails *cs = 0 ;
@@ -719,7 +719,7 @@ int myproxy_frontend::do_server_greeting(int cid)
 }
 
 int 
-myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
+mp_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
   /* store the sock_toolkit */
   pthread_setspecific(m_tkey,(void*)st);
@@ -738,7 +738,7 @@ myproxy_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 }
 
 int 
-myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
+mp_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
   /* if there're pending data in tx cache, send them */
   if (!flush_epp_tx_cache(st,priv,fd)) {
@@ -749,7 +749,7 @@ myproxy_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd)
   return do_server_greeting(fd);
 }
 
-int myproxy_frontend::on_error(sock_toolkit *st, int fd) 
+int mp_frontend::on_error(sock_toolkit *st, int fd) 
 {
   log_print("fd %d\n",fd);
 

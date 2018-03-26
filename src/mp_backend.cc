@@ -1,8 +1,8 @@
 
 #include <string>
-#include "myproxy_trx.h"
-#include "myproxy_backend.h"
-#include "sql_parser.h"
+#include "mp_trx.h"
+#include "mp_backend.h"
+#include "sql_scanner.h"
 #include "sql_router.h"
 #include "simple_types.h"
 #include "sock_toolkit.h"
@@ -15,19 +15,19 @@ using namespace GLOBAL_ENV;
 using namespace global_parser_items;
 
 /*
- * class myproxy_backend
+ * class mp_backend
  */
-myproxy_backend::myproxy_backend(safeLoginSessions &ss) :
+mp_backend::mp_backend(safeLoginSessions &ss) :
   m_caches(*this),m_lss(ss)
 {
   (void)mysql_cmd2str;
 }
 
-myproxy_backend::~myproxy_backend() 
+mp_backend::~mp_backend() 
 {
 }
 
-int myproxy_backend::close(int cid)
+int mp_backend::close(int cid)
 {
   end_xa(cid);
 
@@ -40,7 +40,7 @@ int myproxy_backend::close(int cid)
   return 0;
 }
 
-int myproxy_backend::force_close(int cid)
+int mp_backend::force_close(int cid)
 {
   tSessionDetails *pss = 0;
 
@@ -70,7 +70,7 @@ int myproxy_backend::force_close(int cid)
 }
 
 int 
-myproxy_backend::new_xa(tSessionDetails *pss, sock_toolkit *st, 
+mp_backend::new_xa(tSessionDetails *pss, sock_toolkit *st, 
   int cid, int cmd, char *req, size_t sz, int &xaid, int cmd_step)
 {
   if ((xaid=pss->get_xaid())>0) {
@@ -99,7 +99,7 @@ myproxy_backend::new_xa(tSessionDetails *pss, sock_toolkit *st,
   return 0;
 }
 
-int myproxy_backend::end_xa(xa_item *xa)
+int mp_backend::end_xa(xa_item *xa)
 {
   int xaid = 0;
 
@@ -127,7 +127,7 @@ int myproxy_backend::end_xa(xa_item *xa)
   return 0;
 }
 
-int myproxy_backend::end_xa(int cid)
+int mp_backend::end_xa(int cid)
 {
   tSessionDetails *pss = 0;
   int xaid = 0;
@@ -155,7 +155,7 @@ int myproxy_backend::end_xa(int cid)
 }
 
 int 
-myproxy_backend::get_route(int xaid, 
+mp_backend::get_route(int xaid, 
   int cid,
   tSqlParseItem *sp,
   bool fullroute, /* route to all datanodes or not */ 
@@ -198,7 +198,7 @@ myproxy_backend::get_route(int xaid,
   return 0;
 }
 
-int myproxy_backend::try_do_pending(void)
+int mp_backend::try_do_pending(void)
 {
   sock_toolkit *st = 0;
   int cfd = 0;
@@ -227,7 +227,7 @@ int myproxy_backend::try_do_pending(void)
 }
 
 int 
-myproxy_backend::do_get_stree(int cid, char *req, size_t sz,
+mp_backend::do_get_stree(int cid, char *req, size_t sz,
   stxNode* &pTree, bool &bNewTree)
 {
   char *pSql = req + 5;
@@ -253,7 +253,7 @@ myproxy_backend::do_get_stree(int cid, char *req, size_t sz,
 
 /* do request in query mode */
 int 
-myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
+mp_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 {
   int xaid = -1, rc=0 ;
   char *pSql = req + 5;
@@ -314,9 +314,9 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 
   /* dig informations from statement */
   tContainer err ;
-  sql_parser parser ;
+  sql_scanner scanner ;
 
-  if (parser.scan(pSql,szSql,&sp,pDb,err,pTree)) {
+  if (scanner.scan(pSql,szSql,&sp,pDb,err,pTree)) {
     log_print("error scan statement %s\n",pSql);
 
     m_lss.reset_cmd_step(cid);
@@ -360,7 +360,7 @@ myproxy_backend::do_query(sock_toolkit *st,int cid, char *req, size_t sz)
 
 /* do the stmt_prepare request */
 int 
-myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid, 
+mp_backend::do_stmt_prepare(sock_toolkit *st, int cid, 
   char *req, size_t sz, int cmd_step)
 {
   int xaid = -1 ;
@@ -426,9 +426,9 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
   if (cmd_step==st_prep_trans) {
 
     tContainer err ;
-    sql_parser parser ;
+    sql_scanner scanner ;
 
-    if (parser.scan(pSql,szSql,&tsp,pDb,err,pTree)) {
+    if (scanner.scan(pSql,szSql,&tsp,pDb,err,pTree)) {
 
       log_print("error parse statement %s\n",pSql);
 
@@ -442,7 +442,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
 
     sp = &tsp;
   } 
-  /* this's a 're-prepare' request, get parser info directly */
+  /* this's a 're-prepare' request, get scanner info directly */
   else {
     m_stmts.get_curr_sp(cid,sp);
   }
@@ -477,7 +477,7 @@ myproxy_backend::do_stmt_prepare(sock_toolkit *st, int cid,
 
 /* test if this statement was prepared before */
 int 
-myproxy_backend::test_prepared(int cid, const char *req, size_t sz, int xaid)
+mp_backend::test_prepared(int cid, const char *req, size_t sz, int xaid)
 {
   xa_item *xai = m_xa.get_xa(xaid);
   int gid = xai->get_gid();
@@ -505,7 +505,7 @@ myproxy_backend::test_prepared(int cid, const char *req, size_t sz, int xaid)
   return -1;
 }
 
-int myproxy_backend::save_sharding_values(tSqlParseItem *sp, 
+int mp_backend::save_sharding_values(tSqlParseItem *sp, 
   int total_phs, char *pReq,size_t sz)
 {
   int i=0, ret = 0;
@@ -543,7 +543,7 @@ int myproxy_backend::save_sharding_values(tSqlParseItem *sp,
 }
 
 safeDnStmtMapList* 
-myproxy_backend::get_stmt_id_map(int cid, char* req, size_t sz) 
+mp_backend::get_stmt_id_map(int cid, char* req, size_t sz) 
 {
   int lstmtid = 0;
   tStmtInfo *si=0;
@@ -558,7 +558,7 @@ myproxy_backend::get_stmt_id_map(int cid, char* req, size_t sz)
   return &si->maps ;
 }
 
-int myproxy_backend::get_parser_item(int cid, char *req, size_t sz, 
+int mp_backend::get_parser_item(int cid, char *req, size_t sz, 
   tSqlParseItem* &sp)
 {
   int lstmtid = 0;
@@ -577,7 +577,7 @@ int myproxy_backend::get_parser_item(int cid, char *req, size_t sz,
   return 0;
 }
 
-int myproxy_backend::do_execute_blobs(int cid, int xaid, sock_toolkit *st, 
+int mp_backend::do_execute_blobs(int cid, int xaid, sock_toolkit *st, 
   std::set<uint8_t> &rlist, safeDnStmtMapList *maps)
 {
   char *breq = 0;
@@ -631,7 +631,7 @@ namespace {
 
 /* do the stmt_close request */
 int 
-myproxy_backend::do_stmt_close(int cid, int stmtid)
+mp_backend::do_stmt_close(int cid, int stmtid)
 {
   /* get logical statement related backend fd & physical id */
   tStmtInfo *pi = m_stmts.get(cid,stmtid);
@@ -649,7 +649,7 @@ myproxy_backend::do_stmt_close(int cid, int stmtid)
 
 /* do the stmt_execute request */
 int 
-myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz)
+mp_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz)
 {
   int xaid = -1 ;
   int nphs = 0; /* total placeholders */
@@ -754,7 +754,7 @@ myproxy_backend::do_stmt_execute(sock_toolkit *st, int cid, char *req, size_t sz
 }
 
 /* do the send_long_data request */
-int myproxy_backend::do_send_blob(int cid, char *req, size_t sz)
+int mp_backend::do_send_blob(int cid, char *req, size_t sz)
 {
   auto pss = m_lss.get_session(cid);
   int xaid = 0;
@@ -789,7 +789,7 @@ int myproxy_backend::do_send_blob(int cid, char *req, size_t sz)
 }
 
 int 
-myproxy_backend::get_ordering_col(char *cols, int num_cols, char **name)
+mp_backend::get_ordering_col(char *cols, int num_cols, char **name)
 {
   int i=0, digit_col = -1;
   char *db=0, *tbl=0, *col=0;
@@ -822,7 +822,7 @@ myproxy_backend::get_ordering_col(char *cols, int num_cols, char **name)
 }
 
 int
-myproxy_backend::do_cache_row(xa_item *xai, int myfd, char *res, size_t sz)
+mp_backend::do_cache_row(xa_item *xai, int myfd, char *res, size_t sz)
 {
   char *chOdrCol = 0;
   int cmd = xai->get_cmd();
@@ -867,7 +867,7 @@ myproxy_backend::do_cache_row(xa_item *xai, int myfd, char *res, size_t sz)
 }
 
 int 
-myproxy_backend::save_col_def_by_dn(xa_item *xai, int cfd, int myfd, 
+mp_backend::save_col_def_by_dn(xa_item *xai, int cfd, int myfd, 
   char *res, size_t sz)
 {
   MYSQL_COLUMN mc ;
@@ -887,7 +887,7 @@ myproxy_backend::save_col_def_by_dn(xa_item *xai, int cfd, int myfd,
 
 /* responses processing */
 int 
-myproxy_backend::deal_query_res_single_path(
+mp_backend::deal_query_res_single_path(
   xa_item *xai,  /* transaction object */
   int myfd, /* backend db fd that responses the packet */
   char *res, 
@@ -961,7 +961,7 @@ myproxy_backend::deal_query_res_single_path(
   return /*0*/ret;
 }
 
-int myproxy_backend::force_rollback(xa_item *xai,int cfd)
+int mp_backend::force_rollback(xa_item *xai,int cfd)
 {
   tContainer tmp ;
 
@@ -982,7 +982,7 @@ int myproxy_backend::force_rollback(xa_item *xai,int cfd)
   return 0;
 }
 
-int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
+int mp_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 {
   tContainer tmp ;
   int xaid= xai->get_xid();
@@ -1058,7 +1058,7 @@ int myproxy_backend::do_send_res(xa_item *xai, int cfd, char *res, size_t sz)
 }
 
 int 
-myproxy_backend::deal_query_res_multi_path(
+mp_backend::deal_query_res_multi_path(
   xa_item *xai,  /* transaction object */
   int myfd, /* backend db fd that responses the packet */
   char *res, 
@@ -1194,7 +1194,7 @@ myproxy_backend::deal_query_res_multi_path(
 }
 
 int 
-myproxy_backend::deal_query_res(
+mp_backend::deal_query_res(
   xa_item *xai,  /* transaction object */
   int myfd, /* backend db fd that responses the packet */
   char *res, 
@@ -1226,7 +1226,7 @@ myproxy_backend::deal_query_res(
   return deal_query_res_multi_path(xai,myfd,res,sz);
 }
 
-int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
+int mp_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
 {
   char *req = 0;
   size_t sz = 0;
@@ -1263,7 +1263,7 @@ int myproxy_backend::try_pending_exec(int cfd,int xaid,sock_toolkit *st)
 }
 
 int 
-myproxy_backend::get_last_sn(xa_item *xai)
+mp_backend::get_last_sn(xa_item *xai)
 {
   int end = xai->get_col_count()+xai->get_phs_count()+1;
 
@@ -1275,7 +1275,7 @@ myproxy_backend::get_last_sn(xa_item *xai)
 }
 
 int 
-myproxy_backend::do_add_mapping(int myfd, int cfd, 
+mp_backend::do_add_mapping(int myfd, int cfd, 
   int stmtid, int lstmtid, xa_item *xai)
 {
   int gid = xai->get_gid();
@@ -1289,7 +1289,7 @@ myproxy_backend::do_add_mapping(int myfd, int cfd,
 }
 
 int 
-myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t sz)
+mp_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t sz)
 {
   int ret = 0;
   int lstmtid = 0, stmtid=0; 
@@ -1406,12 +1406,12 @@ myproxy_backend::deal_stmt_prepare_res(xa_item *xai, int myfd, char *res, size_t
   return ret;
 }
 
-int myproxy_backend::deal_stmt_execute_res(xa_item *xai, int cid, char *res, size_t sz)
+int mp_backend::deal_stmt_execute_res(xa_item *xai, int cid, char *res, size_t sz)
 {
   return deal_query_res(xai,cid,res,sz);
 }
 
-int myproxy_backend::deal_pkt(int myfd, char *res, size_t sz, void *arg)
+int mp_backend::deal_pkt(int myfd, char *res, size_t sz, void *arg)
 {
   xa_item *xai = static_cast<xa_item*>(arg);
   int cmd = 0;
@@ -1441,20 +1441,20 @@ int myproxy_backend::deal_pkt(int myfd, char *res, size_t sz, void *arg)
 }
 
 int 
-myproxy_backend::tx(sock_toolkit *st, epoll_priv_data *priv, int fd)
+mp_backend::tx(sock_toolkit *st, epoll_priv_data *priv, int fd)
 {
   return 0;
 }
 
 int 
-myproxy_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
+mp_backend::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
 {
   m_trx.rx(st,priv,fd);
   return 0;
 }
 
-myproxy_epoll_trx&
-myproxy_backend::get_trx(void)
+mp_trx&
+mp_backend::get_trx(void)
 {
   return m_trx ;
 }

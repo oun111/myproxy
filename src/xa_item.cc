@@ -1,7 +1,7 @@
 
 #include "xa_item.h"
-#include "myproxy_backend.h"
-#include "myproxy_trx.h"
+#include "mp_backend.h"
+#include "mp_trx.h"
 #include "env.h"
 
 #include "simple_types.h"

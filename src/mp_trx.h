@@ -1,8 +1,8 @@
 
-#ifndef __MYPROXY_TRX_H__
-#define __MYPROXY_TRX_H__
+#ifndef __MP_TRX_H__
+#define __MP_TRX_H__
 
-#include "container_impl.h"
+#include "ctnr_impl.h"
 #include "dbg_log.h"
 #include "sock_toolkit.h"
 
@@ -17,7 +17,7 @@ enum myproxy_state {
 
 constexpr int nMaxRecvBlk = 20000 ;
 
-class myproxy_epoll_trx {
+class mp_trx {
 
 public:
   int rx(sock_toolkit *st, epoll_priv_data* priv, int fd);
@@ -25,5 +25,5 @@ public:
   int tx(int,char*,size_t);
 };
 
-#endif /* __MYPROXY_TRX_H__*/
+#endif /* __MP_TRX_H__*/
 

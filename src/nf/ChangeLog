@@ -182,7 +182,7 @@ History:
 
   May 11, 2016:
     1. re-construct the containers in dispatcher module, encapsulate
-        a base class named 'safe_container_base' for them
+        a base class named 'safe_map_base' for them
 
   May 10, 2016:
     1. added 'outstanding-server' support into protocol definition,

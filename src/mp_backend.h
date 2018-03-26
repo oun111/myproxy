@@ -1,17 +1,17 @@
 
-#ifndef __MYPROXY_BACKEND_H__
-#define __MYPROXY_BACKEND_H__
+#ifndef __MP_BACKEND_H__
+#define __MP_BACKEND_H__
 
 #include <stdlib.h>
-#include "myproxy_config.h"
+#include "mp_cfg.h"
 #include "thread_helper.h"
 #include "xamgr.h"
-#include "cache_wrapper.h"
+#include "cache_wpr.h"
 #include "hook.h"
 #include "busi_base.h"
 
 
-class myproxy_backend : public business_base  {
+class mp_backend : public business_base  {
 protected:
 
   /* the xa manager */
@@ -21,12 +21,12 @@ protected:
 
   safeClientStmtInfoList m_stmts ;
 
-  cache_wrapper m_caches ;
+  cache_wpr m_caches ;
 
   safeLoginSessions &m_lss;
 
   /* tx/rx methods */
-  myproxy_epoll_trx m_trx ;
+  mp_trx m_trx ;
 
 protected:
 
@@ -85,8 +85,8 @@ protected:
   int on_error(sock_toolkit*,int) { return 0; }
 
 public:
-  myproxy_backend(safeLoginSessions&) ;
-  ~myproxy_backend() ;
+  mp_backend(safeLoginSessions&) ;
+  ~mp_backend() ;
 
 public:
   int end_xa(int);
@@ -109,7 +109,7 @@ public:
   //int xa_rx(xa_item*,int,char*,size_t);
   int deal_pkt(int,char*,size_t,void*);
 
-  myproxy_epoll_trx& get_trx(void);
+  mp_trx& get_trx(void);
 
   /* release a client's resource */
   int close(int);
@@ -119,5 +119,5 @@ public:
 
 } ;
 
-#endif /* __MYPROXY_BACKEND_H__*/
+#endif /* __MP_BACKEND_H__*/
 

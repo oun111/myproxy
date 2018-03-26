@@ -2,7 +2,7 @@
 #include "agg_hooks.h"
 #include "dbg_log.h"
 #include "xa_item.h"
-#include "container_impl.h"
+#include "ctnr_impl.h"
 #include "porting.h"
 #include "simple_types.h"
 #include "resizable_container.h"

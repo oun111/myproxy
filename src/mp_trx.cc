@@ -1,5 +1,5 @@
 
-#include "myproxy_trx.h"
+#include "mp_trx.h"
 #include "sock_toolkit.h"
 #include "busi_base.h"
 
@@ -8,7 +8,7 @@
  * receive mysql packet 
  */
 int 
-myproxy_epoll_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
+mp_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
 {
   int ret = 0;
   char *req =0;
@@ -105,7 +105,7 @@ myproxy_epoll_trx::rx(sock_toolkit *st, epoll_priv_data* priv, int fd)
 }
 
 /* send mysql packet */
-int myproxy_epoll_trx::tx(int fd, char *buf, size_t sz)
+int mp_trx::tx(int fd, char *buf, size_t sz)
 {
   return do_send(fd,buf,sz);
 }

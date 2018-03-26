@@ -2,8 +2,8 @@
 #ifndef __ENV_H__
 #define __ENV_H__
 
-#include "myproxy_config.h"
-#include "container_impl.h"
+#include "mp_cfg.h"
+#include "ctnr_impl.h"
 #include "hook.h"
 
 namespace GLOBAL_ENV {
@@ -12,7 +12,7 @@ namespace GLOBAL_ENV {
   constexpr int MAX_PAYLOAD = 1600;
 
   /* the config file item */
-  extern myproxy_config m_conf ;
+  extern mp_cfg m_conf ;
 
   /* the table list */
   extern safeTableDetailList m_tables;

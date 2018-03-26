@@ -6,7 +6,7 @@
 #include <memory>
 #include <set>
 #include <stdint.h>
-#include "myproxy_config.h"
+#include "mp_cfg.h"
 #include "xa_item.h"
 #include "sock_toolkit.h"
 #include "dnmgr.h"

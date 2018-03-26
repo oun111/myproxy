@@ -1,8 +1,8 @@
 
-#ifndef __SQL_PARSER_H__
-#define __SQL_PARSER_H__
+#ifndef __SQL_SCANNER_H__
+#define __SQL_SCANNER_H__
 
-#include "container_impl.h"
+#include "ctnr_impl.h"
 /* 
  * sql parsing basement support 
  */
@@ -58,7 +58,7 @@ namespace global_parser_items {
   extern bool is_xa_end_stmt(int) ;
 } ;
 
-class sql_parser {
+class sql_scanner {
 protected:
   /* sharding column infos */
   safeShardingColumnList &m_shds;
@@ -70,8 +70,8 @@ protected:
   tree_serializer m_ts ;
 
 public:
-  sql_parser();
-  ~sql_parser();
+  sql_scanner();
+  ~sql_scanner();
 
 public:
 #if 0
@@ -113,4 +113,4 @@ public:
   int collect_agg_info(stxNode *node, tSqlParseItem *sp);
 } ;
 
-#endif /* __SQL_PARSER_H__*/
+#endif /* __SQL_SCANNER_H__*/

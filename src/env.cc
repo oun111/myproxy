@@ -6,7 +6,7 @@
 namespace GLOBAL_ENV {
 
   /* the config file item */
-  myproxy_config m_conf ;
+  mp_cfg m_conf ;
 
   /* the table list */
   safeTableDetailList m_tables;

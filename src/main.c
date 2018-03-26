@@ -5,7 +5,7 @@
 #include <getopt.h> 
 #include "framework.h"
 #include "dbug.h"
-#include "myproxy_busi.h"
+#include "mp_frontend.h"
 #include "env.h"
 
 DECLARE_LOG("myproxy") ;
@@ -61,7 +61,7 @@ int main(int argc,char **argv)
   char *addr = m_conf.get_bind_address();
 
   /* init the busi module */
-  myproxy_frontend m_busi((char*)"myproxy") ;
+  mp_frontend m_busi((char*)"myproxy") ;
   /* the epoll module */
   epoll_impl d1(&m_busi,addr,port,szThPool) ;
 

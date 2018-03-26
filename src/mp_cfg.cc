@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "myproxy_config.h"
+#include "mp_cfg.h"
 #include "dbg_log.h"
 #include "dbug.h"
 #include "framework.h"
@@ -108,17 +108,17 @@ const char *idleSeconds[] = {
 }
 
 
-myproxy_config::myproxy_config(void)
+mp_cfg::mp_cfg(void)
 {
   bzero(&m_globSettings,sizeof(m_globSettings));
 }
 
-myproxy_config::~myproxy_config(void)
+mp_cfg::~mp_cfg(void)
 {
   reset();
 }
 
-void myproxy_config::reset(void)
+void mp_cfg::reset(void)
 {
   /* clear data node list */
   for (auto pd : m_dataNodes) {
@@ -147,7 +147,7 @@ void myproxy_config::reset(void)
   m_schemas.clear();
 }
 
-int myproxy_config::parse_global_settings(void)
+int mp_cfg::parse_global_settings(void)
 {
   jsonKV_t *pj = find(m_root,(char*)gsSec[0]), *tmp = 0 ;
 
@@ -226,37 +226,37 @@ int myproxy_config::parse_global_settings(void)
   return 0;
 }
 
-size_t myproxy_config::get_cache_pool_size(void) const
+size_t mp_cfg::get_cache_pool_size(void) const
 {
   return m_globSettings.szCachePool ;
 }
 
-size_t myproxy_config::get_dn_group_count(void) const
+size_t mp_cfg::get_dn_group_count(void) const
 {
   return m_globSettings.numDnGrp ;
 }
 
-size_t myproxy_config::get_thread_pool_size(void) const
+size_t mp_cfg::get_thread_pool_size(void) const
 {
   return m_globSettings.szThreadPool ;
 }
 
-char* myproxy_config::get_bind_address(void) const
+char* mp_cfg::get_bind_address(void) const
 {
   return (char*)m_globSettings.bndAddr.c_str() ;
 }
 
-int myproxy_config::get_listen_port(void) const
+int mp_cfg::get_listen_port(void) const
 {
   return m_globSettings.listenPort ;
 }
 
-int myproxy_config::get_idle_seconds(void) const
+int mp_cfg::get_idle_seconds(void) const
 {
   return m_globSettings.idleSeconds ;
 }
 
-uint32_t myproxy_config::parse_ipv4(std::string &str)
+uint32_t mp_cfg::parse_ipv4(std::string &str)
 {
   int i0,i1,i2,i3 ;
 
@@ -264,7 +264,7 @@ uint32_t myproxy_config::parse_ipv4(std::string &str)
   return (i0<<24) | (i1<<16) | (i2<<8) | i3 ;
 }
 
-int myproxy_config::parse_data_nodes(void)
+int mp_cfg::parse_data_nodes(void)
 {
   size_t np = 0;
   uint16_t i = 0;
@@ -326,7 +326,7 @@ int myproxy_config::parse_data_nodes(void)
   return 0;
 }
 
-SCHEMA_BLOCK* myproxy_config::get_schema(const char *sch)
+SCHEMA_BLOCK* mp_cfg::get_schema(const char *sch)
 {
   for (auto ps : m_schemas) {
     if (ps->name==sch)
@@ -335,24 +335,24 @@ SCHEMA_BLOCK* myproxy_config::get_schema(const char *sch)
   return 0;
 }
 
-SCHEMA_BLOCK* myproxy_config::get_schema(uint16_t idx)
+SCHEMA_BLOCK* mp_cfg::get_schema(uint16_t idx)
 {
   if (idx>=m_schemas.size() || idx>=m_schemas.size())
     return NULL;
   return m_schemas[idx];
 }
 
-size_t myproxy_config::get_num_schemas(void)
+size_t mp_cfg::get_num_schemas(void)
 {
   return m_schemas.size() ;
 }
 
-size_t myproxy_config::get_num_tables(SCHEMA_BLOCK *sch)
+size_t mp_cfg::get_num_tables(SCHEMA_BLOCK *sch)
 {
   return sch->table_list.size();
 }
 
-TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
+TABLE_INFO* mp_cfg::get_table(SCHEMA_BLOCK *sch,
   uint16_t idx)
 {
   if (idx>=sch->table_list.size())
@@ -360,7 +360,7 @@ TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
   return sch->table_list[idx];
 }
 
-TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
+TABLE_INFO* mp_cfg::get_table(SCHEMA_BLOCK *sch,
   const char *tbl)
 {
   for (auto i : sch->table_list) {
@@ -371,7 +371,7 @@ TABLE_INFO* myproxy_config::get_table(SCHEMA_BLOCK *sch,
 }
 
 int 
-myproxy_config::check_duplicate(
+mp_cfg::check_duplicate(
     const char *func, 
     std::vector<struct tJsonParserKeyVal*> &lst, 
     size_t pos)
@@ -392,7 +392,7 @@ myproxy_config::check_duplicate(
   return 0;
 }
 
-int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
+int mp_cfg::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
 {
   jsonKV_t *p1, *p2 ;
   uint16_t m=0;
@@ -435,7 +435,7 @@ int myproxy_config::parse_mapping_list(jsonKV_t *jsonTbl, TABLE_INFO *pt)
 }
 
 int
-myproxy_config::save_range_maps(jsonKV_t *s_map, SHARDING_EXTRA &se)
+mp_cfg::save_range_maps(jsonKV_t *s_map, SHARDING_EXTRA &se)
 {
   int rStart = 0, rEnd = 0, dn = 0;
 
@@ -480,7 +480,7 @@ myproxy_config::save_range_maps(jsonKV_t *s_map, SHARDING_EXTRA &se)
 }
 
 int 
-myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *strSchema)
+mp_cfg::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *strSchema)
 {
   jsonKV_t *p1, *p2 ;
   uint16_t m=0;
@@ -546,7 +546,7 @@ myproxy_config::parse_shardingkey_list(jsonKV_t *jsonTbl, char *strTbl, char *st
 }
 
 int 
-myproxy_config::parse_globalid_list(jsonKV_t *jsonTbl, char *strTbl, char *strSchema)
+mp_cfg::parse_globalid_list(jsonKV_t *jsonTbl, char *strTbl, char *strSchema)
 {
   jsonKV_t *p1, *p2 ;
   uint16_t m=0;
@@ -583,7 +583,7 @@ myproxy_config::parse_globalid_list(jsonKV_t *jsonTbl, char *strTbl, char *strSc
   return 0;
 }
 
-int myproxy_config::parse_schemas(void)
+int mp_cfg::parse_schemas(void)
 {
   //char *pk = 0;
   uint16_t i=0, n=0/*, m=0*/;
@@ -687,7 +687,7 @@ int myproxy_config::parse_schemas(void)
   return 0;
 }
 
-int myproxy_config::parse(std::string &s_in)
+int mp_cfg::parse(std::string &s_in)
 {
   /* 
    * parse raw json content 
@@ -718,7 +718,7 @@ int myproxy_config::parse(std::string &s_in)
   return 0;
 }
 
-int myproxy_config::read_conf(const char *infile)
+int mp_cfg::read_conf(const char *infile)
 {
   int fd = 0, ret = 0;
   char buf[65];
@@ -746,14 +746,14 @@ int myproxy_config::read_conf(const char *infile)
   return 0;
 }
 
-int myproxy_config::reload(void)
+int mp_cfg::reload(void)
 {
   reset();
 
   return read_conf(m_confFile.c_str());
 }
 
-char* myproxy_config::get_pwd(char *db, char *usr)
+char* mp_cfg::get_pwd(char *db, char *usr)
 {
   uint16_t i=0;
   SCHEMA_BLOCK *ps = 0;
@@ -776,7 +776,7 @@ char* myproxy_config::get_pwd(char *db, char *usr)
   return NULL ;
 }
 
-bool myproxy_config::is_db_exists(char *db)
+bool mp_cfg::is_db_exists(char *db)
 {
   /* find suitable schema */
   for (auto ps : m_schemas) {
@@ -786,7 +786,7 @@ bool myproxy_config::is_db_exists(char *db)
   return false ;
 }
 
-void myproxy_config::dump(void)
+void mp_cfg::dump(void)
 {
   log_print("dumping data nodes*****: \n");
 
@@ -823,7 +823,7 @@ void myproxy_config::dump(void)
   }
 }
 
-int myproxy_config::get_dataNode(char *name)
+int mp_cfg::get_dataNode(char *name)
 {
   for (size_t i=0;i<m_dataNodes.size();i++) {
     if (m_dataNodes[i]->name==name)
@@ -832,14 +832,14 @@ int myproxy_config::get_dataNode(char *name)
   return -1 ;
 }
 
-DATA_NODE* myproxy_config::get_dataNode(uint16_t idx)
+DATA_NODE* mp_cfg::get_dataNode(uint16_t idx)
 {
   if (idx>=m_dataNodes.size() || idx>=m_dataNodes.size())
     return NULL;
   return m_dataNodes[idx] ;
 }
 
-size_t myproxy_config::get_num_dataNodes(void)
+size_t mp_cfg::get_num_dataNodes(void)
 {
   return m_dataNodes.size();
 }

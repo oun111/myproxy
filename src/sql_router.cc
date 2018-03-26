@@ -1,7 +1,7 @@
 
 #include <math.h>
 #include "sql_router.h"
-#include "myproxy_config.h"
+#include "mp_cfg.h"
 #include "dbg_log.h"
 #include "env.h"
 #include "dnmgr.h"
@@ -231,7 +231,7 @@ int sql_router::get_full_route_by_conf(
 int sql_router::get_full_route(std::set<uint8_t> &lst)
 {
   /* get route to all data nodes */
-  safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
+  safe_map_base<int,tDNInfo*>::ITR_TYPE itr ;
 
   /* add routes for all data nodes */
   for (tDNInfo *pd=m_nodes.next(itr,true);pd;

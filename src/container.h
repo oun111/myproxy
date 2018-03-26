@@ -9,7 +9,7 @@
 #include "lock.h"
 
 template <typename __key_t, typename __val_t>
-class safe_container_base
+class safe_map_base
 {
 protected:
   pthread_rwlock_t m_lk ;
@@ -45,7 +45,7 @@ protected:
     return 0;
   }
 
-#define list_foreach_container_item    \
+#define list_foreach_map_item    \
   for (auto i: m_list)
 
 public:

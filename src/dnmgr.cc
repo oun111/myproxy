@@ -3,7 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
-#include "container_impl.h"
+#include "ctnr_impl.h"
 #include "dbg_log.h"
 #include "simple_types.h"
 #include "env.h"
@@ -278,7 +278,7 @@ int dnmgr::add_dn_tbl_relations(auto sch, auto tbl)
 
     int iot = it_both ;
 
-    safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
+    safe_map_base<int,tDNInfo*>::ITR_TYPE itr ;
 
     for (tDNInfo *pd=m_nodes->next(itr,true);pd;pd=m_nodes->next(itr)) {
 
@@ -514,7 +514,7 @@ tDNInfo* dnmgr::get_valid_datanode(safeDataNodeList *nodes, tTblDetails *pt)
 
 int dnmgr::refresh_tbl_info(bool check)
 {
-  safe_container_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
+  safe_map_base<uint64_t,tTblDetails*>::ITR_TYPE itr ;
   safeDataNodeList *nodes = 0;
   int gid = 0;
 
@@ -651,7 +651,7 @@ int dnmgr::update_dn_conn(void)
 {
   uint16_t n=0;
   tDNInfo *pd = 0;
-  safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
+  safe_map_base<int,tDNInfo*>::ITR_TYPE itr ;
 
   for (n=0;n<get_num_groups();n++) {
 
@@ -699,7 +699,7 @@ int dnmgr::keep_dn_conn(void)
 {
   uint16_t n=0;
   tDNInfo *pd = 0;
-  safe_container_base<int,tDNInfo*>::ITR_TYPE itr ;
+  safe_map_base<int,tDNInfo*>::ITR_TYPE itr ;
 
   /* XXX: occupy all groups to forbid the collision that 
    *  others may acquire the same group  */
