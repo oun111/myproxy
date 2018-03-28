@@ -12,8 +12,11 @@
 #include "busi_base.h"
 #include "accepter.h"
 #include "epi_list.h"
+#include "epi_env.h"
 
-epi_list g_epItems ;
+
+using namespace EPI_ENV ;
+
 
 /*
  * class epoll_impl
@@ -131,6 +134,9 @@ void epoll_impl::event_task(int)
 
   /* add to item list  */
   g_epItems.new_ep(&stk);
+
+  /* add to TLS */
+  m_tls.set(&stk);
 
   /* process events */
   for (;m_run;) {

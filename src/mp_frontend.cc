@@ -5,9 +5,11 @@
 #include "mysqld_ername.h"
 #include "sql_scanner.h"
 #include "env.h"
+#include "epi_env.h"
 
 using namespace GLOBAL_ENV;
 using namespace global_parser_items;
+using namespace EPI_ENV;
 
 
 /*
@@ -25,16 +27,11 @@ mp_frontend::mp_frontend(char*desc) :
 
   /* init the executor */
   m_exec = std::shared_ptr<mp_backend>(new mp_backend(m_lss));
-
-  /* acquire the TLS */
-  pthread_key_create(&m_tkey,NULL);
 }
 
 mp_frontend::~mp_frontend(void)
 {
   unregister_cmd_handlers();
-  /* release the TLS */
-  pthread_key_delete(m_tkey);
 }
 
 void mp_frontend::unregister_cmd_handlers(void)
@@ -220,7 +217,7 @@ __end_login:
 int mp_frontend::do_com_quit(int connid,char *inb,
   size_t sz)
 {
-  sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
+  sock_toolkit *st = (sock_toolkit*)m_tls.get();
 
   log_print("fd %d\n",connid);
 
@@ -505,8 +502,7 @@ int mp_frontend::do_com_query(int connid,
      *  in backends */
     case s_sharding:
       {
-        sock_toolkit *st = (sock_toolkit*)
-          pthread_getspecific(m_tkey);
+        sock_toolkit *st = (sock_toolkit*)m_tls.get();
 
         ret = m_exec.get()->do_query(st,connid,inb,sz);
       }
@@ -643,7 +639,7 @@ int mp_frontend::default_com_handler(int connid,
 int mp_frontend::do_com_stmt_prepare(int connid,
   char *inb,size_t sz)
 {
-  sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
+  sock_toolkit *st = (sock_toolkit*)m_tls.get();
 
   std::string sql(inb+5,sz-5);
   log_print("prepare sql: %s\n",sql.c_str());
@@ -670,7 +666,7 @@ int mp_frontend::do_com_stmt_execute(int connid,
   char *inb,size_t sz)
 {
   int stmtid = 0;
-  sock_toolkit *st = (sock_toolkit*)pthread_getspecific(m_tkey);
+  sock_toolkit *st = (sock_toolkit*)m_tls.get();
 
   mysqls_get_stmt_prep_stmt_id(inb,sz,&stmtid);
   log_print("trying execute stmt by logical id %d\n", stmtid);
@@ -721,9 +717,6 @@ int mp_frontend::do_server_greeting(int cid)
 int 
 mp_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
-  /* store the sock_toolkit */
-  pthread_setspecific(m_tkey,(void*)st);
-
   int ret = m_trx.rx(st,priv,fd) ;
 
   /* client closed */
@@ -741,9 +734,14 @@ int
 mp_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
   /* if there're pending data in tx cache, send them */
-  if (!flush_epp_tx_cache(st,priv,fd)) {
+#if 0
+  if (!flush_tx_cache(st,priv,fd)) {
     return 0; 
   }
+#else
+  if (!m_trx.flush_tx(fd)) 
+    return 0;
+#endif
 
   /* otherwise, send the greeting */
   return do_server_greeting(fd);

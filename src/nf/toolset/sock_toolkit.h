@@ -85,11 +85,17 @@ typedef struct tEPollPrivData
 
   /* the tx cache */
   struct {
+#if 0
     char *buf;
     size_t ro; // read offset
     size_t len;  // valid data size
     size_t capacity ;
-    bool valid;
+    int valid;
+#else
+    char *buf;
+    size_t ro; // read offset
+    size_t wo; // write offset
+#endif
   } tx_cache ;
 
   pthread_t tid ;
@@ -120,7 +126,8 @@ extern int do_del_from_ep(sock_toolkit*,int);
 extern epoll_priv_data** get_epp(int fd);
 extern int accept_tcp_conn(sock_toolkit*,int,bool,void*);
 extern bool is_ep_available(sock_toolkit*);
-extern int do_send(int, char*, size_t);
+//extern int do_send(int, char*, size_t);
+extern ssize_t do_send(int, char*, size_t);
 extern int do_recv(int,char**,ssize_t*,size_t);
 extern int get_svr_events(sock_toolkit*);
 extern int get_event(sock_toolkit*,int,int*,void**);
@@ -138,13 +145,12 @@ extern int update_epp_cache(epoll_priv_data *ep, size_t sz_in);
 extern int free_epp_cache(epoll_priv_data *ep);
 extern bool is_epp_data_pending(epoll_priv_data *ep);
 
-extern int append_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz);
-extern bool is_epp_tx_cache_valid(epoll_priv_data *ep);
-extern int create_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz, 
-  const size_t capacity);
-extern int flush_epp_tx_cache(sock_toolkit *st, epoll_priv_data *priv, int fd);
-extern int triger_epp_cache_flush(int cfd);
-extern int free_epp_tx_cache(epoll_priv_data *ep);
+extern void init_tx_cache(epoll_priv_data *ep);
+extern void release_tx_cache(epoll_priv_data *ep);
+extern int append_tx_cache(int fd, char *data, size_t sz);
+extern int get_tx_cache_data(int fd, char *buf, size_t *sz);
+extern size_t get_tx_cache_free_size(int fd);
+extern int update_tx_cache_ro(int fd, ssize_t sz);
 
 #ifdef __cplusplus
 }

@@ -19,6 +19,8 @@ protected:
   /* the datanode groups */
   dnmgr m_dnMgr ;
 
+  mp_trx m_trx;
+
 public:
   xamgr(void) ;
   virtual ~xamgr(void) ;

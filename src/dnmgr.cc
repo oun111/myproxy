@@ -8,6 +8,7 @@
 #include "simple_types.h"
 #include "env.h"
 #include "sock_toolkit.h"
+#include "mp_trx.h"
 
 using namespace GLOBAL_ENV ;
 
@@ -164,10 +165,12 @@ namespace {
   {
     char outb[32];
     size_t sz = 0;
+    mp_trx m_trx ;
 
     sz = mysqls_gen_stmt_close(outb,stmtid);
 
-    do_send(myfd,outb,sz);
+    //do_send(myfd,outb,sz);
+    m_trx.tx(myfd,outb,sz);
 
     log_print("closing statement id %d by myfd %d\n",
       stmtid,myfd);

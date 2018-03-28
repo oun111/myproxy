@@ -13,6 +13,9 @@
 const int MAX_EP_EVENTS = /*4096*/10240 ;
 epoll_priv_data** g_epollPrivs = 0 ;
 
+/* FIXME: make the cache size configurable */
+const size_t MAX_TX_CACHE = 10240*5;
+
 
 int st_global_init(void)
 {
@@ -33,8 +36,12 @@ void st_global_destroy(void)
   }
 
   for (;i<MAX_EP_EVENTS;i++) {
-    if (g_epollPrivs[i]) 
+    if (g_epollPrivs[i]) {
+      free_epp_cache(g_epollPrivs[i]);
+      release_tx_cache(g_epollPrivs[i]);
+
       free(g_epollPrivs[i]);
+    }
   }
 
   free(g_epollPrivs);
@@ -251,8 +258,7 @@ do_add2epoll(sock_toolkit *st, int fd, void *parent, void *param, int *dup)
   (*ep)->tid = pthread_self();
   (*ep)->valid = 1 ;
   (*ep)->st = st ;
-  (*ep)->tx_cache.valid = 0 ;
-  (*ep)->tx_cache.buf = 0 ;
+  init_tx_cache(*ep);
   /* add this socket to epoll */
   if (is_ep_available(st) && add_to_epoll(st->m_efd,fd,*ep)) {
     /* XXX: error message here */
@@ -337,13 +343,14 @@ int close1(sock_toolkit *st, int fd)
     epoll_priv_data **ep = get_epp(fd);
 
     free_epp_cache(*ep);
-    free_epp_tx_cache(*ep);
+    release_tx_cache(*ep);
   }
 
   close(fd);
   return 0;
 }
 
+#if 0
 int do_send(int fd, char *buf, size_t len)
 {
   epoll_priv_data **ep = get_epp(fd);
@@ -367,7 +374,8 @@ int do_send(int fd, char *buf, size_t len)
 
   /* if there're rest data not be send, cache them */
   if (rest>0) {
-    append_epp_tx_cache(*ep,buf+ret,rest);
+    //append_epp_tx_cache(*ep,buf+ret,rest);
+    create_epp_tx_cache(*ep,buf+ret,rest,rest);
   }
 
 __triger_tx:
@@ -376,6 +384,12 @@ __triger_tx:
 
   return 0;
 }
+#else
+ssize_t do_send(int fd, char *buf, size_t len)
+{
+  return send(fd,buf,len,0);
+}
+#endif
 
 int do_recv(int fd, char **blk, ssize_t *sz, size_t capacity)
 {
@@ -442,9 +456,10 @@ int enable_send(sock_toolkit *st, int fd)
     return -1;
   }
   if (is_ep_available(st)) {
-    if (add_epo(st->m_efd,fd,*ep))
-      printf("error enable tx on fd %d: %s\n",fd,
-        strerror(errno));
+    if (add_epo(st->m_efd,fd,*ep)) {
+      /*printf("error enable tx on fd %d: %s\n",fd,
+        strerror(errno));*/
+    }
   }
   return 0;
 }
@@ -580,113 +595,123 @@ int free_epp_cache(epoll_priv_data *ep)
   return 0;
 }
 
+
 /* 
  * tx cache 
  */
 
-bool is_epp_tx_cache_valid(epoll_priv_data *ep)
+void init_tx_cache(epoll_priv_data *ep)
 {
-  return ep->tx_cache.valid;
+  bzero(&ep->tx_cache,sizeof(ep->tx_cache));
+
+  ep->tx_cache.buf = malloc(MAX_TX_CACHE);
 }
 
-int append_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz)
+void release_tx_cache(epoll_priv_data *ep)
 {
-  size_t ln = 0;
-  char *tmp = 0;
+  if (ep->tx_cache.buf) 
+    free(ep->tx_cache.buf);
 
-  if (is_epp_tx_cache_valid(ep)) 
-    ln  = ep->tx_cache.len ;
+  bzero(&ep->tx_cache,sizeof(ep->tx_cache));
+}
 
-  if (!is_epp_tx_cache_valid(ep) || (ep->tx_cache.capacity-ep->tx_cache.len)<=sz) {
+size_t get_tx_cache_free_size(int fd)
+{
+  epoll_priv_data **epp = get_epp(fd), *ep = 0;
+  size_t wo=0,ro=0 ;
+  ssize_t ln=0;
 
-    /* not enough space in tx cache */
-    if (is_epp_tx_cache_valid(ep)) {
-      tmp = malloc(ln);
-      memcpy(tmp,ep->tx_cache.buf,ln);
-    }
-
-    create_epp_tx_cache(ep,tmp,ln,ln+sz);
-
-    if (tmp)
-      free(tmp);
+  if (!epp) {
+    return 0;
   }
 
-  memcpy(ep->tx_cache.buf+ln,data,sz);
-  ep->tx_cache.len += sz ;
+  ep = *epp ;
+  wo = __sync_fetch_and_add(&ep->tx_cache.wo,0);
+  ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
 
-  return 0;
+  ln = ro-wo ;
+
+  return (ln>0?ln:(MAX_TX_CACHE+ln))-1;
 }
 
-int 
-create_epp_tx_cache(epoll_priv_data *ep, char *data, size_t sz, 
-  const size_t capacity)
+int get_tx_cache_data(int fd, char *buf, size_t *sz)
 {
-  const size_t szRedundant = 10 ;
+  ssize_t ln = 0;
+  epoll_priv_data **epp = get_epp(fd), *ep = 0;
+  size_t wo=0,ro=0;
 
-  ep->tx_cache.valid= true;
-  ep->tx_cache.ro   = 0;
-  ep->tx_cache.len  = 0;
-  ep->tx_cache.capacity  = capacity+szRedundant;
-  ep->tx_cache.buf  = realloc(ep->tx_cache.buf,capacity+szRedundant);
-
-  if (data && sz>0) {
-    memcpy(ep->tx_cache.buf,data,sz);
-    ep->tx_cache.len = sz ;
-  }
-
-  return 0;
-}
-
-int free_epp_tx_cache(epoll_priv_data *ep)
-{
-  if (!ep->tx_cache.valid)
-    return -1;
-
-  ep->tx_cache.valid = false ;
-  free(ep->tx_cache.buf);
-  ep->tx_cache.buf = NULL ;
-  ep->tx_cache.ro = ep->tx_cache.len = 0;
-
-  return 0;
-}
-
-int flush_epp_tx_cache(sock_toolkit *st, epoll_priv_data *priv, int fd)
-{
-  if (!is_epp_tx_cache_valid(priv)) {
+  if (!epp) {
     return -1;
   }
 
-  char *buf  = priv->tx_cache.buf + priv->tx_cache.ro ;
-  size_t sz  = priv->tx_cache.len-priv->tx_cache.ro ;
-  size_t ret = send(fd,buf,sz,0);
+  /* need 'sz' to receive data size */
+  if (!sz) 
+    return -1;
 
-  if (ret<=0) {
-    printf("%s: send no data on %d: %s\n",__func__,fd,strerror(errno));
-    //return -1;
+  ep = *epp ;
+  wo = __sync_fetch_and_add(&ep->tx_cache.wo,0);
+  ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
+
+  ln = wo-ro ;
+  *sz= ln>=0?ln:(MAX_TX_CACHE+ln);
+
+  /* get data size only */
+  if (!buf) 
+    return 0;
+
+  /* get data */
+  if (ln>0) {
+    memcpy(buf,ep->tx_cache.buf+ro,ln);
   }
-
-  size_t rest = ret<=0?sz:(sz-ret) ;
-
-  //printf("%s: flush %zu rest %zu fd %d\n",__func__,ret,rest,fd);
-  if (!rest) {
-    free_epp_tx_cache(priv);
-  } else {
-    /* not all the data are send, enable for 
-     *  the last tx event */
-    priv->tx_cache.ro += ret ;
-    enable_send(st,fd);
+  else {
+    ln = MAX_TX_CACHE-ro ;
+    memcpy(buf,ep->tx_cache.buf+ro,ln);
+    memcpy(buf+ln,ep->tx_cache.buf,*sz-ln);
   }
 
   return 0;
 }
 
-int triger_epp_cache_flush(int cfd)
+int append_tx_cache(int fd, char *data, size_t sz)
 {
-  epoll_priv_data **ep = get_epp(cfd);
+  epoll_priv_data **epp = get_epp(fd), *ep = 0;
+  size_t wo = 0, ro=0, ln=0, sz1 = 0;
 
-  if (is_epp_tx_cache_valid(*ep)) {
-    enable_send((sock_toolkit*)(*ep)->st,cfd);
+  if (!epp) {
+    return -1;
   }
+
+  ep = *epp ;  
+  wo = __sync_fetch_and_add(&ep->tx_cache.wo,0);
+  ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
+
+  sz1 = MAX_TX_CACHE-wo ;
+  if (wo<ro || sz<=sz1) {
+    memcpy(ep->tx_cache.buf+wo,data,sz);
+  }
+  else {
+    memcpy(ep->tx_cache.buf+wo,data,sz1);
+    ln = sz-sz1;
+    memcpy(ep->tx_cache.buf,data+sz1,ln);
+  }
+
+  __sync_lock_test_and_set(&ep->tx_cache.wo,(wo+sz)%MAX_TX_CACHE);
+
+  return 0;
+}
+
+int update_tx_cache_ro(int fd, ssize_t sz)
+{
+  epoll_priv_data **epp = get_epp(fd), *ep = 0;
+  size_t ro = 0;
+
+  if (!epp) {
+    return -1;
+  }
+
+  ep = *epp ;  
+  ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
+  __sync_lock_test_and_set(&ep->tx_cache.ro,(ro+sz)%MAX_TX_CACHE);
 
   return 0;
 }

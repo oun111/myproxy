@@ -4,11 +4,11 @@
 #include "ctnr_impl.h"
 #include "epi_list.h"
 #include "env.h"
+#include "epi_env.h"
 #include "hooks/stmt_id.h"
 
 using namespace GLOBAL_ENV;
-
-extern epi_list g_epItems;
+using namespace EPI_ENV ;
 
 
 /*
@@ -130,7 +130,8 @@ xamgr::execute(sock_toolkit *st,
       hooks.run(&req,szReq,&sParam,h_req);
     }
     /* send the request */
-    do_send(myfd,req,szReq);
+    //do_send(myfd,req,szReq);
+    m_trx.tx(myfd,req,szReq);
   }
 
   return 0;
