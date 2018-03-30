@@ -67,6 +67,13 @@ typedef struct tHostAddr {
   for (int i=0,__rc=get_svr_events(&(so));!__rc&&i<num_events(&(so)) &&  \
     !get_event(&(so),i,&(ev),(void**)&(po));i++) 
 
+enum tx_stats{
+  tx_init,
+  tx_free,
+  tx_rw,
+  tx_del,
+} ;
+
 typedef struct tEPollPrivData
 {
   int fd ;
@@ -85,17 +92,11 @@ typedef struct tEPollPrivData
 
   /* the tx cache */
   struct {
-#if 0
-    char *buf;
-    size_t ro; // read offset
-    size_t len;  // valid data size
-    size_t capacity ;
-    int valid;
-#else
     char *buf;
     size_t ro; // read offset
     size_t wo; // write offset
-#endif
+    int flag ; // 0: initial, 1: free 2: read/write 3 delete
+    void *tx_st ;
   } tx_cache ;
 
   pthread_t tid ;
@@ -146,7 +147,7 @@ extern int free_epp_cache(epoll_priv_data *ep);
 extern bool is_epp_data_pending(epoll_priv_data *ep);
 
 extern void init_tx_cache(epoll_priv_data *ep);
-extern void release_tx_cache(epoll_priv_data *ep);
+extern int release_tx_cache(epoll_priv_data *ep);
 extern int append_tx_cache(int fd, char *data, size_t sz);
 extern int get_tx_cache_data(int fd, char *buf, size_t *sz);
 extern size_t get_tx_cache_free_size(int fd);

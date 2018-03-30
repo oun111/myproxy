@@ -435,33 +435,47 @@ int do_recv(int fd, char **blk, ssize_t *sz, size_t capacity)
 
 int disable_send(sock_toolkit *st, int fd)
 {
+  int ret = 0;
   epoll_priv_data **ep = get_epp(fd);
 
   if (!ep || !*ep) {
     return -1;
   }
-  if (is_ep_available(st)) {
-    if (del_epo(st->m_efd,fd,*ep))
+
+  /* XXX: test */
+  st = (*ep)->tx_cache.tx_st ;
+
+  if (st && is_ep_available(st)) {
+    if ((ret=del_epo(st->m_efd,fd,*ep)))
       printf("error disable tx on fd %d: %s\n",fd,
         strerror(errno));
   }
-  return 0;
+  return ret;
 }
 
 int enable_send(sock_toolkit *st, int fd)
 {
   epoll_priv_data **ep = get_epp(fd);
+  int ret = 0;
 
   if (!ep || !*ep) {
     return -1;
   }
-  if (is_ep_available(st)) {
-    if (add_epo(st->m_efd,fd,*ep)) {
+  
+  /* XXX: test */
+  if ((*ep)->tx_cache.tx_st)
+    st = (*ep)->tx_cache.tx_st;
+
+  if (st && is_ep_available(st)) {
+    ret = add_epo(st->m_efd,fd,*ep) ;
+    if (ret) {
       /*printf("error enable tx on fd %d: %s\n",fd,
         strerror(errno));*/
+    } else {
+      (*ep)->tx_cache.tx_st = st;
     }
   }
-  return 0;
+  return ret;
 }
 
 int get_svr_events(sock_toolkit *st)
@@ -600,23 +614,45 @@ int free_epp_cache(epoll_priv_data *ep)
  * tx cache 
  */
 
+#define move_state_until(ep,news,tills) do {\
+  int ret = 0; \
+  while ((ret=__sync_val_compare_and_swap(&(ep)->tx_cache.flag, \
+      tx_free,(news)))!=tx_free) { \
+    if (ret==(tills)) \
+      return 0; \
+  } \
+} while(0)
+
+#define reset_state(ep) do {\
+  __sync_lock_test_and_set(&(ep)->tx_cache.flag,tx_free);\
+} while(0)
+
 void init_tx_cache(epoll_priv_data *ep)
 {
   bzero(&ep->tx_cache,sizeof(ep->tx_cache));
 
   ep->tx_cache.buf = malloc(MAX_TX_CACHE);
+
+  /* set to 'free' state */
+  reset_state(ep);
 }
 
-void release_tx_cache(epoll_priv_data *ep)
+int release_tx_cache(epoll_priv_data *ep)
 {
+  /* wait for 'free' state and move to 'del' state */
+  move_state_until(ep,tx_del,-1);
+
   if (ep->tx_cache.buf) 
     free(ep->tx_cache.buf);
 
   bzero(&ep->tx_cache,sizeof(ep->tx_cache));
+
+  return 0;
 }
 
 size_t get_tx_cache_free_size(int fd)
 {
+#if 0
   epoll_priv_data **epp = get_epp(fd), *ep = 0;
   size_t wo=0,ro=0 ;
   ssize_t ln=0;
@@ -632,6 +668,13 @@ size_t get_tx_cache_free_size(int fd)
   ln = ro-wo ;
 
   return (ln>0?ln:(MAX_TX_CACHE+ln))-1;
+#else
+  size_t sz = 0;
+
+  get_tx_cache_data(fd,NULL,&sz);
+
+  return MAX_TX_CACHE-sz ;
+#endif
 }
 
 int get_tx_cache_data(int fd, char *buf, size_t *sz)
@@ -659,6 +702,13 @@ int get_tx_cache_data(int fd, char *buf, size_t *sz)
   if (!buf) 
     return 0;
 
+  /* no data avaiable */
+  if (*sz==0)
+    return 0;
+
+  /* wait for 'free' and move to 'read/write' state */
+  move_state_until(ep,tx_rw,tx_init);
+
   /* get data */
   if (ln>0) {
     memcpy(buf,ep->tx_cache.buf+ro,ln);
@@ -668,6 +718,9 @@ int get_tx_cache_data(int fd, char *buf, size_t *sz)
     memcpy(buf,ep->tx_cache.buf+ro,ln);
     memcpy(buf+ln,ep->tx_cache.buf,*sz-ln);
   }
+
+  /* back to 'free' state */
+  reset_state(ep);
 
   return 0;
 }
@@ -685,6 +738,9 @@ int append_tx_cache(int fd, char *data, size_t sz)
   wo = __sync_fetch_and_add(&ep->tx_cache.wo,0);
   ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
 
+  /* wait for 'free' and move to 'read/write' state */
+  move_state_until(ep,tx_rw,tx_init);
+
   sz1 = MAX_TX_CACHE-wo ;
   if (wo<ro || sz<=sz1) {
     memcpy(ep->tx_cache.buf+wo,data,sz);
@@ -694,6 +750,9 @@ int append_tx_cache(int fd, char *data, size_t sz)
     ln = sz-sz1;
     memcpy(ep->tx_cache.buf,data+sz1,ln);
   }
+
+  /* back to 'free' state */
+  reset_state(ep);
 
   __sync_lock_test_and_set(&ep->tx_cache.wo,(wo+sz)%MAX_TX_CACHE);
 

@@ -2,9 +2,6 @@
 #include "mp_trx.h"
 #include "sock_toolkit.h"
 #include "busi_base.h"
-#include "epi_env.h"
-
-using namespace EPI_ENV ;
 
 /* 
  * receive mysql packet 
@@ -120,6 +117,12 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
 
   get_tx_cache_data(fd,NULL,&ln);
 
+#if 0
+  /* XXX: test */
+  epoll_priv_data **epp = get_epp(fd), *ep = *epp;
+
+  if (ep->tx_cache.tx_st==0) {
+#endif
   if (ln==0) {
     /* no pendings in tx cache, send 'data' directly */
     ssize_t ret = do_send(fd,buf,sz);
@@ -136,10 +139,10 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
 
   /* fit the rest space of tx cache */
   ln = get_tx_cache_free_size(fd);
-  if ((ssize_t)ln<rest)
+  if ((ssize_t)ln<rest) {
+    rest = ln ;
     log_print("warning: not enough spaces %zu in cache\n", ln);
-
-  rest = rest<(ssize_t)ln?rest:ln;
+  }
 
   /* cache data & triger tx events */
   if (rest>0) {
@@ -187,12 +190,11 @@ int mp_trx::flush_tx(int fd)
   }
 
   /* update read offset of the cache */
-  if (rst>0)
-    update_tx_cache_ro(fd,rst);
+  update_tx_cache_ro(fd,rst);
 
   /* triger tx events if has rest data */
   if (rst<(ssize_t)sz) {
-    triger_tx(fd);
+    //triger_tx(fd);
   }
 
   return 0;
@@ -200,6 +202,7 @@ int mp_trx::flush_tx(int fd)
 
 int mp_trx::triger_tx(int fd)
 {
+#if 0
   sock_toolkit *st = 0, *curr_st = (sock_toolkit*)m_tls.get();
 
   /* get an idle 'st' item  */
@@ -214,6 +217,11 @@ int mp_trx::triger_tx(int fd)
   enable_send(st,fd);
 
   g_epItems.return_back(st);
+#else
+  sock_toolkit *st = 0;
+
+  enable_send(st,fd);
+#endif
 
   return 0;
 }
