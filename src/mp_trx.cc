@@ -115,15 +115,16 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
   ssize_t rest = 0;
   char *pRest= 0;
 
-  get_tx_cache_data(fd,NULL,&ln);
+  get_tx_cache_data_st(fd,NULL,&ln);
 
-#if 0
+#if 1
   /* XXX: test */
   epoll_priv_data **epp = get_epp(fd), *ep = *epp;
 
   if (ep->tx_cache.tx_st==0) {
-#endif
+#else
   if (ln==0) {
+#endif
     /* no pendings in tx cache, send 'data' directly */
     ssize_t ret = do_send(fd,buf,sz);
 
@@ -137,91 +138,41 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
     rest = sz ;
   }
 
-  /* fit the rest space of tx cache */
-  ln = get_tx_cache_free_size(fd);
-  if ((ssize_t)ln<rest) {
+
+  int cnt = 0;
+
+  do {
+
+    /* fit the rest space of tx cache */
+    ln = get_tx_cache_free_size_st(fd);
+    if ((ssize_t)ln<rest) {
+      log_print("warning: not enough spaces %zu in cache, "
+        "force flushing\n", ln);
+      /* XXX: test */
+      flush_tx(fd);
+    }
+    else {
+      break ;
+    }
+
+  } while(cnt++<3);
+
+  if (cnt>=3) {
+    log_print("error: truncate cache %zu into %zu\n", rest, ln);
     rest = ln ;
-    log_print("warning: not enough spaces %zu in cache\n", ln);
   }
 
   /* cache data & triger tx events */
   if (rest>0) {
 
     /* XXX: test */
+    ln = get_tx_cache_free_size_st(fd);
     log_print("cache %zu bytes fd %d rest %zu\n",rest,fd,ln);
 
     append_tx_cache(fd,pRest,rest);
 
-    triger_tx(fd);
+    enable_send(NULL,fd);
   }
-
-  return 0;
-}
-
-int mp_trx::flush_tx(int fd)
-{
-  size_t sz = 0;
-  tContainer tmp ;
-  char *buff = 0;
-  ssize_t rst = 0;
-
-  /* no pending data */
-  if (get_tx_cache_data(fd,NULL,&sz) || sz==0) {
-    return -1;
-  }
-
-  tmp.tc_resize(sz);
-  buff = tmp.tc_data();
-
-  /* get real pending data */
-  if (get_tx_cache_data(fd,buff,&sz)) {
-    return 0;
-  }
-
-  /* send them */
-  rst = do_send(fd,buff,sz);
-
-  /* XXX: test */
-  log_print("flushed %zu %zu fd %d\n",rst,sz,fd);
-  
-  /* send nothing */
-  if (rst<=0) {
-    return 0;
-  }
-
-  /* update read offset of the cache */
-  update_tx_cache_ro(fd,rst);
-
-  /* triger tx events if has rest data */
-  if (rst<(ssize_t)sz) {
-    //triger_tx(fd);
-  }
-
-  return 0;
-}
-
-int mp_trx::triger_tx(int fd)
-{
-#if 0
-  sock_toolkit *st = 0, *curr_st = (sock_toolkit*)m_tls.get();
-
-  /* get an idle 'st' item  */
-  g_epItems.get_idle(st);
-
-  /* the 'st' should not belong to current thread */
-  if (st==curr_st) {
-    g_epItems.get_idle(st);
-    g_epItems.return_back(curr_st);
-  }
-
-  enable_send(st,fd);
-
-  g_epItems.return_back(st);
-#else
-  sock_toolkit *st = 0;
-
-  enable_send(st,fd);
-#endif
 
   return 0;
 }

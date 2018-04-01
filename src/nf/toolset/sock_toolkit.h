@@ -69,6 +69,7 @@ typedef struct tHostAddr {
 
 enum tx_stats{
   tx_init,
+  tx_greeting,
   tx_free,
   tx_rw,
   tx_del,
@@ -95,7 +96,7 @@ typedef struct tEPollPrivData
     char *buf;
     size_t ro; // read offset
     size_t wo; // write offset
-    int flag ; // 0: initial, 1: free 2: read/write 3 delete
+    int flag ; // see 'tx_stats'
     void *tx_st ;
   } tx_cache ;
 
@@ -149,9 +150,19 @@ extern bool is_epp_data_pending(epoll_priv_data *ep);
 extern void init_tx_cache(epoll_priv_data *ep);
 extern int release_tx_cache(epoll_priv_data *ep);
 extern int append_tx_cache(int fd, char *data, size_t sz);
+#if 0
 extern int get_tx_cache_data(int fd, char *buf, size_t *sz);
 extern size_t get_tx_cache_free_size(int fd);
+#else
+extern int get_tx_cache_data_st(int fd, char *buf, size_t *sz);
+extern size_t get_tx_cache_free_size_st(int fd);
+#endif
 extern int update_tx_cache_ro(int fd, ssize_t sz);
+
+/* XXX: test */
+extern void set_greeting(int fd);
+extern bool is_greeting_state(int fd);
+extern int flush_tx(int);
 
 #ifdef __cplusplus
 }

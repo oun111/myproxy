@@ -733,15 +733,8 @@ mp_frontend::rx(sock_toolkit* st,epoll_priv_data *priv,int fd)
 int 
 mp_frontend::tx(sock_toolkit* st,epoll_priv_data *priv,int fd) 
 {
-  /* if there're pending data in tx cache, send them */
-#if 0
-  if (!flush_tx_cache(st,priv,fd)) {
-    return 0; 
-  }
-#else
-  if (!m_trx.flush_tx(fd)) 
+  if (flush_tx(fd)!=1) 
     return 0;
-#endif
 
   /* otherwise, send the greeting */
   return do_server_greeting(fd);

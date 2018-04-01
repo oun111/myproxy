@@ -14,7 +14,7 @@ const int MAX_EP_EVENTS = /*4096*/10240 ;
 epoll_priv_data** g_epollPrivs = 0 ;
 
 /* FIXME: make the cache size configurable */
-const size_t MAX_TX_CACHE = 10240*5;
+const size_t MAX_TX_CACHE = /*10240*5*/512;
 
 
 int st_global_init(void)
@@ -323,8 +323,10 @@ accept_tcp_conn(sock_toolkit *st,int sfd,
       continue ;
     }
     /* triger a send event */
-    if (initiative)
+    if (initiative) {
+      set_greeting(fd);
       enable_send(st,fd);
+    }
   }
   return 0;
 }
@@ -453,7 +455,7 @@ int disable_send(sock_toolkit *st, int fd)
   return ret;
 }
 
-int enable_send(sock_toolkit *st, int fd)
+int enable_send(sock_toolkit *st,int fd)
 {
   epoll_priv_data **ep = get_epp(fd);
   int ret = 0;
@@ -627,6 +629,10 @@ int free_epp_cache(epoll_priv_data *ep)
   __sync_lock_test_and_set(&(ep)->tx_cache.flag,tx_free);\
 } while(0)
 
+#define set_state(ep,s) do {\
+  __sync_lock_test_and_set(&(ep)->tx_cache.flag,(s));\
+} while(0)
+
 void init_tx_cache(epoll_priv_data *ep)
 {
   bzero(&ep->tx_cache,sizeof(ep->tx_cache));
@@ -650,6 +656,31 @@ int release_tx_cache(epoll_priv_data *ep)
   return 0;
 }
 
+void set_greeting(int fd)
+{
+  epoll_priv_data **epp = get_epp(fd);
+
+  if (!epp) {
+    return ;
+  }
+
+  set_state(*epp,tx_greeting);
+}
+
+bool is_greeting_state(int fd)
+{
+  epoll_priv_data **epp = get_epp(fd), *ep=0 ;
+
+  if (!epp) {
+    return false;
+  }
+
+  ep = *epp ;
+
+  return __sync_val_compare_and_swap(&ep->tx_cache.flag,tx_greeting,tx_free)==tx_greeting;
+}
+
+#if 0
 size_t get_tx_cache_free_size(int fd)
 {
 #if 0
@@ -724,6 +755,59 @@ int get_tx_cache_data(int fd, char *buf, size_t *sz)
 
   return 0;
 }
+#else
+/* thread unsafe */
+int get_tx_cache_data_st(int fd, char *buf, size_t *sz)
+{
+  ssize_t ln = 0;
+  epoll_priv_data **epp = get_epp(fd), *ep = 0;
+  size_t wo=0,ro=0;
+
+  if (!epp) {
+    return -1;
+  }
+
+  /* need 'sz' to receive data size */
+  if (!sz) 
+    return -1;
+
+  ep = *epp ;
+  wo = __sync_fetch_and_add(&ep->tx_cache.wo,0);
+  ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
+
+  ln = wo-ro ;
+  *sz= ln>=0?ln:(MAX_TX_CACHE+ln);
+
+  /* get data size only */
+  if (!buf) 
+    return 0;
+
+  /* no data avaiable */
+  if (*sz==0)
+    return 0;
+
+  /* get data */
+  if (ln>0) {
+    memcpy(buf,ep->tx_cache.buf+ro,ln);
+  }
+  else {
+    ln = MAX_TX_CACHE-ro ;
+    memcpy(buf,ep->tx_cache.buf+ro,ln);
+    memcpy(buf+ln,ep->tx_cache.buf,*sz-ln);
+  }
+
+  return 0;
+}
+
+size_t get_tx_cache_free_size_st(int fd)
+{
+  size_t sz = 0;
+
+  get_tx_cache_data_st(fd,NULL,&sz);
+
+  return MAX_TX_CACHE-sz ;
+}
+#endif
 
 int append_tx_cache(int fd, char *data, size_t sz)
 {
@@ -773,5 +857,70 @@ int update_tx_cache_ro(int fd, ssize_t sz)
   __sync_lock_test_and_set(&ep->tx_cache.ro,(ro+sz)%MAX_TX_CACHE);
 
   return 0;
+}
+
+int flush_tx(int fd)
+{
+  size_t sz = 0;
+  char *buff = 0;
+  ssize_t rst = 0;
+  int ret = 0;
+  epoll_priv_data **epp = get_epp(fd), *ep = 0;
+
+  if (is_greeting_state(fd)) {
+    return 1;
+  }
+
+  /* no pending data */
+  if (get_tx_cache_data_st(fd,NULL,&sz) || sz==0) {
+    //log_print("no pending fd %d\n",fd);
+    return 0;
+  }
+
+  if (!epp) {
+    return -1;
+  }
+  ep = *epp ;  
+
+  /* wait for 'free' and move to 'read/write' state */
+  move_state_until(ep,tx_rw,tx_init);
+
+  buff = malloc(sz);
+
+  /* get real pending data */
+  if (get_tx_cache_data_st(fd,buff,&sz)) {
+    //log_print("can't get tx cache fd %d\n",fd);
+    ret = 0;
+    goto __end;
+  }
+
+  /* send them */
+  rst = do_send(fd,buff,sz);
+
+  /* XXX: test */
+  //log_print("flushed %zu %zu fd %d\n",rst,sz,fd);
+  
+  /* send nothing */
+  if (rst<=0) {
+    //log_print("fatal: send nothing fd %d\n",fd);
+    ret = -1;
+    goto __end;
+  }
+
+  /* update read offset of the cache */
+  update_tx_cache_ro(fd,rst);
+
+  /* triger tx events if has rest data */
+  if (rst<(ssize_t)sz) {
+    //triger_tx(fd);
+  }
+
+__end:
+  free(buff);
+
+  /* back to 'free' state */
+  reset_state(ep);
+
+  return ret;
 }
 
