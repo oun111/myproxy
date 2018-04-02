@@ -14,7 +14,7 @@ const int MAX_EP_EVENTS = /*4096*/10240 ;
 epoll_priv_data** g_epollPrivs = 0 ;
 
 /* FIXME: make the cache size configurable */
-const size_t MAX_TX_CACHE = /*10240*5*/512;
+const size_t MAX_TX_CACHE = 10240*5/*512*/;
 
 
 int st_global_init(void)
@@ -761,7 +761,7 @@ int get_tx_cache_data_st(int fd, char *buf, size_t *sz)
 {
   ssize_t ln = 0;
   epoll_priv_data **epp = get_epp(fd), *ep = 0;
-  size_t wo=0,ro=0;
+  size_t wo=0,ro=0,rest = 0;
 
   if (!epp) {
     return -1;
@@ -776,24 +776,32 @@ int get_tx_cache_data_st(int fd, char *buf, size_t *sz)
   ro = __sync_fetch_and_add(&ep->tx_cache.ro,0);
 
   ln = wo-ro ;
-  *sz= ln>=0?ln:(MAX_TX_CACHE+ln);
+  //*sz= ln>=0?ln:(MAX_TX_CACHE+ln);
+  rest= ln>=0?ln:(MAX_TX_CACHE+ln);
 
   /* get data size only */
-  if (!buf) 
+  if (!buf) {
+    *sz = rest ;
     return 0;
+  }
 
   /* no data avaiable */
-  if (*sz==0)
+  if (!rest)
     return 0;
+
+  /* fit buf 's size */
+  if (*sz<rest) 
+    rest=*sz ;
 
   /* get data */
   if (ln>0) {
-    memcpy(buf,ep->tx_cache.buf+ro,ln);
+    memcpy(buf,ep->tx_cache.buf+ro,rest);
   }
   else {
-    ln = MAX_TX_CACHE-ro ;
+    ln = rest<(MAX_TX_CACHE-ro)?rest:(MAX_TX_CACHE-ro) ;
     memcpy(buf,ep->tx_cache.buf+ro,ln);
-    memcpy(buf+ln,ep->tx_cache.buf,*sz-ln);
+    rest -= ln ;
+    memcpy(buf+ln,ep->tx_cache.buf,rest);
   }
 
   return 0;
@@ -873,8 +881,8 @@ int flush_tx(int fd)
 
   /* no pending data */
   if (get_tx_cache_data_st(fd,NULL,&sz) || sz==0) {
-    //log_print("no pending fd %d\n",fd);
-    return 0;
+    //printf("%s: no pending fd %d\n",__func__,fd);
+    return 2;
   }
 
   if (!epp) {
@@ -889,7 +897,7 @@ int flush_tx(int fd)
 
   /* get real pending data */
   if (get_tx_cache_data_st(fd,buff,&sz)) {
-    //log_print("can't get tx cache fd %d\n",fd);
+    printf("%s: can't get tx cache fd %d\n",__func__,fd);
     ret = 0;
     goto __end;
   }
@@ -902,18 +910,14 @@ int flush_tx(int fd)
   
   /* send nothing */
   if (rst<=0) {
-    //log_print("fatal: send nothing fd %d\n",fd);
+    printf("%s: send nothing fd %d: %s\n",__func__,
+      fd,strerror(errno));
     ret = -1;
     goto __end;
   }
 
   /* update read offset of the cache */
   update_tx_cache_ro(fd,rst);
-
-  /* triger tx events if has rest data */
-  if (rst<(ssize_t)sz) {
-    //triger_tx(fd);
-  }
 
 __end:
   free(buff);

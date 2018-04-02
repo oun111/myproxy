@@ -1,4 +1,7 @@
 Changelog:
+  Apr 2, 2018:
+    1. improve the 'tx cache' logics  when sending packets
+
   Mar 26, 2018:
     1. change all .cpp files to .cc
 

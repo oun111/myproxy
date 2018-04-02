@@ -117,7 +117,7 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
 
   get_tx_cache_data_st(fd,NULL,&ln);
 
-#if 1
+#if 0
   /* XXX: test */
   epoll_priv_data **epp = get_epp(fd), *ep = *epp;
 
@@ -127,6 +127,10 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
 #endif
     /* no pendings in tx cache, send 'data' directly */
     ssize_t ret = do_send(fd,buf,sz);
+
+    if (ret<0 && errno!=EAGAIN && errno!=EWOULDBLOCK) {
+      return -1;
+    }
 
     /* the 'rest' data should be appended into tx cache */
     pRest= buf+(ret<0?0:ret) ;
@@ -138,26 +142,27 @@ int mp_trx::tx(int fd, char *buf, size_t sz)
     rest = sz ;
   }
 
-
-  int cnt = 0;
+  const int MAX_RETRY = 10;
+  int cnt = 0, ret=0;
 
   do {
 
     /* fit the rest space of tx cache */
     ln = get_tx_cache_free_size_st(fd);
     if ((ssize_t)ln<rest) {
+
+      ret = flush_tx(fd);
+
       log_print("warning: not enough spaces %zu in cache, "
-        "force flushing\n", ln);
-      /* XXX: test */
-      flush_tx(fd);
+        "force flushing: %d\n", ln, ret);
     }
     else {
       break ;
     }
 
-  } while(cnt++<3);
+  } while(cnt++<MAX_RETRY);
 
-  if (cnt>=3) {
+  if (cnt>=MAX_RETRY) {
     log_print("error: truncate cache %zu into %zu\n", rest, ln);
     rest = ln ;
   }

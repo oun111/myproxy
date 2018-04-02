@@ -1152,7 +1152,7 @@ void multimap_db::close(void)
   m_db.clear();
 }
 
-int multimap_db::insert(void *k, long long  klen, void *d, long long  dlen)
+int multimap_db::insert(void *k, long long klen, void *d, long long dlen)
 {
   std::string key(static_cast<char*>(k),klen);
   std::string data(static_cast<char*>(d),dlen);
@@ -1278,7 +1278,19 @@ int multimap_db::row_count(void)
 void multimap_db::do_truncate(void)
 {
   pthread_mutex_lock(&lck);
+#if 1
   m_db.clear();
+#else
+  for (auto i : m_db) {
+    std::string &op0 = const_cast<std::string&>(i.first);
+    std::string &op1 = const_cast<std::string&>(i.second);
+
+    op0 = "";
+    op0.shrink_to_fit();
+    op1 = "";
+    op1.shrink_to_fit();
+  }
+#endif
   pthread_mutex_unlock(&lck);
 }
 #endif
